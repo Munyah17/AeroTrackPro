@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Eye, EyeOff, Loader2, LocateFixed } from "lucide-react";
 import { toast } from "sonner";
+import { signInWithEmail } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -29,13 +30,21 @@ export default function LoginPage() {
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
-  const onSubmit = (values: FormValues) => {
+  const onSubmit = async (values: FormValues) => {
     setLoading(true);
-    // Mock auth — Supabase Auth replaces this in Phase 2 backend
-    setTimeout(() => {
-      toast.success(`Welcome back`, { description: values.email });
-      router.push("/verify");
-    }, 900);
+    const { data, error } = await signInWithEmail(values.email, values.password);
+    if (error) {
+      toast.error("Sign in failed", { description: error.message });
+      setLoading(false);
+      return;
+    }
+    if (!data.user) {
+      toast.error("No user returned");
+      setLoading(false);
+      return;
+    }
+    toast.success(`Welcome back`, { description: values.email });
+    router.push("/select-tenant");
   };
 
   return (

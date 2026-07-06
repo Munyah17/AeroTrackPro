@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { signUpWithEmail } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -41,12 +42,21 @@ export default function RegisterPage() {
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { terms: false } });
 
-  const onSubmit = (values: FormValues) => {
+  const onSubmit = async (values: FormValues) => {
     setLoading(true);
-    setTimeout(() => {
-      toast.success("Account created", { description: `Verification code sent to ${values.email}` });
-      router.push("/verify");
-    }, 900);
+    const { data, error } = await signUpWithEmail(values.email, values.password, values.name);
+    if (error) {
+      toast.error("Sign up failed", { description: error.message });
+      setLoading(false);
+      return;
+    }
+    if (!data.user) {
+      toast.error("No user returned");
+      setLoading(false);
+      return;
+    }
+    toast.success("Account created", { description: `Please confirm your email at ${values.email}` });
+    router.push("/login");
   };
 
   return (

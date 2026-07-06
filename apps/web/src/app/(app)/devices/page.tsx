@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Cable, Link2, Plus, Radio } from "lucide-react";
 import { toast } from "sonner";
 import { DEVICE_MODELS, type DeviceModel } from "@aerotrack/protocols";
@@ -58,8 +59,8 @@ export default function DevicesPage() {
         title="Devices"
         subtitle={`${DEVICE_MODELS.length} supported hardware models across 8 wire protocols`}
         actions={
-          <Button className="gap-2 rounded-xl shadow-card" onClick={() => toast.info("Device binding wizard: select device → select vehicle → confirm")}>
-            <Plus className="size-4" /> Bind Device
+          <Button render={<Link href="/devices/onboard" />} className="gap-2 rounded-xl shadow-card">
+            <Plus className="size-4" /> Add Device
           </Button>
         }
       />

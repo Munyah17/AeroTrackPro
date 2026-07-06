@@ -1,0 +1,3 @@
+.branches
+.env.local
+.env.production.local
