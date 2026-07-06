@@ -1,0 +1,15 @@
+{
+  "name": "aerotrack-pro",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AeroTrack Pro — enterprise white-label GPS tracking, fleet management and telematics SaaS platform",
+  "scripts": {
+    "dev": "pnpm --filter @aerotrack/web dev",
+    "build": "pnpm --filter @aerotrack/web build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
