@@ -1,9 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { Calendar, ChevronRight, Clock, Gauge, MapPin, Route as RouteIcon } from "lucide-react";
-import { trips, vehicles, vehicleById } from "@aerotrack/shared";
+import {
+  Calendar,
+  ChevronRight,
+  Clock,
+  Gauge,
+  MapPin,
+  Pause,
+  Play,
+  Route as RouteIcon,
+  RotateCcw,
+} from "lucide-react";
+import { trips, vehicles, vehicleById, type Vehicle } from "@aerotrack/shared";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,9 +26,26 @@ const FleetMap = dynamic(() => import("@/components/map/fleet-map").then((m) => 
   loading: () => <Skeleton className="h-full w-full rounded-2xl" />,
 });
 
+/** Bearing in degrees between two [lng,lat] points, for marker rotation. */
+function bearing(a: [number, number], b: [number, number]): number {
+  const toRad = Math.PI / 180;
+  const dLng = (b[0] - a[0]) * toRad;
+  const y = Math.sin(dLng) * Math.cos(b[1] * toRad);
+  const x =
+    Math.cos(a[1] * toRad) * Math.sin(b[1] * toRad) -
+    Math.sin(a[1] * toRad) * Math.cos(b[1] * toRad) * Math.cos(dLng);
+  return (Math.atan2(y, x) / toRad + 360) % 360;
+}
+
 export default function TripsPage() {
   const [vehicleFilter, setVehicleFilter] = useState<string>("all");
   const [selectedTripId, setSelectedTripId] = useState(trips[0]?.id);
+
+  // Playback state: progress is a fractional index into the trip path.
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [speed, setSpeed] = useState(1);
+  const rafRef = useRef<number>(0);
 
   const rows = useMemo(
     () => trips.filter((t) => vehicleFilter === "all" || t.vehicleId === vehicleFilter),
@@ -26,6 +53,58 @@ export default function TripsPage() {
   );
   const selected = trips.find((t) => t.id === selectedTripId) ?? rows[0];
   const selectedVehicle = selected ? vehicleById(selected.vehicleId) : undefined;
+
+  const maxIndex = (selected?.path.length ?? 1) - 1;
+
+  useEffect(() => {
+    // Reset playback when switching trips
+    setPlaying(false);
+    setProgress(0);
+  }, [selectedTripId]);
+
+  useEffect(() => {
+    if (!playing) return;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = (now - last) / 1000;
+      last = now;
+      setProgress((p) => {
+        const next = p + dt * 2.2 * speed; // ~2.2 path points per second at 1x
+        if (next >= maxIndex) {
+          setPlaying(false);
+          return maxIndex;
+        }
+        return next;
+      });
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [playing, speed, maxIndex]);
+
+  /** Vehicle ghost positioned at the interpolated playhead. */
+  const playbackVehicle: Vehicle | undefined = useMemo(() => {
+    if (!selected || !selectedVehicle) return undefined;
+    const i = Math.min(Math.floor(progress), maxIndex - 1);
+    const t = progress - i;
+    const a = selected.path[i]!;
+    const b = selected.path[Math.min(i + 1, maxIndex)]!;
+    const lng = a[0] + (b[0] - a[0]) * t;
+    const lat = a[1] + (b[1] - a[1]) * t;
+    return {
+      ...selectedVehicle,
+      status: "moving",
+      position: {
+        ...selectedVehicle.position,
+        lng,
+        lat,
+        course: Math.round(bearing(a, b)),
+        speedKmh: selected.avgSpeedKmh,
+      },
+    };
+  }, [selected, selectedVehicle, progress, maxIndex]);
+
+  const elapsedMin = selected ? Math.round((progress / Math.max(1, maxIndex)) * selected.durationMin) : 0;
 
   const totals = useMemo(
     () => ({
@@ -137,17 +216,69 @@ export default function TripsPage() {
                 </p>
               )}
             </div>
-            <Button size="sm" variant="outline" className="rounded-xl">Playback</Button>
           </div>
-          <div className="h-[480px]">
-            {selected && selectedVehicle && (
+          <div className="relative h-[480px]">
+            {selected && playbackVehicle && (
               <FleetMap
                 key={selected.id}
-                vehicles={[selectedVehicle]}
+                vehicles={[playbackVehicle]}
                 path={selected.path}
                 center={selected.path[Math.floor(selected.path.length / 2)]}
                 zoom={12}
               />
+            )}
+
+            {/* Floating playback bar */}
+            {selected && (
+              <div className="absolute bottom-4 left-1/2 z-10 flex w-[min(560px,92%)] -translate-x-1/2 items-center gap-3 rounded-2xl border border-border/60 bg-card/95 px-4 py-3 shadow-float backdrop-blur-xl">
+                <Button
+                  size="icon-sm"
+                  className="shrink-0 rounded-full shadow-card"
+                  onClick={() => {
+                    if (progress >= maxIndex) setProgress(0);
+                    setPlaying((p) => !p);
+                  }}
+                >
+                  {playing ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
+                </Button>
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  className="shrink-0 rounded-full"
+                  onClick={() => {
+                    setProgress(0);
+                    setPlaying(false);
+                  }}
+                >
+                  <RotateCcw className="size-3.5" />
+                </Button>
+
+                {/* Scrubber */}
+                <input
+                  type="range"
+                  min={0}
+                  max={maxIndex}
+                  step={0.01}
+                  value={progress}
+                  onChange={(e) => {
+                    setProgress(parseFloat(e.target.value));
+                    setPlaying(false);
+                  }}
+                  className="h-1.5 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-muted accent-primary"
+                />
+
+                <span className="shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground">
+                  {Math.floor(elapsedMin / 60)}:{String(elapsedMin % 60).padStart(2, "0")} /{" "}
+                  {Math.floor(selected.durationMin / 60)}:{String(selected.durationMin % 60).padStart(2, "0")}
+                </span>
+
+                <button
+                  onClick={() => setSpeed((s) => (s === 1 ? 2 : s === 2 ? 4 : 1))}
+                  className="shrink-0 rounded-lg border px-2 py-1 text-[11px] font-bold text-primary transition-colors hover:bg-accent"
+                >
+                  {speed}x
+                </button>
+              </div>
             )}
           </div>
         </Panel>

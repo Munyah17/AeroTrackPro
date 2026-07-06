@@ -24,7 +24,7 @@ function markerElement(vehicle: Vehicle, selected: boolean): HTMLDivElement {
   el.innerHTML = `
     <div style="position:relative;width:38px;height:38px;display:flex;align-items:center;justify-content:center;">
       ${selected ? `<div style="position:absolute;inset:-6px;border-radius:9999px;background:${color}22;border:2px solid ${color};animation:pulse 2s infinite;"></div>` : ""}
-      <div style="width:30px;height:30px;border-radius:9999px;background:white;box-shadow:0 2px 10px rgb(15 23 42/.28);display:flex;align-items:center;justify-content:center;transform:rotate(${moving ? vehicle.position.course : 0}deg);transition:transform .5s;">
+      <div data-rotor style="width:30px;height:30px;border-radius:9999px;background:white;box-shadow:0 2px 10px rgb(15 23 42/.28);display:flex;align-items:center;justify-content:center;transform:rotate(${moving ? vehicle.position.course : 0}deg);transition:transform .3s;">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="${color}" stroke="${color}">
           ${moving ? '<path d="M12 2 19 21 12 17 5 21 12 2Z"/>' : `<circle cx="12" cy="12" r="7"/>`}
         </svg>
@@ -170,8 +170,23 @@ export function FleetMap({
       seen.add(v.id);
       const lngLat: [number, number] = [v.position.lng, v.position.lat];
       const old = existing.get(v.id);
+      const selected = v.id === selectedId;
+      const styleKey = `${v.status}|${selected}`;
+
+      // Fast path (trip playback): same visual style → move + rotate in place
+      // instead of recreating the DOM marker every frame.
+      if (old && old.getElement().dataset.styleKey === styleKey) {
+        old.setLngLat(lngLat);
+        const rotor = old.getElement().querySelector<HTMLElement>("[data-rotor]");
+        if (rotor && v.status === "moving") {
+          rotor.style.transform = `rotate(${v.position.course}deg)`;
+        }
+        continue;
+      }
+
       if (old) old.remove();
-      const el = markerElement(v, v.id === selectedId);
+      const el = markerElement(v, selected);
+      el.dataset.styleKey = styleKey;
       el.addEventListener("click", (e) => {
         e.stopPropagation();
         onSelect?.(v.id);

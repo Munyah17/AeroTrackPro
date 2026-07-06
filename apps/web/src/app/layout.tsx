@@ -1,18 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+// System fonts — no network calls needed for build
+const inter = { variable: "--font-sans" };
+const geistMono = { variable: "--font-geist-mono" };
 
 /**
  * Absolute base URL for social previews (og:image etc. must be absolute).

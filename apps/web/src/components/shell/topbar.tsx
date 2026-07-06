@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { NAV_META, FLEET_NAV, ADMIN_NAV } from "@/lib/nav";
+import { useCommandPalette } from "./command-palette";
 
 function useDarkMode() {
   const [dark, setDark] = useState(false);
@@ -103,6 +104,7 @@ function MobileNav() {
 
 export function Topbar() {
   const pathname = usePathname();
+  const palette = useCommandPalette();
   const { dark, toggle } = useDarkMode();
   const meta = NAV_META[pathname] ??
     NAV_META[Object.keys(NAV_META).find((k) => k !== "/admin" && pathname.startsWith(k)) ?? ""] ?? {
@@ -120,7 +122,10 @@ export function Topbar() {
 
       {/* Search */}
       <div className="ml-auto hidden w-full max-w-sm md:block">
-        <button className="group flex h-10 w-full items-center gap-2.5 rounded-xl border border-border/70 bg-card px-3.5 text-left shadow-card transition-shadow hover:shadow-card-hover">
+        <button
+          onClick={palette.open}
+          className="group flex h-10 w-full items-center gap-2.5 rounded-xl border border-border/70 bg-card px-3.5 text-left shadow-card transition-shadow hover:shadow-card-hover"
+        >
           <Search className="size-4 text-muted-foreground" />
           <span className="flex-1 truncate text-[13px] text-muted-foreground">
             Search vehicles, drivers, locations...
