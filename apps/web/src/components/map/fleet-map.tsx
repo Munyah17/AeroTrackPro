@@ -6,20 +6,14 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import type { Geofence, Vehicle } from "@aerotrack/shared";
 import { MAP_CENTER } from "@aerotrack/shared";
 import { DEFAULT_PROVIDER, styleFor } from "@/lib/map-providers";
+import { LIVE_STATUS, liveStatusOf } from "@/lib/live-status";
 import { cn } from "@/lib/utils";
-
-const STATUS_COLORS: Record<Vehicle["status"], string> = {
-  moving: "#059669",
-  stopped: "#dc2626",
-  idle: "#d97706",
-  parked: "#64748b",
-  offline: "#94a3b8",
-};
 
 function markerElement(vehicle: Vehicle, selected: boolean): HTMLDivElement {
   const el = document.createElement("div");
   el.className = "cursor-pointer";
-  const color = STATUS_COLORS[vehicle.status];
+  const live = liveStatusOf(vehicle.status);
+  const color = LIVE_STATUS[live].hex;
   const moving = vehicle.status === "moving";
   el.innerHTML = `
     <div style="position:relative;width:38px;height:38px;display:flex;align-items:center;justify-content:center;">

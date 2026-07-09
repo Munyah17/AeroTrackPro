@@ -1,16 +1,10 @@
 import { cn } from "@/lib/utils";
+import { LIVE_STATUS, liveStatusOf } from "@/lib/live-status";
 import type { AlertSeverity, AlertStatus, VehicleStatus } from "@aerotrack/shared";
 
-const VEHICLE_STATUS_STYLES: Record<VehicleStatus, { dot: string; chip: string; label: string }> = {
-  moving: { dot: "bg-success", chip: "bg-success/10 text-success", label: "Moving" },
-  stopped: { dot: "bg-destructive", chip: "bg-destructive/10 text-destructive", label: "Stopped" },
-  idle: { dot: "bg-warning", chip: "bg-warning/15 text-warning-foreground", label: "Idle" },
-  parked: { dot: "bg-muted-foreground", chip: "bg-muted text-muted-foreground", label: "Parked" },
-  offline: { dot: "bg-muted-foreground/60", chip: "bg-muted text-muted-foreground/80", label: "Offline" },
-};
-
 export function VehicleStatusChip({ status, className }: { status: VehicleStatus; className?: string }) {
-  const s = VEHICLE_STATUS_STYLES[status];
+  const live = liveStatusOf(status);
+  const s = LIVE_STATUS[live];
   return (
     <span
       className={cn(
@@ -19,7 +13,7 @@ export function VehicleStatusChip({ status, className }: { status: VehicleStatus
         className,
       )}
     >
-      <span className={cn("size-1.5 rounded-full", s.dot, status === "moving" && "animate-pulse")} />
+      <span className={cn("size-1.5 rounded-full", s.dot, live === "online" && "animate-pulse")} />
       {s.label}
     </span>
   );
