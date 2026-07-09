@@ -183,6 +183,12 @@
     scrollbar-width: thin;
     scrollbar-color: rgb(148 163 184 / 0.4) transparent;
   }
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* MapLibre chrome adjustments */

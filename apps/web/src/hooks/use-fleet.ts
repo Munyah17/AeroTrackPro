@@ -76,17 +76,36 @@ function simulateTick(fleet: Vehicle[]): Vehicle[] {
   });
 }
 
+const TRAIL_MAX_POINTS = 240;
+
 /**
  * Fleet with live positions.
  *
  * With Supabase configured and reachable: loads vehicles + latest positions
  * through RLS, then applies realtime position INSERTs as they stream in.
  * Otherwise: serves the mock fleet with simulated movement.
+ *
+ * `trails` keeps the recent [lng,lat] breadcrumb per vehicle while the page
+ * is open, so the map can draw a live motion trail for a monitored vehicle.
  */
-export function useFleet(): { vehicles: Vehicle[]; live: boolean } {
+export function useFleet(): {
+  vehicles: Vehicle[];
+  live: boolean;
+  trails: Record<string, [number, number][]>;
+} {
   const [fleet, setFleet] = useState<Vehicle[]>(mockVehicles);
   const [live, setLive] = useState(false);
+  const [trails, setTrails] = useState<Record<string, [number, number][]>>({});
   const rowsRef = useRef<Map<string, VehicleRow>>(new Map());
+
+  const appendTrail = (id: string, lng: number, lat: number) => {
+    setTrails((t) => {
+      const prev = t[id] ?? [];
+      const last = prev[prev.length - 1];
+      if (last && last[0] === lng && last[1] === lat) return t;
+      return { ...t, [id]: [...prev.slice(-(TRAIL_MAX_POINTS - 1)), [lng, lat]] };
+    });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -94,7 +113,17 @@ export function useFleet(): { vehicles: Vehicle[]; live: boolean } {
     let simTimer: ReturnType<typeof setInterval> | undefined;
 
     const startSimulation = () => {
-      simTimer = setInterval(() => setFleet((f) => simulateTick(f)), 3000);
+      simTimer = setInterval(
+        () =>
+          setFleet((f) => {
+            const next = simulateTick(f);
+            for (const v of next) {
+              if (v.status === "moving") appendTrail(v.id, v.position.lng, v.position.lat);
+            }
+            return next;
+          }),
+        3000,
+      );
     };
 
     const startLive = async () => {
@@ -135,6 +164,7 @@ export function useFleet(): { vehicles: Vehicle[]; live: boolean } {
               if (!pos.vehicle_id) return;
               const row = rowsRef.current.get(pos.vehicle_id);
               if (!row) return;
+              appendTrail(pos.vehicle_id, Number(pos.lng), Number(pos.lat));
               setFleet((f) =>
                 f.map((v) => (v.id === pos.vehicle_id ? toDomainVehicle(row, pos) : v)),
               );
@@ -163,5 +193,5 @@ export function useFleet(): { vehicles: Vehicle[]; live: boolean } {
     };
   }, []);
 
-  return { vehicles: fleet, live };
+  return { vehicles: fleet, live, trails };
 }

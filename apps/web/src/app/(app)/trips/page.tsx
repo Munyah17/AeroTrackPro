@@ -6,15 +6,26 @@ import {
   Calendar,
   ChevronRight,
   Clock,
+  Download,
+  FileText,
   Gauge,
   MapPin,
   Pause,
   Play,
   Route as RouteIcon,
   RotateCcw,
+  Table2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { trips, vehicles, vehicleById, type Vehicle } from "@aerotrack/shared";
+import { downloadCsv, downloadExcel, printPdf } from "@/lib/export";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
@@ -116,25 +127,87 @@ export default function TripsPage() {
     [rows],
   );
 
+  const exportTrips = (format: "pdf" | "excel" | "csv") => {
+    const headers = [
+      "Start",
+      "End",
+      "Vehicle",
+      "From",
+      "To",
+      "Distance (km)",
+      "Duration (min)",
+      "Avg Speed (km/h)",
+      "Max Speed (km/h)",
+    ];
+    const data = rows.map((t) => [
+      shortDateTime(t.startAt),
+      shortDateTime(t.endAt),
+      vehicleById(t.vehicleId)?.plate ?? t.vehicleId,
+      t.startAddress,
+      t.endAddress,
+      t.distanceKm,
+      t.durationMin,
+      t.avgSpeedKmh,
+      t.maxSpeedKmh,
+    ]);
+    const scope = vehicleFilter === "all" ? "all-vehicles" : vehicleById(vehicleFilter)?.plate ?? vehicleFilter;
+    const filename = `aerotrack-trips-${scope}-${new Date().toISOString().slice(0, 10)}`;
+
+    if (format === "csv") downloadCsv(filename, headers, data);
+    else if (format === "excel") downloadExcel(filename, headers, data, "Trips");
+    else
+      printPdf("Trip History", headers, data, {
+        subtitle: `${rows.length} trips · ${Math.round(totals.distance).toLocaleString()} km total`,
+      });
+
+    toast.success(
+      format === "pdf"
+        ? "Trip report opened for printing — choose \"Save as PDF\""
+        : `${rows.length} trips exported`,
+    );
+  };
+
   return (
     <PageContainer>
       <PageHeader
         title="Trip History"
         subtitle="Routes, duration and distance for every trip"
         actions={
-          <Select value={vehicleFilter} onValueChange={(v) => setVehicleFilter(v ?? "all")}>
-            <SelectTrigger className="w-52 rounded-xl bg-card">
-              <SelectValue placeholder="All vehicles" />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl">
-              <SelectItem value="all">All vehicles</SelectItem>
-              {vehicles.slice(0, 12).map((v) => (
-                <SelectItem key={v.id} value={v.id}>
-                  {v.plate} — {v.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-wrap gap-2">
+            <Select value={vehicleFilter} onValueChange={(v) => setVehicleFilter(v ?? "all")}>
+              <SelectTrigger className="w-52 rounded-xl bg-card">
+                <SelectValue placeholder="All vehicles" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="all">All vehicles</SelectItem>
+                {vehicles.slice(0, 12).map((v) => (
+                  <SelectItem key={v.id} value={v.id}>
+                    {v.plate} — {v.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="outline" className="gap-2 rounded-xl">
+                    <Download className="size-4" /> Export
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end" className="w-40 rounded-xl">
+                <DropdownMenuItem onClick={() => exportTrips("pdf")} className="gap-2 rounded-lg">
+                  <FileText className="size-4" /> PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportTrips("excel")} className="gap-2 rounded-lg">
+                  <Table2 className="size-4" /> Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportTrips("csv")} className="gap-2 rounded-lg">
+                  <FileText className="size-4" /> CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         }
       />
 

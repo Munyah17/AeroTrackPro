@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
   Bell,
+  Building2,
   Menu,
   Moon,
   Plus,
@@ -53,7 +54,8 @@ function useDarkMode() {
 
 function MobileNav() {
   const pathname = usePathname();
-  const sections = pathname.startsWith("/admin") ? ADMIN_NAV : FLEET_NAV;
+  const isAdmin = pathname.startsWith("/admin");
+  const sections = isAdmin ? ADMIN_NAV : FLEET_NAV;
   return (
     <Sheet>
       <SheetTrigger
@@ -96,6 +98,15 @@ function MobileNav() {
               ))}
             </div>
           ))}
+          <div className="mt-2 border-t border-white/10 pt-3">
+            <Link
+              href={isAdmin ? "/dashboard" : "/admin"}
+              className="flex items-center gap-3 rounded-xl bg-white/10 px-3 py-2.5 text-sm font-semibold text-white"
+            >
+              <Building2 className="size-[18px]" />
+              {isAdmin ? "Back to Fleet Console" : "Reseller Portal"}
+            </Link>
+          </div>
         </nav>
       </SheetContent>
     </Sheet>

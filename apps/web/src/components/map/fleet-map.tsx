@@ -65,6 +65,15 @@ export function FleetMap({
   const mapRef = useRef<MlMap | null>(null);
   const markersRef = useRef<Map<string, Marker>>(new Map());
   const loadedRef = useRef(false);
+  const pathRef = useRef<[number, number][] | undefined>(path);
+  pathRef.current = path;
+
+  const pathFeature = (pts: [number, number][] | undefined) =>
+    ({
+      type: "Feature" as const,
+      properties: {},
+      geometry: { type: "LineString" as const, coordinates: pts && pts.length > 1 ? pts : [] },
+    });
 
   // Init once
   useEffect(() => {
@@ -103,28 +112,23 @@ export function FleetMap({
   }, []);
 
   function drawOverlays(map: MlMap) {
-    // Trip path
-    if (path && path.length > 1) {
-      if (!map.getSource("trip-path")) {
-        map.addSource("trip-path", {
-          type: "geojson",
-          data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: path } },
-        });
-        map.addLayer({
-          id: "trip-path-casing",
-          type: "line",
-          source: "trip-path",
-          paint: { "line-color": "#1e40ff", "line-width": 7, "line-opacity": 0.18 },
-          layout: { "line-cap": "round", "line-join": "round" },
-        });
-        map.addLayer({
-          id: "trip-path-line",
-          type: "line",
-          source: "trip-path",
-          paint: { "line-color": "#1e40ff", "line-width": 3.5 },
-          layout: { "line-cap": "round", "line-join": "round" },
-        });
-      }
+    // Trip / live-motion path (always created so it can be updated live)
+    if (!map.getSource("trip-path")) {
+      map.addSource("trip-path", { type: "geojson", data: pathFeature(pathRef.current) });
+      map.addLayer({
+        id: "trip-path-casing",
+        type: "line",
+        source: "trip-path",
+        paint: { "line-color": "#1e40ff", "line-width": 7, "line-opacity": 0.18 },
+        layout: { "line-cap": "round", "line-join": "round" },
+      });
+      map.addLayer({
+        id: "trip-path-line",
+        type: "line",
+        source: "trip-path",
+        paint: { "line-color": "#1e40ff", "line-width": 3.5 },
+        layout: { "line-cap": "round", "line-join": "round" },
+      });
     }
     // Geofences
     if (geofences?.length && !map.getSource("geofences")) {
@@ -211,6 +215,14 @@ export function FleetMap({
       map.fitBounds(bounds, { padding: 70, maxZoom: 13, duration: 600 });
     }
   }, [vehicles, selectedId, onSelect, fit]);
+
+  // Live path updates (motion trail / trip replay)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loadedRef.current) return;
+    const src = map.getSource("trip-path") as maplibregl.GeoJSONSource | undefined;
+    src?.setData(pathFeature(path));
+  }, [path]);
 
   // Fly to selection
   useEffect(() => {

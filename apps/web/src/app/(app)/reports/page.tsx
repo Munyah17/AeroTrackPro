@@ -26,6 +26,7 @@ import {
   YAxis,
 } from "recharts";
 import { monthlyDistance, vehicles, trips } from "@aerotrack/shared";
+import { downloadCsv, downloadExcel, printPdf, type ExportCell } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/ui/date-picker";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -62,10 +63,45 @@ export default function ReportsPage() {
 
   const active = REPORT_TYPES.find((r) => r.id === type)!;
 
+  /** Dataset for the currently selected report type. */
+  const reportDataset = (): { headers: string[]; rows: ExportCell[][] } => {
+    const inScope = vehicleId === "all" ? trips : trips.filter((t) => t.vehicleId === vehicleId);
+    if (type === "trips" || type === "stops" || type === "idle" || type === "speeding") {
+      return {
+        headers: ["Start", "End", "Vehicle", "Distance (km)", "Duration (min)", "Avg Speed (km/h)", "Max Speed (km/h)"],
+        rows: inScope.map((t) => [
+          shortDateTime(t.startAt),
+          shortDateTime(t.endAt),
+          vehicles.find((v) => v.id === t.vehicleId)?.plate ?? t.vehicleId,
+          t.distanceKm,
+          t.durationMin,
+          t.avgSpeedKmh,
+          t.maxSpeedKmh,
+        ]),
+      };
+    }
+    return {
+      headers: ["Date", "Distance (km)"],
+      rows: monthlyDistance.map((d) => [d.date, d.km]),
+    };
+  };
+
   const exportReport = (format: "pdf" | "excel" | "csv") => {
-    toast.success(`${active.label} exported as ${format.toUpperCase()}`, {
-      description: `aerotrack-${type}-report.${format === "excel" ? "xlsx" : format} downloaded`,
-    });
+    const { headers, rows } = reportDataset();
+    const filename = `aerotrack-${type}-report-${from.toISOString().slice(0, 10)}_${to.toISOString().slice(0, 10)}`;
+    const subtitle = `${active.label} · ${from.toLocaleDateString()} – ${to.toLocaleDateString()} · ${
+      vehicleId === "all" ? "All vehicles" : vehicles.find((v) => v.id === vehicleId)?.plate
+    }`;
+
+    if (format === "csv") downloadCsv(filename, headers, rows);
+    else if (format === "excel") downloadExcel(filename, headers, rows, active.label);
+    else printPdf(active.label, headers, rows, { subtitle });
+
+    toast.success(
+      format === "pdf"
+        ? `${active.label} opened for printing — choose "Save as PDF"`
+        : `${active.label} exported (${rows.length} rows)`,
+    );
   };
 
   return (
