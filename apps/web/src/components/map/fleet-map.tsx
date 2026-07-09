@@ -45,6 +45,8 @@ export interface FleetMapProps {
   className?: string;
   /** Fit bounds to vehicles on load. */
   fit?: boolean;
+  /** Callback when map is ready. */
+  onMapReady?: (map: MlMap) => void;
 }
 
 export function FleetMap({
@@ -57,6 +59,7 @@ export function FleetMap({
   zoom = 11.4,
   className,
   fit,
+  onMapReady,
 }: FleetMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
@@ -78,6 +81,7 @@ export function FleetMap({
     map.on("load", () => {
       loadedRef.current = true;
       drawOverlays(map);
+      onMapReady?.(map);
     });
     mapRef.current = map;
 

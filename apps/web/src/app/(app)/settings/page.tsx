@@ -1,17 +1,18 @@
 "use client";
 
-import { Bell, ChevronRight, CreditCard, Globe2, Plug, Settings2, UserCircle2, Users2 } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
+import { Bell, ChevronRight, CreditCard, Globe2, Plug, Settings2, UserCircle2, Users2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 
 const SECTIONS = [
-  { icon: UserCircle2, title: "Profile Settings", desc: "Manage your profile information" },
-  { icon: Bell, title: "Notification Settings", desc: "Configure alert and email notifications" },
-  { icon: Globe2, title: "General Settings", desc: "Units, time zone and general preferences" },
-  { icon: Users2, title: "User Management", desc: "Manage users and access permissions" },
-  { icon: Plug, title: "API Integration", desc: "Integrate with third-party applications" },
-  { icon: CreditCard, title: "Subscription", desc: "Manage your plan and billing" },
+  { icon: UserCircle2, title: "Profile Settings", desc: "Manage your profile information", href: "/settings/profile" },
+  { icon: Bell, title: "Notification Settings", desc: "Configure alert and email notifications", href: "/settings/notifications" },
+  { icon: Globe2, title: "General Settings", desc: "Units, time zone and general preferences", href: "/settings/general" },
+  { icon: Users2, title: "User Management", desc: "Manage users and access permissions", href: "/settings/users" },
+  { icon: Plug, title: "API Integration", desc: "Integrate with third-party applications", href: "/settings/api" },
+  { icon: CreditCard, title: "Subscription", desc: "Manage your plan and billing", href: "/settings/subscription" },
 ];
 
 const TOGGLES = [
@@ -29,10 +30,7 @@ export default function SettingsPage() {
       <div className="flex flex-col gap-2.5">
         {SECTIONS.map((s) => (
           <Panel key={s.title} hover className="cursor-pointer">
-            <button
-              className="flex w-full items-center gap-4 p-4.5 text-left"
-              onClick={() => toast.info(`${s.title} opens in this build`)}
-            >
+            <Link href={s.href} className="flex w-full items-center gap-4 p-4.5 text-left">
               <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <s.icon className="size-5" />
               </div>
@@ -41,7 +39,7 @@ export default function SettingsPage() {
                 <div className="text-[12.5px] text-muted-foreground">{s.desc}</div>
               </div>
               <ChevronRight className="size-4 text-muted-foreground" />
-            </button>
+            </Link>
           </Panel>
         ))}
       </div>

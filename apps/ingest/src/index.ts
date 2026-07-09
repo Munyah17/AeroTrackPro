@@ -6,7 +6,13 @@
 
 import net from "net";
 import { createClient } from "@supabase/supabase-js";
-import { createDecoders } from "@aerotrack/protocols";
+import {
+  createDecoders,
+  createSession,
+  type Position,
+  type ProtocolKey,
+  type Session,
+} from "@aerotrack/protocols";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "http://127.0.0.1:54321";
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE || "";
@@ -16,102 +22,117 @@ const decoders = createDecoders();
 
 interface ProtocolListener {
   port: number;
-  protocol: string;
+  protocol: ProtocolKey;
 }
 
-// Protocol-to-port mapping
+// Protocol-to-port mapping (ports follow Traccar conventions)
 const LISTENERS: ProtocolListener[] = [
-  { port: 5023, protocol: "GT06" },
-  { port: 5013, protocol: "H02" },
-  { port: 5001, protocol: "GPS103" },
-  { port: 5064, protocol: "Eelink" },
-  { port: 5004, protocol: "Queclink" },
-  { port: 5020, protocol: "Meitrack" },
-  { port: 5049, protocol: "Topflytech" },
-  { port: 5045, protocol: "VT200" },
+  { port: 5023, protocol: "gt06" },
+  { port: 5013, protocol: "h02" },
+  { port: 5001, protocol: "gps103" },
+  { port: 5064, protocol: "eelink" },
+  { port: 5004, protocol: "queclink" },
+  { port: 5020, protocol: "meitrack" },
+  { port: 5049, protocol: "topflytech" },
+  { port: 5045, protocol: "vt200" },
 ];
 
-// Track device sessions per connection
-interface DeviceSession {
-  imei?: string;
-  protocol: string;
-  buffer: Buffer;
+/** Devices already looked up this process, keyed by wire deviceId (IMEI). */
+const deviceCache = new Map<
+  string,
+  { id: string; tenant_id: string; vehicle_id: string | null } | null
+>();
+
+async function findDevice(imei: string) {
+  if (deviceCache.has(imei)) return deviceCache.get(imei) ?? null;
+  const { data } = await supabase
+    .from("devices")
+    .select("id, tenant_id, vehicle_id")
+    .eq("imei", imei)
+    .maybeSingle();
+  deviceCache.set(imei, data ?? null);
+  return data ?? null;
 }
 
-async function handleConnection(socket: net.Socket, protocol: string) {
-  console.log(`[${protocol}] New connection from ${socket.remoteAddress}:${socket.remotePort}`);
-  const session: DeviceSession = { protocol, buffer: Buffer.alloc(0) };
+function reply(socket: net.Socket, response: Uint8Array | string | undefined) {
+  if (response === undefined) return;
+  socket.write(typeof response === "string" ? response : Buffer.from(response));
+}
 
-  const decoder = decoders[protocol];
-  if (!decoder) {
-    console.error(`[${protocol}] No decoder found`);
-    socket.destroy();
-    return;
+async function savePositions(protocol: ProtocolKey, positions: Position[]) {
+  for (const position of positions) {
+    const device = await findDevice(position.deviceId);
+    if (!device) {
+      console.warn(`[${protocol}] Device IMEI ${position.deviceId} not registered, dropping fix`);
+      continue;
+    }
+
+    const { error } = await supabase.from("positions").insert({
+      tenant_id: device.tenant_id,
+      device_id: device.id,
+      vehicle_id: device.vehicle_id,
+      lng: position.longitude,
+      lat: position.latitude,
+      speed_kmh: position.speedKmh,
+      course: Math.round(position.course),
+      altitude: position.altitudeM != null ? Math.round(position.altitudeM) : null,
+      accuracy: position.hdop != null ? Math.round(position.hdop * 5) : null,
+      event_type: position.attributes.alarm ?? "position",
+      raw_data: { attributes: position.attributes, valid: position.valid },
+      recorded_at: position.timestamp.toISOString(),
+    });
+
+    if (error) {
+      console.error(`[${protocol}] Failed to save position for ${position.deviceId}:`, error.message);
+    } else {
+      console.log(
+        `[${protocol}] Position saved for ${position.deviceId} at [${position.longitude}, ${position.latitude}]`,
+      );
+    }
   }
+}
+
+function handleConnection(socket: net.Socket, protocol: ProtocolKey) {
+  console.log(`[${protocol}] New connection from ${socket.remoteAddress}:${socket.remotePort}`);
+  const decoder = decoders[protocol];
+  const session: Session = createSession();
+  let buffer: Buffer = Buffer.alloc(0);
 
   socket.on("data", async (chunk: Buffer) => {
     try {
-      // Accumulate data in buffer
-      session.buffer = Buffer.concat([session.buffer, chunk]);
+      buffer = Buffer.concat([buffer, chunk]);
 
-      // Try to split frames
-      const { frames, remaining } = decoder.splitFrames(session.buffer);
-      session.buffer = remaining;
+      const { consumed, frames } = decoder.splitFrames(buffer);
+      buffer = buffer.subarray(consumed);
 
       for (const frame of frames) {
-        const decoded = decoder.decode(frame, session as any);
-        if (!decoded) continue;
+        const decoded = decoder.decode(frame, session);
 
-        // Identify device by IMEI
-        const imei = decoded.imei || session.imei;
-        if (!imei) {
-          console.warn(`[${protocol}] Frame without IMEI, skipping`);
-          continue;
-        }
-
-        session.imei = imei;
-
-        // Find device in database
-        const { data: device } = await supabase
-          .from("devices")
-          .select("id, tenant_id, vehicle_id")
-          .eq("imei", imei)
-          .single();
-
-        if (!device) {
-          console.warn(`[${protocol}] Device IMEI ${imei} not found`);
-          continue;
-        }
-
-        // Save position to database
-        if (decoded.position) {
-          const { error } = await supabase.from("positions").insert({
-            tenant_id: device.tenant_id,
-            device_id: device.id,
-            vehicle_id: device.vehicle_id,
-            lng: decoded.position.lng,
-            lat: decoded.position.lat,
-            speed_kmh: decoded.position.speedKmh,
-            course: decoded.position.course,
-            altitude: decoded.position.altitude,
-            accuracy: decoded.position.accuracy,
-            event_type: decoded.eventType || "position",
-            raw_data: { frame: frame.toString("hex"), decoded },
-            recorded_at: new Date(decoded.timestamp || Date.now()).toISOString(),
-          });
-
-          if (error) {
-            console.error(`[${protocol}] Failed to save position for ${imei}:`, error);
-          } else {
+        switch (decoded.kind) {
+          case "position":
+            await savePositions(protocol, [decoded.position]);
+            break;
+          case "positions":
+            await savePositions(protocol, decoded.positions);
+            break;
+          case "login":
+            session.deviceId = decoded.deviceId;
+            reply(socket, decoded.response);
+            console.log(`[${protocol}] Login from ${decoded.deviceId}`);
+            break;
+          case "heartbeat":
+            reply(socket, decoded.response);
+            break;
+          case "commandResult":
             console.log(
-              `[${protocol}] Position saved for ${imei} at [${decoded.position.lng}, ${decoded.position.lat}]`,
+              `[${protocol}] Command result from ${decoded.deviceId ?? session.deviceId}: ${decoded.command} -> ${decoded.result}`,
             );
-          }
-        }
-
-        // Process commands if present
-        if (decoded.commandAck) {
-          console.log(`[${protocol}] Command ACK from ${imei}:`, decoded.commandAck);
+            break;
+          case "ack":
+            reply(socket, decoded.response);
+            break;
+          case "ignored":
+            break;
         }
       }
     } catch (error) {

@@ -3,15 +3,16 @@
 import { useState } from "react";
 import {
   Activity,
-  CalendarRange,
   Clock,
   Download,
   FileBarChart2,
+  FileText,
   Fuel,
   Gauge,
   Hexagon,
   Route,
   ShieldCheck,
+  Table2,
   Thermometer,
   Wrench,
 } from "lucide-react";
@@ -24,9 +25,13 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { monthlyDistance } from "@aerotrack/shared";
+import { monthlyDistance, vehicles, trips } from "@aerotrack/shared";
 import { Button } from "@/components/ui/button";
+import { DateRangePicker } from "@/components/ui/date-picker";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
+import { shortDateTime, km } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const REPORT_TYPES = [
@@ -51,7 +56,17 @@ const SUMMARY = [
 
 export default function ReportsPage() {
   const [type, setType] = useState("summary");
+  const [from, setFrom] = useState<Date>(new Date(2026, 4, 1));
+  const [to, setTo] = useState<Date>(new Date(2026, 4, 31));
+  const [vehicleId, setVehicleId] = useState<string>("all");
+
   const active = REPORT_TYPES.find((r) => r.id === type)!;
+
+  const exportReport = (format: "pdf" | "excel" | "csv") => {
+    toast.success(`${active.label} exported as ${format.toUpperCase()}`, {
+      description: `aerotrack-${type}-report.${format === "excel" ? "xlsx" : format} downloaded`,
+    });
+  };
 
   return (
     <PageContainer>
@@ -59,17 +74,48 @@ export default function ReportsPage() {
         title="Reports"
         subtitle="Generate detailed reports on trips, distance, fuel and more"
         actions={
-          <>
-            <Button variant="outline" className="gap-2 rounded-xl">
-              <CalendarRange className="size-4" /> May 1 – May 31, 2026
-            </Button>
-            <Button
-              className="gap-2 rounded-xl shadow-card"
-              onClick={() => toast.success(`${active.label} exported`, { description: "aerotrack-report.pdf saved to downloads" })}
-            >
-              <Download className="size-4" /> Export
-            </Button>
-          </>
+          <div className="flex flex-wrap gap-2">
+            <Select value={vehicleId} onValueChange={(v) => setVehicleId(v ?? "all")}>
+              <SelectTrigger className="w-48 rounded-xl bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="all">All vehicles</SelectItem>
+                {vehicles.slice(0, 12).map((v) => (
+                  <SelectItem key={v.id} value={v.id}>{v.plate}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <DateRangePicker
+              from={from}
+              to={to}
+              onChange={(newFrom, newTo) => {
+                if (newFrom) setFrom(newFrom);
+                if (newTo) setTo(newTo);
+              }}
+              className="w-64"
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button className="gap-2 rounded-xl shadow-card">
+                    <Download className="size-4" /> Export
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end" className="w-40 rounded-xl">
+                <DropdownMenuItem onClick={() => exportReport("pdf")} className="gap-2 rounded-lg">
+                  <FileText className="size-4" /> PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportReport("excel")} className="gap-2 rounded-lg">
+                  <Table2 className="size-4" /> Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportReport("csv")} className="gap-2 rounded-lg">
+                  <FileText className="size-4" /> CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         }
       />
 
@@ -142,6 +188,46 @@ export default function ReportsPage() {
               </ResponsiveContainer>
             </div>
           </Panel>
+
+          {type === "trips" && (
+            <Panel className="overflow-hidden">
+              <div className="flex items-center justify-between border-b border-border/60 px-5 py-3.5">
+                <h3 className="text-[14px] font-semibold">Trip Details</h3>
+                <span className="text-xs text-muted-foreground">{trips.length} trips in period</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="border-b border-border/60 bg-accent/40 text-[11px] font-medium text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-2.5 text-left">Start</th>
+                      <th className="px-4 py-2.5 text-left">End</th>
+                      <th className="px-4 py-2.5 text-left">Vehicle</th>
+                      <th className="px-4 py-2.5 text-right">Distance</th>
+                      <th className="px-4 py-2.5 text-right">Duration</th>
+                      <th className="px-4 py-2.5 text-right">Avg Speed</th>
+                      <th className="px-4 py-2.5 text-right">Max Speed</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-sm">
+                    {trips.slice(0, 12).map((trip) => {
+                      const vehicle = vehicles.find((v) => v.id === trip.vehicleId);
+                      return (
+                        <tr key={trip.id} className="border-b border-border/40 transition-colors hover:bg-accent/60">
+                          <td className="px-4 py-2.5 text-xs text-muted-foreground">{shortDateTime(trip.startAt)}</td>
+                          <td className="px-4 py-2.5 text-xs text-muted-foreground">{shortDateTime(trip.endAt)}</td>
+                          <td className="px-4 py-2.5 font-medium">{vehicle?.plate}</td>
+                          <td className="px-4 py-2.5 text-right font-medium tabular-nums">{km(trip.distanceKm)}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{trip.durationMin}m</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums">{trip.avgSpeedKmh} km/h</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums font-semibold">{trip.maxSpeedKmh} km/h</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
+          )}
         </div>
       </div>
     </PageContainer>

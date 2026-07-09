@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Droplets, Fuel as FuelIcon, TrendingDown } from "lucide-react";
+import { AlertTriangle, Bluetooth, Droplets, Fuel as FuelIcon, Settings2, TrendingDown } from "lucide-react";
+import { toast } from "sonner";
 import {
   Area,
   AreaChart,
@@ -11,6 +12,11 @@ import {
   YAxis,
 } from "recharts";
 import { fuelRecords, vehicles, vehicleById } from "@aerotrack/shared";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
@@ -30,6 +36,9 @@ const fuelTrend = [
 
 export default function FuelPage() {
   const [vehicleId, setVehicleId] = useState(vehicles[0]!.id);
+  const [sensorDialogOpen, setSensorDialogOpen] = useState(false);
+  const [sensorType, setSensorType] = useState<"probe" | "bluetooth" | "can">("probe");
+
   const rows = useMemo(
     () => fuelRecords.filter((r) => r.vehicleId === vehicleId || vehicleId === "all").slice(0, 14),
     [vehicleId],
@@ -40,23 +49,96 @@ export default function FuelPage() {
   const cost = refills.reduce((n, r) => n + (r.costUsd ?? 0), 0);
   const theft = fuelRecords.filter((r) => r.kind === "theftSuspected").length;
 
+  const handleSaveSensor = () => {
+    toast.success("Fuel sensor configured successfully");
+    setSensorDialogOpen(false);
+  };
+
   return (
     <PageContainer>
       <PageHeader
         title="Fuel Monitoring"
         subtitle="Levels, consumption, refills and theft detection"
         actions={
-          <Select value={vehicleId} onValueChange={(v) => setVehicleId(v ?? "all")}>
-            <SelectTrigger className="w-56 rounded-xl bg-card">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl">
-              <SelectItem value="all">All vehicles</SelectItem>
-              {vehicles.filter((v) => v.fuelLevelPct !== undefined).slice(0, 12).map((v) => (
-                <SelectItem key={v.id} value={v.id}>{v.plate} — {v.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex gap-2">
+            <Dialog open={sensorDialogOpen} onOpenChange={setSensorDialogOpen}>
+              <DialogTrigger
+                render={
+                  <Button variant="outline" className="gap-2 rounded-xl">
+                    <Settings2 className="size-4" /> Configure Sensor
+                  </Button>
+                }
+              />
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Configure Fuel Sensor</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Sensor type</Label>
+                    <RadioGroup value={sensorType} onValueChange={(v) => setSensorType(v as typeof sensorType)}>
+                      <div className="flex items-center space-x-2 rounded-lg border border-border/60 p-3">
+                        <RadioGroupItem value="probe" id="probe" />
+                        <Label htmlFor="probe" className="flex-1 cursor-pointer text-sm">
+                          Fuel probe (wired)
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2 rounded-lg border border-border/60 p-3">
+                        <RadioGroupItem value="bluetooth" id="bluetooth" />
+                        <Label htmlFor="bluetooth" className="flex-1 cursor-pointer text-sm">
+                          <Bluetooth className="mr-1.5 inline size-3.5" />
+                          Bluetooth fuel sensor
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2 rounded-lg border border-border/60 p-3">
+                        <RadioGroupItem value="can" id="can" />
+                        <Label htmlFor="can" className="flex-1 cursor-pointer text-sm">
+                          CAN bus (built-in)
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Tank capacity (L)</Label>
+                      <Input type="number" defaultValue="80" className="rounded-lg" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Calibration offset</Label>
+                      <Input type="number" defaultValue="0" step="0.1" className="rounded-lg" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Theft detection threshold</Label>
+                    <div className="flex items-center gap-2">
+                      <Input type="number" defaultValue="10" step="1" className="rounded-lg" />
+                      <span className="text-sm text-muted-foreground">liters</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Alert if fuel drops by this amount while ignition is off
+                    </p>
+                  </div>
+
+                  <Button onClick={handleSaveSensor} className="w-full rounded-xl">
+                    Save Configuration
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Select value={vehicleId} onValueChange={(v) => setVehicleId(v ?? "all")}>
+              <SelectTrigger className="w-56 rounded-xl bg-card">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="all">All vehicles</SelectItem>
+                {vehicles.filter((v) => v.fuelLevelPct !== undefined).slice(0, 12).map((v) => (
+                  <SelectItem key={v.id} value={v.id}>{v.plate} — {v.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         }
       />
 
