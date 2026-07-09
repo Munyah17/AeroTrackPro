@@ -20,8 +20,9 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { geofences, vehicles, driverById, type Vehicle } from "@aerotrack/shared";
+import { geofences, driverById, type Vehicle } from "@aerotrack/shared";
 import { getDeviceModel } from "@aerotrack/protocols";
+import { useFleet } from "@/hooks/use-fleet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -93,6 +94,7 @@ function DetailRow({ icon: Icon, label, value }: { icon: typeof Gauge; label: st
 }
 
 export default function TrackingPage() {
+  const { vehicles } = useFleet();
   const [selectedId, setSelectedId] = useState<string | undefined>(vehicles[0]?.id);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("all");
@@ -113,7 +115,7 @@ export default function TrackingPage() {
       }
       return true;
     });
-  }, [query, filter]);
+  }, [vehicles, query, filter]);
 
   const selected = vehicles.find((v) => v.id === selectedId);
   const driver = driverById(selected?.driverId);

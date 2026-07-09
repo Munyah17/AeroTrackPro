@@ -1,11 +1,15 @@
 /**
  * AeroTrack Pro Device Ingestion Service
- * Listens on protocol ports (GT06, H02, GPS103, etc.) and decodes device frames
- * using the @aerotrack/protocols package, writing positions to Supabase realtime bus.
+ *
+ * Listens on protocol ports (GT06, H02, GPS103, ...), decodes device frames
+ * with @aerotrack/protocols, persists positions to Supabase, evaluates alert
+ * rules, fans out webhooks and delivers queued commands to live sockets.
+ *
+ * Without SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY it runs in decode-only
+ * mode: frames are decoded and logged, nothing is persisted.
  */
 
 import net from "net";
-import { createClient } from "@supabase/supabase-js";
 import {
   createDecoders,
   createSession,
@@ -13,11 +17,12 @@ import {
   type ProtocolKey,
   type Session,
 } from "@aerotrack/protocols";
+import { db, findDeviceByImei, persistenceEnabled, type DeviceRecord } from "./db";
+import { registerConnection, unregisterSocket, connectionCount } from "./connections";
+import { evaluateAlerts } from "./alerts";
+import { dispatchWebhooks } from "./webhooks";
+import { startCommandDispatcher } from "./commands";
 
-const SUPABASE_URL = process.env.SUPABASE_URL || "http://127.0.0.1:54321";
-const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE || "";
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE);
 const decoders = createDecoders();
 
 interface ProtocolListener {
@@ -37,37 +42,41 @@ const LISTENERS: ProtocolListener[] = [
   { port: 5045, protocol: "vt200" },
 ];
 
-/** Devices already looked up this process, keyed by wire deviceId (IMEI). */
-const deviceCache = new Map<
-  string,
-  { id: string; tenant_id: string; vehicle_id: string | null } | null
->();
-
-async function findDevice(imei: string) {
-  if (deviceCache.has(imei)) return deviceCache.get(imei) ?? null;
-  const { data } = await supabase
-    .from("devices")
-    .select("id, tenant_id, vehicle_id")
-    .eq("imei", imei)
-    .maybeSingle();
-  deviceCache.set(imei, data ?? null);
-  return data ?? null;
-}
-
 function reply(socket: net.Socket, response: Uint8Array | string | undefined) {
   if (response === undefined) return;
   socket.write(typeof response === "string" ? response : Buffer.from(response));
 }
 
-async function savePositions(protocol: ProtocolKey, positions: Position[]) {
+async function identify(
+  socket: net.Socket,
+  protocol: ProtocolKey,
+  session: Session,
+  imei: string,
+): Promise<DeviceRecord | null> {
+  if (!persistenceEnabled) return null;
+  const device = await findDeviceByImei(imei);
+  if (device) {
+    registerConnection({ socket, protocol, session, deviceId: device.id, imei });
+  }
+  return device;
+}
+
+async function savePositions(protocol: ProtocolKey, socket: net.Socket, session: Session, positions: Position[]) {
   for (const position of positions) {
-    const device = await findDevice(position.deviceId);
+    if (!persistenceEnabled) {
+      console.log(
+        `[${protocol}] (decode-only) ${position.deviceId} @ [${position.longitude.toFixed(5)}, ${position.latitude.toFixed(5)}] ${position.speedKmh} km/h`,
+      );
+      continue;
+    }
+
+    const device = await identify(socket, protocol, session, position.deviceId);
     if (!device) {
       console.warn(`[${protocol}] Device IMEI ${position.deviceId} not registered, dropping fix`);
       continue;
     }
 
-    const { error } = await supabase.from("positions").insert({
+    const row = {
       tenant_id: device.tenant_id,
       device_id: device.id,
       vehicle_id: device.vehicle_id,
@@ -80,15 +89,32 @@ async function savePositions(protocol: ProtocolKey, positions: Position[]) {
       event_type: position.attributes.alarm ?? "position",
       raw_data: { attributes: position.attributes, valid: position.valid },
       recorded_at: position.timestamp.toISOString(),
-    });
+    };
 
+    const { data, error } = await db().from("positions").insert(row).select().single();
     if (error) {
       console.error(`[${protocol}] Failed to save position for ${position.deviceId}:`, error.message);
-    } else {
-      console.log(
-        `[${protocol}] Position saved for ${position.deviceId} at [${position.longitude}, ${position.latitude}]`,
-      );
+      continue;
     }
+
+    // Keep device freshness + telemetry current for the fleet screens.
+    void db()
+      .from("devices")
+      .update({
+        last_position_at: row.recorded_at,
+        last_seen_at: new Date().toISOString(),
+        ...(position.attributes.batteryLevel != null
+          ? { battery_level: Math.round(position.attributes.batteryLevel) }
+          : {}),
+        ...(position.attributes.gsmSignal != null
+          ? { signal_strength: Math.round(position.attributes.gsmSignal) }
+          : {}),
+      })
+      .eq("id", device.id)
+      .then();
+
+    void evaluateAlerts(device, position);
+    void dispatchWebhooks(device.tenant_id, "position.created", data);
   }
 }
 
@@ -110,24 +136,49 @@ function handleConnection(socket: net.Socket, protocol: ProtocolKey) {
 
         switch (decoded.kind) {
           case "position":
-            await savePositions(protocol, [decoded.position]);
+            await savePositions(protocol, socket, session, [decoded.position]);
             break;
           case "positions":
-            await savePositions(protocol, decoded.positions);
+            await savePositions(protocol, socket, session, decoded.positions);
             break;
           case "login":
             session.deviceId = decoded.deviceId;
             reply(socket, decoded.response);
-            console.log(`[${protocol}] Login from ${decoded.deviceId}`);
+            await identify(socket, protocol, session, decoded.deviceId);
+            console.log(`[${protocol}] Login from ${decoded.deviceId} (${connectionCount()} devices online)`);
             break;
           case "heartbeat":
             reply(socket, decoded.response);
             break;
-          case "commandResult":
-            console.log(
-              `[${protocol}] Command result from ${decoded.deviceId ?? session.deviceId}: ${decoded.command} -> ${decoded.result}`,
-            );
+          case "commandResult": {
+            const imei = decoded.deviceId ?? session.deviceId;
+            console.log(`[${protocol}] Command result from ${imei}: ${decoded.command} -> ${decoded.result}`);
+            if (persistenceEnabled && imei) {
+              const device = await findDeviceByImei(imei);
+              if (device) {
+                // Ack the oldest outstanding sent command for this device.
+                const { data: sent } = await db()
+                  .from("device_commands")
+                  .select("id")
+                  .eq("device_id", device.id)
+                  .eq("status", "sent")
+                  .order("sent_at", { ascending: true })
+                  .limit(1)
+                  .maybeSingle();
+                if (sent) {
+                  await db()
+                    .from("device_commands")
+                    .update({ status: "acked", acked_at: new Date().toISOString() })
+                    .eq("id", sent.id);
+                  void dispatchWebhooks(device.tenant_id, "command.acked", {
+                    command_id: sent.id,
+                    result: decoded.result,
+                  });
+                }
+              }
+            }
             break;
+          }
           case "ack":
             reply(socket, decoded.response);
             break;
@@ -140,7 +191,8 @@ function handleConnection(socket: net.Socket, protocol: ProtocolKey) {
     }
   });
 
-  socket.on("end", () => {
+  socket.on("close", () => {
+    unregisterSocket(socket);
     console.log(`[${protocol}] Connection closed: ${socket.remoteAddress}:${socket.remotePort}`);
   });
 
@@ -151,6 +203,11 @@ function handleConnection(socket: net.Socket, protocol: ProtocolKey) {
 
 async function start() {
   console.log("🚀 AeroTrack Pro Ingest Service starting...");
+  console.log(
+    persistenceEnabled
+      ? "✓ Supabase persistence enabled"
+      : "⚠ Decode-only mode (set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY to persist)",
+  );
 
   for (const { port, protocol } of LISTENERS) {
     const server = net.createServer((socket) => handleConnection(socket, protocol));
@@ -162,6 +219,10 @@ async function start() {
     server.on("error", (err) => {
       console.error(`✗ ${protocol} listener error:`, err.message);
     });
+  }
+
+  if (persistenceEnabled) {
+    startCommandDispatcher(decoders);
   }
 
   console.log("Ready to receive device frames.");

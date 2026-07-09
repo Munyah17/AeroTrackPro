@@ -23,6 +23,7 @@ export type Database = {
         };
         Insert: Omit<Database["public"]["Tables"]["tenants"]["Row"], "id" | "created_at" | "updated_at">;
         Update: Partial<Database["public"]["Tables"]["tenants"]["Insert"]>;
+        Relationships: [];
       };
       users: {
         Row: {
@@ -42,6 +43,7 @@ export type Database = {
         };
         Insert: Omit<Database["public"]["Tables"]["users"]["Row"], "id" | "created_at" | "updated_at">;
         Update: Partial<Database["public"]["Tables"]["users"]["Insert"]>;
+        Relationships: [];
       };
       devices: {
         Row: {
@@ -68,6 +70,7 @@ export type Database = {
         };
         Insert: Omit<Database["public"]["Tables"]["devices"]["Row"], "id" | "created_at" | "updated_at">;
         Update: Partial<Database["public"]["Tables"]["devices"]["Insert"]>;
+        Relationships: [];
       };
       vehicles: {
         Row: {
@@ -86,12 +89,14 @@ export type Database = {
           fuel_type: string | null;
           fuel_capacity_liters: number | null;
           odometer_km: number | null;
+          speed_limit_kmh: number | null;
           notes: string | null;
           created_at: string;
           updated_at: string;
         };
         Insert: Omit<Database["public"]["Tables"]["vehicles"]["Row"], "id" | "created_at" | "updated_at">;
         Update: Partial<Database["public"]["Tables"]["vehicles"]["Insert"]>;
+        Relationships: [];
       };
       positions: {
         Row: {
@@ -112,6 +117,7 @@ export type Database = {
         };
         Insert: Omit<Database["public"]["Tables"]["positions"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["positions"]["Insert"]>;
+        Relationships: [];
       };
       geofences: {
         Row: {
@@ -132,6 +138,7 @@ export type Database = {
         };
         Insert: Omit<Database["public"]["Tables"]["geofences"]["Row"], "id" | "created_at" | "updated_at">;
         Update: Partial<Database["public"]["Tables"]["geofences"]["Insert"]>;
+        Relationships: [];
       };
       alerts: {
         Row: {
@@ -153,6 +160,7 @@ export type Database = {
         };
         Insert: Omit<Database["public"]["Tables"]["alerts"]["Row"], "id" | "created_at" | "updated_at">;
         Update: Partial<Database["public"]["Tables"]["alerts"]["Insert"]>;
+        Relationships: [];
       };
       trips: {
         Row: {
@@ -175,6 +183,7 @@ export type Database = {
         };
         Insert: Omit<Database["public"]["Tables"]["trips"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["trips"]["Insert"]>;
+        Relationships: [];
       };
       api_keys: {
         Row: {
@@ -191,6 +200,7 @@ export type Database = {
         };
         Insert: Omit<Database["public"]["Tables"]["api_keys"]["Row"], "id" | "created_at">;
         Update: Partial<Database["public"]["Tables"]["api_keys"]["Insert"]>;
+        Relationships: [];
       };
       webhooks: {
         Row: {
@@ -205,7 +215,33 @@ export type Database = {
         };
         Insert: Omit<Database["public"]["Tables"]["webhooks"]["Row"], "id" | "created_at" | "updated_at">;
         Update: Partial<Database["public"]["Tables"]["webhooks"]["Insert"]>;
+        Relationships: [];
+      };
+      device_commands: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          device_id: string;
+          command: unknown;
+          status: "pending" | "sent" | "acked" | "failed" | "expired";
+          requested_by: string | null;
+          error: string | null;
+          sent_at: string | null;
+          acked_at: string | null;
+          created_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["device_commands"]["Row"],
+          "id" | "created_at" | "status" | "error" | "sent_at" | "acked_at"
+        > &
+          Partial<Pick<Database["public"]["Tables"]["device_commands"]["Row"], "status">>;
+        Update: Partial<Omit<Database["public"]["Tables"]["device_commands"]["Row"], "id" | "created_at">>;
+        Relationships: [];
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 };
