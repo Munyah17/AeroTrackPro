@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Bell,
   Building2,
+  Check,
+  Eye,
   Menu,
   Moon,
   Plus,
@@ -31,7 +33,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { NAV_META, FLEET_NAV, ADMIN_NAV } from "@/lib/nav";
+import { NAV_META } from "@/lib/nav";
+import { canSwitchPortal, navFor, ROLE_LABELS } from "@/lib/rbac";
+import { useRole } from "./role-provider";
 import { useCommandPalette } from "./command-palette";
 
 function useDarkMode() {
@@ -54,8 +58,10 @@ function useDarkMode() {
 
 function MobileNav() {
   const pathname = usePathname();
-  const isAdmin = pathname.startsWith("/admin");
-  const sections = isAdmin ? ADMIN_NAV : FLEET_NAV;
+  const { role, portal, setPortal } = useRole();
+  const sections = navFor(role, portal);
+  const showSwitcher = canSwitchPortal(role);
+  const onMaster = role === "super_admin" && portal === "master";
   return (
     <Sheet>
       <SheetTrigger
@@ -98,15 +104,18 @@ function MobileNav() {
               ))}
             </div>
           ))}
-          <div className="mt-2 border-t border-white/10 pt-3">
-            <Link
-              href={isAdmin ? "/dashboard" : "/admin"}
-              className="flex items-center gap-3 rounded-xl bg-white/10 px-3 py-2.5 text-sm font-semibold text-white"
-            >
-              <Building2 className="size-[18px]" />
-              {isAdmin ? "Back to Fleet Console" : "Reseller Portal"}
-            </Link>
-          </div>
+          {showSwitcher && (
+            <div className="mt-2 border-t border-white/10 pt-3">
+              <Link
+                href={onMaster ? "/reseller" : "/admin"}
+                onClick={() => setPortal(onMaster ? "reseller" : "master")}
+                className="flex items-center gap-3 rounded-xl bg-white/10 px-3 py-2.5 text-sm font-semibold text-white"
+              >
+                <Building2 className="size-[18px]" />
+                Switch to {onMaster ? "Reseller" : "Master"} portal
+              </Link>
+            </div>
+          )}
         </nav>
       </SheetContent>
     </Sheet>
@@ -115,7 +124,9 @@ function MobileNav() {
 
 export function Topbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const palette = useCommandPalette();
+  const { role, setRole } = useRole();
   const { dark, toggle } = useDarkMode();
   const meta = NAV_META[pathname] ??
     NAV_META[Object.keys(NAV_META).find((k) => k !== "/admin" && pathname.startsWith(k)) ?? ""] ?? {
@@ -213,16 +224,34 @@ export function Topbar() {
             </button>
           }
         />
-        <DropdownMenuContent align="end" className="w-52 rounded-2xl p-1.5 shadow-float">
+        <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 shadow-float">
           <DropdownMenuLabel>
             <div className="text-[13px] font-semibold">Munya M.</div>
-            <div className="text-xs font-normal text-muted-foreground">SpeedTrack Ltd · Admin</div>
+            <div className="text-xs font-normal text-muted-foreground">Platform Owner</div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem className="rounded-lg"><User className="size-4" /> Profile</DropdownMenuItem>
           <DropdownMenuItem className="rounded-lg" render={<Link href="/settings" />}>
             <Settings className="size-4" /> Settings
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-[10.5px] uppercase tracking-wider text-muted-foreground">
+            Preview dashboard as
+          </DropdownMenuLabel>
+          {(["super_admin", "reseller", "client"] as const).map((r) => (
+            <DropdownMenuItem
+              key={r}
+              className="rounded-lg"
+              onClick={() => {
+                setRole(r);
+                router.push(r === "client" ? "/dashboard" : r === "reseller" ? "/reseller" : "/admin");
+              }}
+            >
+              <Eye className="size-4" />
+              <span className="flex-1">{ROLE_LABELS[r]}</span>
+              {role === r && <Check className="size-3.5 text-primary" />}
+            </DropdownMenuItem>
+          ))}
           <DropdownMenuSeparator />
           <DropdownMenuItem className="rounded-lg text-destructive"><LogOut className="size-4" /> Sign out</DropdownMenuItem>
         </DropdownMenuContent>

@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { ChevronsLeft, LocateFixed, Building2, ArrowLeftRight } from "lucide-react";
+import { ChevronsLeft, LocateFixed, LayoutGrid, ArrowLeftRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ADMIN_NAV, FLEET_NAV, type NavSection } from "@/lib/nav";
+import { type NavSection } from "@/lib/nav";
+import { canSwitchPortal, navFor, ROLE_LABELS } from "@/lib/rbac";
+import { useRole } from "./role-provider";
 
 function NavLink({
   item,
@@ -67,8 +69,19 @@ export function Sidebar({
   onToggle: () => void;
 }) {
   const pathname = usePathname();
-  const isAdmin = pathname.startsWith("/admin");
-  const sections = isAdmin ? ADMIN_NAV : FLEET_NAV;
+  const { role, portal, setPortal } = useRole();
+  const sections = navFor(role, portal);
+  const showSwitcher = canSwitchPortal(role);
+  const onMaster = role === "super_admin" && portal === "master";
+
+  const surfaceLabel =
+    role === "super_admin"
+      ? onMaster
+        ? "Platform Admin"
+        : "Reseller Portal"
+      : role === "reseller"
+        ? "Reseller Portal"
+        : "Fleet Console";
 
   return (
     <aside
@@ -85,9 +98,7 @@ export function Sidebar({
         {!collapsed && (
           <div className="min-w-0">
             <div className="truncate text-[15px] font-bold tracking-tight text-white">AeroTrack Pro</div>
-            <div className="truncate text-[11px] text-sidebar-foreground/60">
-              {isAdmin ? "Platform Admin" : "Fleet Console"}
-            </div>
+            <div className="truncate text-[11px] text-sidebar-foreground/60">{surfaceLabel}</div>
           </div>
         )}
       </div>
@@ -108,7 +119,7 @@ export function Sidebar({
                   item={item}
                   collapsed={collapsed}
                   active={
-                    item.href === "/admin" || item.href === "/dashboard"
+                    item.href === "/admin" || item.href === "/reseller" || item.href === "/dashboard"
                       ? pathname === item.href
                       : pathname.startsWith(item.href)
                   }
@@ -119,18 +130,27 @@ export function Sidebar({
         </nav>
       </ScrollArea>
 
-      {/* Context switcher + collapse */}
+      {/* Portal switcher (platform owner only) + collapse */}
       <div className={cn("flex flex-col gap-1 p-3", collapsed && "items-center")}>
-        <Link
-          href={isAdmin ? "/dashboard" : "/admin"}
-          className={cn(
-            "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent hover:text-white",
-            collapsed && "justify-center px-2",
-          )}
-        >
-          {isAdmin ? <ArrowLeftRight className="size-[18px]" /> : <Building2 className="size-[18px]" />}
-          {!collapsed && <span>{isAdmin ? "Fleet Console" : "Platform Admin"}</span>}
-        </Link>
+        {showSwitcher && (
+          <Link
+            href={onMaster ? "/reseller" : "/admin"}
+            onClick={() => setPortal(onMaster ? "reseller" : "master")}
+            className={cn(
+              "flex items-center gap-3 rounded-xl bg-white/5 px-3 py-2 text-[13px] font-medium text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent hover:text-white",
+              collapsed && "justify-center px-2",
+            )}
+          >
+            <ArrowLeftRight className="size-[18px] shrink-0" />
+            {!collapsed && <span>Switch to {onMaster ? "Reseller" : "Master"} portal</span>}
+          </Link>
+        )}
+        {!collapsed && (
+          <div className="flex items-center gap-2 px-3 py-1.5 text-[10.5px] text-sidebar-foreground/45">
+            <LayoutGrid className="size-3.5" />
+            {ROLE_LABELS[role]} account
+          </div>
+        )}
         <Button
           variant="ghost"
           size="sm"

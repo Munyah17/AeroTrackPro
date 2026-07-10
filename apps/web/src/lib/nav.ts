@@ -88,10 +88,7 @@ export const FLEET_NAV: NavSection[] = [
   },
   {
     label: "Workspace",
-    items: [
-      { label: "Settings", href: "/settings", icon: Settings },
-      { label: "Reseller Portal", href: "/admin", icon: Building2 },
-    ],
+    items: [{ label: "Settings", href: "/settings", icon: Settings }],
   },
 ];
 
