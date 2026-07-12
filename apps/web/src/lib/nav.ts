@@ -71,7 +71,7 @@ export const FLEET_NAV: NavSection[] = [
       { label: "Geofences", href: "/geofences", icon: Hexagon },
       { label: "Drivers", href: "/drivers", icon: Users },
       { label: "Maintenance", href: "/maintenance", icon: Wrench },
-      { label: "Fuel", href: "/fuel", icon: Fuel },
+      { label: "Fuel & Coupons", href: "/fuel", icon: Fuel },
       { label: "Insurance", href: "/insurance", icon: ShieldCheck },
       { label: "Reports", href: "/reports", icon: BarChart3 },
     ],

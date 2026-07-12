@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Bluetooth, Droplets, Fuel as FuelIcon, Settings2, TrendingDown } from "lucide-react";
+import { AlertTriangle, Bluetooth, Droplets, Fuel as FuelIcon, Settings2, Ticket, TrendingDown } from "lucide-react";
 import { toast } from "sonner";
 import {
   Area,
@@ -60,7 +60,10 @@ export default function FuelPage() {
         title="Fuel Monitoring"
         subtitle="Levels, consumption, refills and theft detection"
         actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button render={<a href="/fuel/coupons" />} variant="outline" className="gap-2 rounded-xl">
+              <Ticket className="size-4" /> Fuel Coupons
+            </Button>
             <Dialog open={sensorDialogOpen} onOpenChange={setSensorDialogOpen}>
               <DialogTrigger
                 render={

@@ -238,9 +238,73 @@ export type Database = {
         Update: Partial<Omit<Database["public"]["Tables"]["device_commands"]["Row"], "id" | "created_at">>;
         Relationships: [];
       };
+      fuel_coupons: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          code: string;
+          amount_usd: number | null;
+          litres: number | null;
+          fuel_type: "diesel" | "petrol" | "any";
+          driver_id: string | null;
+          vehicle_id: string | null;
+          issued_by: string | null;
+          status: "active" | "redeemed" | "expired" | "void";
+          expires_at: string | null;
+          notes: string | null;
+          redeemed_at: string | null;
+          redeemed_station: string | null;
+          redeemed_litres: number | null;
+          redeemed_amount_usd: number | null;
+          redeemed_ref: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["fuel_coupons"]["Row"],
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "status"
+          | "redeemed_at"
+          | "redeemed_station"
+          | "redeemed_litres"
+          | "redeemed_amount_usd"
+          | "redeemed_ref"
+        > &
+          Partial<Pick<Database["public"]["Tables"]["fuel_coupons"]["Row"], "status">>;
+        Update: Partial<Omit<Database["public"]["Tables"]["fuel_coupons"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
+      fuel_stations: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          name: string;
+          brand: string | null;
+          town: string | null;
+          active: boolean;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["fuel_stations"]["Row"], "id" | "created_at" | "active"> &
+          Partial<Pick<Database["public"]["Tables"]["fuel_stations"]["Row"], "active">>;
+        Update: Partial<Omit<Database["public"]["Tables"]["fuel_stations"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      redeem_fuel_coupon: {
+        Args: {
+          p_code: string;
+          p_station: string;
+          p_litres?: number;
+          p_amount?: number;
+          p_ref?: string;
+        };
+        Returns: unknown;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

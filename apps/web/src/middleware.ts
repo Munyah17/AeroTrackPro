@@ -8,6 +8,7 @@ const PUBLIC_PATHS = [
   "/reset-password",
   "/verify",
   "/select-tenant",
+  "/redeem", // public fuel-coupon redemption (station-facing)
 ];
 
 /**
