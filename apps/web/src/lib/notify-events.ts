@@ -60,14 +60,14 @@ export const NOTIFY_EVENTS: NotifyEventDef[] = [
     label: "Fuel anomalies",
     description: "Suspected fuel theft or abnormal fuel events",
     defaultEmail: true,
-    defaultSms: false,
+    defaultSms: true,
   },
   {
     id: "camera_alert",
     label: "Dashcam / audio alerts",
     description: "Camera tamper, video loss, fatigue or distracted-driving events",
     defaultEmail: true,
-    defaultSms: false,
+    defaultSms: true,
   },
   {
     id: "coupon_redeemed",
