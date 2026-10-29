@@ -17,6 +17,7 @@ import {
   Smartphone,
   Users,
   Wallet,
+  Wrench,
 } from "lucide-react";
 import { ADMIN_NAV, FLEET_NAV, type NavSection } from "./nav";
 
@@ -97,6 +98,7 @@ export const USER_NAV: NavSection[] = [
       { label: "Live Tracking", href: "/tracking", icon: Navigation },
       { label: "My Vehicles", href: "/vehicles", icon: Car },
       { label: "Trip History", href: "/trips", icon: Route },
+      { label: "Fleet Management", href: "/fleet", icon: Wrench },
       { label: "Alerts", href: "/alerts", icon: Bell },
     ],
   },
@@ -124,7 +126,7 @@ const FLEET_PREFIXES = [
   "/commands",
 ];
 
-const TRACKING_PREFIXES = ["/tracking", "/vehicles", "/trips", "/alerts"];
+const TRACKING_PREFIXES = ["/tracking", "/vehicles", "/trips", "/alerts", "/fleet"];
 
 const WORKSPACE_SETTINGS = [
   "/settings/general",
