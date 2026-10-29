@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useDragControls } from "framer-motion";
 import { ChevronRight, MapPin, Navigation, Search, Star, X } from "lucide-react";
 import type { Vehicle } from "@aerotrack/shared";
 import { useGeofences } from "@/hooks/use-live-data";
@@ -177,6 +177,7 @@ export default function TrackingPage() {
   const trail = selectedId ? trails[selectedId] : undefined;
   const stageRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const sheetDrag = useDragControls();
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -290,9 +291,28 @@ export default function TrackingPage() {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 80, opacity: 0 }}
               transition={{ type: "spring", stiffness: 380, damping: 36 }}
-              className="absolute inset-x-2 bottom-2 z-20 max-h-[48%] overflow-y-auto rounded-2xl border border-border/60 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-float backdrop-blur-xl lg:hidden"
+              drag="y"
+              dragListener={false}
+              dragControls={sheetDrag}
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={{ top: 0, bottom: 0.45 }}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 80 || info.velocity.y > 500) setSelectedId(undefined);
+              }}
+              className="absolute inset-x-2 bottom-2 z-20 flex max-h-[48%] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-float backdrop-blur-xl lg:hidden"
             >
-              <VehicleSummary vehicle={selected} onClose={() => setSelectedId(undefined)} />
+              {/* Grab handle — drag down to dismiss; content below stays scrollable */}
+              <div
+                role="button"
+                aria-label="Drag down to close"
+                onPointerDown={(e) => sheetDrag.start(e)}
+                className="flex shrink-0 cursor-grab touch-none items-center justify-center py-2 active:cursor-grabbing"
+              >
+                <span className="h-1.5 w-10 rounded-full bg-muted-foreground/30" />
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <VehicleSummary vehicle={selected} onClose={() => setSelectedId(undefined)} />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

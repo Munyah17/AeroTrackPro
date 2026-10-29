@@ -276,8 +276,8 @@
   }
   .tracking-stage[data-sheet="open"] .maplibregl-ctrl-bottom-right,
   .tracking-stage[data-sheet="open"] .maplibregl-ctrl-bottom-left,
-  .playback-stage .maplibregl-ctrl-bottom-right,
-  .playback-stage .maplibregl-ctrl-bottom-left,
+  .playback-stage[data-bar="open"] .maplibregl-ctrl-bottom-right,
+  .playback-stage[data-bar="open"] .maplibregl-ctrl-bottom-left,
   .draw-stage[data-drawing="open"] .maplibregl-ctrl-bottom-right,
   .draw-stage[data-drawing="open"] .maplibregl-ctrl-bottom-left {
     bottom: var(--overlay-offset, 6.5rem);

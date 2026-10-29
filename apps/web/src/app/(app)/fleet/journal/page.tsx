@@ -69,7 +69,8 @@ export default function FleetJournalPage() {
       </div>
 
       <Panel className="overflow-hidden">
-        <table className="w-full text-left text-[13px]">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-left text-[13px]">
           <thead>
             <tr className="border-b border-border/60 bg-accent/30 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               <th className="px-5 py-3">Time</th>
@@ -108,6 +109,7 @@ export default function FleetJournalPage() {
             ))}
           </tbody>
         </table>
+        </div>
         <div className="border-t border-border/60 px-5 py-2.5 text-[11.5px] text-muted-foreground">
           Total: {filtered.length}
         </div>

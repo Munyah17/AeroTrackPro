@@ -153,13 +153,15 @@ export interface BridgeDevice {
   imei: string;
   protocol: string;
   traccar_id: number | null;
+  last_fuel_level: number | null;
+  last_fuel_used_l: number | null;
 }
 
 const deviceCache = new Map<string, BridgeDevice | null>();
 
 async function loadDevice(query: { traccarId?: number; imei?: string }): Promise<BridgeDevice | null> {
   const db = createAdminClient();
-  const sel = db.from("devices").select("id, tenant_id, imei, protocol, traccar_id");
+  const sel = db.from("devices").select("id, tenant_id, imei, protocol, traccar_id, last_fuel_level, last_fuel_used_l");
   const { data: device } = query.traccarId != null
     ? await sel.eq("traccar_id", query.traccarId).maybeSingle()
     : await sel.eq("imei", query.imei!).maybeSingle();
@@ -178,6 +180,8 @@ async function loadDevice(query: { traccarId?: number; imei?: string }): Promise
     imei: device.imei,
     protocol: device.protocol,
     traccar_id: device.traccar_id ?? null,
+    last_fuel_level: device.last_fuel_level != null ? Number(device.last_fuel_level) : null,
+    last_fuel_used_l: device.last_fuel_used_l != null ? Number(device.last_fuel_used_l) : null,
   };
 }
 

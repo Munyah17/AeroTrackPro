@@ -107,7 +107,7 @@ export default function AlertsPage() {
       )}
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-        <TabsList className="mb-4 h-10 rounded-xl p-1">
+        <TabsList className="scrollbar-none mb-4 h-10 max-w-full overflow-x-auto rounded-xl p-1">
           {(["all", "active", "acknowledged", "resolved"] as const).map((t) => (
             <TabsTrigger key={t} value={t} className="rounded-lg px-4 text-[13px] capitalize">
               {t} <span className="ml-1.5 text-[11px] text-muted-foreground">({counts[t]})</span>

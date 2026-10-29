@@ -63,7 +63,7 @@ export default function CommandsPage() {
         subtitle="Immobilization, configuration and device control — with full audit trail"
         actions={
           <Select value={vehicleId || vehicle.id} onValueChange={(v) => v && setVehicleId(v)}>
-            <SelectTrigger className="w-60 rounded-xl bg-card">
+            <SelectTrigger className="w-full rounded-xl bg-card sm:w-60">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="rounded-xl">

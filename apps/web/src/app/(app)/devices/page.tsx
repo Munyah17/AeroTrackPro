@@ -67,7 +67,7 @@ export default function DevicesPage() {
       />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-        <TabsList className="mb-4 h-10 rounded-xl p-1">
+        <TabsList className="scrollbar-none mb-4 h-10 max-w-full overflow-x-auto rounded-xl p-1">
           <TabsTrigger value="catalog" className="rounded-lg px-4 text-[13px]">Supported Catalog</TabsTrigger>
           <TabsTrigger value="bound" className="rounded-lg px-4 text-[13px]">Bound Devices ({vehicles.length})</TabsTrigger>
         </TabsList>

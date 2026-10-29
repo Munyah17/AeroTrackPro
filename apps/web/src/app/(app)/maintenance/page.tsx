@@ -218,7 +218,7 @@ export default function MaintenancePage() {
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-        <TabsList className="mb-4 h-10 rounded-xl p-1">
+        <TabsList className="scrollbar-none mb-4 h-10 max-w-full overflow-x-auto rounded-xl p-1">
           {(["upcoming", "overdue", "completed"] as const).map((t) => (
             <TabsTrigger key={t} value={t} className="rounded-lg px-4 text-[13px] capitalize">
               {t} ({counts[t]})

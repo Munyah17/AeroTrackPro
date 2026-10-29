@@ -11,6 +11,42 @@ import { mapTraccarAlarm, eventDef, type NotifyEventType } from "@/lib/notify-ev
 
 type PositionInsert = Database["public"]["Tables"]["positions"]["Insert"];
 type DeviceUpdate = Database["public"]["Tables"]["devices"]["Update"];
+type FuelRecordInsert = Database["public"]["Tables"]["fuel_records"]["Insert"];
+
+/*
+ * Fuel sensors: capacitive/ultrasonic tank probes report level %; resistive
+ * probes may report litres; Bluetooth flow meters report cumulative litres
+ * burned. Traccar surfaces all of these as position attributes — the exact
+ * key varies by protocol/model, so we probe a list of common names.
+ */
+const FUEL_LEVEL_KEYS = ["fuel", "fuel1", "fuelLevel", "fuel_level", "fuelLevel1", "io72", "io90", "can_fuel"];
+const FUEL_USED_KEYS = ["fuelUsed", "fuelConsumption", "fuel_used", "fuelCounter", "totalFuelUsed"];
+
+/** % jump that counts as a genuine event (probe noise + sloshing is < ~3%). */
+const FUEL_JUMP_PCT = 8;
+/** Stationary when below this speed — a big drop while parked = suspected theft. */
+const STATIONARY_KMH = 3;
+
+function numAttr(attrs: Record<string, unknown>, keys: string[]): number | null {
+  for (const k of keys) {
+    const v = attrs[k];
+    const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+/** Tank level % from probe attributes (values >100 treated as raw — ignored). */
+function fuelLevelPct(attrs: Record<string, unknown>): number | null {
+  const v = numAttr(attrs, FUEL_LEVEL_KEYS);
+  if (v == null || v < 0 || v > 100) return null;
+  return v;
+}
+
+function fuelUsedLitres(attrs: Record<string, unknown>): number | null {
+  const v = numAttr(attrs, FUEL_USED_KEYS);
+  return v != null && v >= 0 ? v : null;
+}
 
 // Vercel Edge: supabase-js runs on fetch, no Node APIs — low-latency
 // ingest next to the devices; execution stays well under the 25s cap.
@@ -60,6 +96,19 @@ export async function POST(req: Request): Promise<Response> {
   >();
   // Aggregate device stamps so each device row is updated once per payload.
   const stamps = new Map<string, DeviceUpdate>();
+  // Fuel anomalies detected from level/flow readings — resolved to litres
+  // (when tank capacity is known) and persisted after positions are stored.
+  const fuelEvents: {
+    tenantId: string;
+    deviceId: string;
+    vehicleId: string;
+    kind: "refill" | "theft" | "consumption";
+    deltaPct?: number;
+    deltaL?: number;
+    levelAfterPct: number | null;
+    recordedAt: string;
+    imei: string;
+  }[] = [];
 
   for (const { position, device } of fixes) {
     const uniqueId = device?.uniqueId ?? (position.attributes?.uniqueId as string | undefined);
@@ -129,6 +178,38 @@ export async function POST(req: Request): Promise<Response> {
     }
     stamp.last_seen_at = new Date().toISOString();
     stamp.connection_status = "online"; // a live fix implies the unit is reachable
+
+    /* Fuel probe / flow-meter analysis (rule engine):
+     *   big jump up                      -> refill
+     *   big drop while stationary        -> suspected theft (notified)
+     *   big drop while moving            -> consumption event
+     *   flow-meter cumulative delta      -> consumption event
+     */
+    const levelPct = fuelLevelPct(attrs);
+    const usedL = fuelUsedLitres(attrs);
+    if (levelPct != null) {
+      const prev = bridge.last_fuel_level;
+      if (prev != null && bridge.vehicle_id) {
+        const delta = levelPct - prev;
+        if (delta >= FUEL_JUMP_PCT) {
+          fuelEvents.push({ tenantId: bridge.tenant_id, deviceId: bridge.id, vehicleId: bridge.vehicle_id, kind: "refill", deltaPct: delta, levelAfterPct: levelPct, recordedAt: recordedAt ?? new Date().toISOString(), imei: bridge.imei });
+        } else if (delta <= -FUEL_JUMP_PCT) {
+          const speed = typeof position.speed === "number" ? position.speed * 1.852 : 0;
+          fuelEvents.push({ tenantId: bridge.tenant_id, deviceId: bridge.id, vehicleId: bridge.vehicle_id, kind: speed < STATIONARY_KMH ? "theft" : "consumption", deltaPct: -delta, levelAfterPct: levelPct, recordedAt: recordedAt ?? new Date().toISOString(), imei: bridge.imei });
+        }
+      }
+      stamp.last_fuel_level = levelPct;
+      stamp.last_fuel_at = recordedAt ?? new Date().toISOString();
+      bridge.last_fuel_level = levelPct; // keep in-request comparisons sequential
+    }
+    if (usedL != null) {
+      const prev = bridge.last_fuel_used_l;
+      if (prev != null && usedL > prev && bridge.vehicle_id) {
+        fuelEvents.push({ tenantId: bridge.tenant_id, deviceId: bridge.id, vehicleId: bridge.vehicle_id, kind: "consumption", deltaL: usedL - prev, levelAfterPct: levelPct, recordedAt: recordedAt ?? new Date().toISOString(), imei: bridge.imei });
+      }
+      stamp.last_fuel_used_l = usedL;
+      bridge.last_fuel_used_l = usedL;
+    }
     if (typeof attrs.battery === "number") stamp.battery_level = Math.round(attrs.battery);
     if (typeof attrs.batteryLevel === "number") stamp.battery_level = Math.round(attrs.batteryLevel);
     const rssi = attrs.rssi ?? attrs.gsmSignal;
@@ -152,6 +233,47 @@ export async function POST(req: Request): Promise<Response> {
   for (const [deviceId, stamp] of stamps) {
     const { error } = await db.from("devices").update(stamp).eq("id", deviceId);
     if (error) console.error(`[traccar/telemetry] device stamp failed for ${deviceId}:`, error.message);
+  }
+
+  // Persist fuel events + notify on suspected theft.
+  const fuelRows: FuelRecordInsert[] = [];
+  for (const fe of fuelEvents) {
+    let vehicleName = "";
+    let capacityL: number | null = null;
+    const { data: vehicle } = await db
+      .from("vehicles")
+      .select("name, plate, fuel_capacity_liters")
+      .eq("id", fe.vehicleId)
+      .maybeSingle();
+    vehicleName = vehicle?.name ?? vehicle?.plate ?? "";
+    capacityL = vehicle?.fuel_capacity_liters != null ? Number(vehicle.fuel_capacity_liters) : null;
+
+    const litres = fe.deltaL ?? (fe.deltaPct != null && capacityL ? (fe.deltaPct / 100) * capacityL : fe.deltaPct ?? 0);
+    fuelRows.push({
+      tenant_id: fe.tenantId,
+      vehicle_id: fe.vehicleId,
+      device_id: fe.deviceId,
+      kind: fe.kind,
+      litres: Math.round(litres * 10) / 10,
+      level_after_pct: fe.levelAfterPct != null ? Math.round(fe.levelAfterPct) : null,
+      station: fe.deltaL != null ? "flow-meter" : "tank-probe",
+      recorded_at: fe.recordedAt,
+      coupon_id: null,
+      cost_usd: null,
+      odometer_km: null,
+    });
+
+    if (fe.kind === "theft") {
+      await notifyEvent(db, fe.tenantId, "fuel_alert", {
+        title: "Suspected fuel theft",
+        body: `${vehicleName ? `${vehicleName} ` : ""}(tracker ${fe.imei}) tank level dropped ${fe.deltaPct?.toFixed(1)}% (≈${Math.round(litres)}L) while stationary.`,
+        link: "/fuel",
+      });
+    }
+  }
+  if (fuelRows.length > 0) {
+    const { error } = await db.from("fuel_records").insert(fuelRows);
+    if (error) console.error("[traccar/telemetry] fuel_records insert failed:", error.message);
   }
 
   // Opt-in notifications for alarm fixes (rare; awaited so edge doesn't drop them).

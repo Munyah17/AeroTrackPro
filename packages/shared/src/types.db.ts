@@ -75,6 +75,9 @@ export type Database = {
           last_course: number | null;
           connection_status: "online" | "offline" | "unknown";
           traccar_id: number | null;
+          last_fuel_level: number | null;
+          last_fuel_at: string | null;
+          last_fuel_used_l: number | null;
           firmware_version: string | null;
           notes: string | null;
           created_at: string;

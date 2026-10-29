@@ -17,7 +17,9 @@ import {
   ShieldCheck,
   Ticket,
   Truck,
+  Video,
   Wrench,
+  Zap,
 } from "lucide-react";
 
 /**
@@ -79,6 +81,49 @@ const hardware = [
   { name: "TKStar · Cantrack", note: "H02-dialect asset trackers" },
 ];
 
+const packages = [
+  {
+    icon: Radio,
+    name: "GPS tracking",
+    price: "$70",
+    unit: "per vehicle",
+    body: "Tracker unit, SIM provisioning, professional installation and platform activation.",
+    featured: true,
+  },
+  {
+    icon: Fuel,
+    name: "Fuel tracking",
+    price: "$350",
+    unit: "per vehicle",
+    body: "Tank probe or Bluetooth flow sensor, full calibration, theft and drain alerts.",
+    featured: false,
+  },
+  {
+    icon: Zap,
+    name: "Remote engine cut-off",
+    price: "$100",
+    unit: "per vehicle",
+    body: "Relay immobilizer — stop and restore the engine remotely or on alarm.",
+    featured: false,
+  },
+  {
+    icon: Gauge,
+    name: "Speed governor",
+    price: "$180",
+    unit: "per vehicle",
+    body: "Road-speed limiting hardware fitted, configured and certified.",
+    featured: false,
+  },
+  {
+    icon: Video,
+    name: "Dashcam",
+    price: "Quote",
+    unit: "per installation",
+    body: "Road-facing or dual-channel camera with event clips into the platform.",
+    featured: false,
+  },
+];
+
 const assetTypes = [
   { icon: Truck, label: "Vehicles & fleets" },
   { icon: Package, label: "Parcels, stock & cargo" },
@@ -109,6 +154,7 @@ export default function LandingPage() {
             <a href="#services" className="transition-colors hover:text-foreground">Services</a>
             <a href="#model" className="transition-colors hover:text-foreground">B2B model</a>
             <a href="#hardware" className="transition-colors hover:text-foreground">Hardware</a>
+            <a href="#pricing" className="transition-colors hover:text-foreground">Pricing</a>
             <a href="#assets" className="transition-colors hover:text-foreground">Assets</a>
           </div>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
@@ -330,6 +376,47 @@ export default function LandingPage() {
           Additional protocols — Suntech STB, Meiligao, Gosafe, Cellocator, Megastek — are
           on the integration roadmap and land in the same pipeline.
         </p>
+      </section>
+
+      {/* ── Packages & pricing ─────────────────────────────────── */}
+      <section id="pricing" className="border-y border-border/60 bg-muted/30">
+        <div className="mx-auto max-w-6xl px-6 py-20">
+          <div className="mb-12 max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">Fix & supply</p>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight">Straightforward, per-vehicle pricing</h2>
+            <p className="mt-3 text-muted-foreground">
+              Every service includes the hardware and installation — fix and supply,
+              no surprises. Each option is charged independently of the base tracker.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {packages.map((p) => (
+              <div
+                key={p.name}
+                className={`flex flex-col rounded-2xl border bg-card p-5 shadow-card ${
+                  p.featured ? "border-primary/60 ring-1 ring-primary/30" : "border-border"
+                }`}
+              >
+                <span className="mb-3 flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <p.icon className="size-5" />
+                </span>
+                <span className="text-sm font-semibold leading-snug">{p.name}</span>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-2xl font-bold tracking-tight">{p.price}</span>
+                  <span className="text-[11px] text-muted-foreground">{p.unit}</span>
+                </div>
+                <p className="mt-2 flex-1 text-xs leading-relaxed text-muted-foreground">{p.body}</p>
+                <span className="mt-4 inline-flex w-fit rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold text-success">
+                  fix & supply
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-6 text-xs text-muted-foreground">
+            Volume and fleet discounts available — add-ons can be fitted to the same
+            visit as your tracker install.
+          </p>
+        </div>
       </section>
 
       {/* ── Asset types ────────────────────────────────────────── */}

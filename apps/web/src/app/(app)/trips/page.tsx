@@ -314,7 +314,7 @@ export default function TripsPage() {
               )}
             </div>
           </div>
-          <div ref={stageRef} className="playback-stage relative h-[min(68dvh,480px)] min-h-[300px]">
+          <div ref={stageRef} data-bar={selected ? "open" : "closed"} className="playback-stage relative h-[min(68dvh,480px)] min-h-[300px]">
             {selected && playbackVehicle && (
               <FleetMap
                 key={selected.id}
@@ -333,7 +333,7 @@ export default function TripsPage() {
                 <div className="flex items-center gap-1.5">
                   <Button
                     size="icon"
-                    className="size-11 shrink-0 rounded-full shadow-card"
+                    className="size-10 shrink-0 rounded-full shadow-card sm:size-11"
                     aria-label={playing ? "Pause trip" : "Play trip"}
                     onClick={() => {
                       if (progress >= maxIndex) setProgress(0);
@@ -345,7 +345,7 @@ export default function TripsPage() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="size-11 shrink-0 rounded-full"
+                    className="size-10 shrink-0 rounded-full sm:size-11"
                     aria-label="Restart trip"
                     onClick={() => {
                       setProgress(0);
@@ -370,7 +370,7 @@ export default function TripsPage() {
                   <button
                     type="button"
                     onClick={() => setSpeed((s) => (s === 1 ? 2 : s === 2 ? 4 : 1))}
-                    className="h-11 shrink-0 rounded-xl border px-2.5 text-[12px] font-bold text-primary transition-colors hover:bg-accent"
+                    className="h-10 shrink-0 rounded-xl border px-2 text-[12px] font-bold text-primary transition-colors hover:bg-accent sm:h-11 sm:px-2.5"
                     aria-label="Playback speed"
                   >
                     {speed}x

@@ -63,6 +63,13 @@ export const NOTIFY_EVENTS: NotifyEventDef[] = [
     defaultSms: false,
   },
   {
+    id: "camera_alert",
+    label: "Dashcam / audio alerts",
+    description: "Camera tamper, video loss, fatigue or distracted-driving events",
+    defaultEmail: true,
+    defaultSms: false,
+  },
+  {
     id: "coupon_redeemed",
     label: "Coupon redeemed",
     description: "A fuel coupon is redeemed at a station",
@@ -115,6 +122,15 @@ export function mapTraccarAlarm(alarm: string): NotifyEventType | null {
   if (a.includes("geofence")) return "geofence";
   if (a.includes("powercut") || a.includes("power_cut") || a.includes("poweroff")) return "power_cut";
   if (a.includes("fuel")) return "fuel_alert";
+  if (
+    a.includes("video") ||
+    a.includes("camera") ||
+    a.includes("audio") ||
+    a.includes("distracted") ||
+    a.includes("fatigue") ||
+    a.includes("drowsy")
+  )
+    return "camera_alert";
   return null;
 }
 
