@@ -1,160 +1,211 @@
 "use client";
 
-import { useState } from "react";
-import { Bell, Mail, MessageSquare, Smartphone } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bell, Loader2, Mail, MessageSquare, Save } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
-import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
+import { NOTIFY_EVENTS, defaultPrefs, type ChannelPrefs } from "@/lib/notify-events";
 
-const EMAIL_NOTIFICATIONS = [
-  { id: "overspeed", label: "Overspeed alerts", enabled: true },
-  { id: "geofence", label: "Geofence violations", enabled: true },
-  { id: "sos", label: "SOS / Emergency alerts", enabled: true },
-  { id: "maintenance", label: "Maintenance due reminders", enabled: true },
-  { id: "insurance", label: "Insurance expiry warnings", enabled: true },
-  { id: "fuel", label: "Fuel theft detection", enabled: false },
-  { id: "offline", label: "Device offline alerts", enabled: false },
-  { id: "weekly", label: "Weekly summary report", enabled: true },
-];
+/**
+ * Notification Settings — persisted per-event channel opt-in.
+ *
+ * Loads prefs from /api/settings/notification-prefs (Supabase-backed). In
+ * demo mode (no session / no Supabase) changes fall back to localStorage so
+ * the toggles still behave realistically before auth is enabled.
+ */
 
-const SMS_ALERTS = [
-  { id: "sos", label: "SOS / Emergency only", enabled: true },
-  { id: "critical", label: "Critical alerts", enabled: true },
-  { id: "power", label: "Power disconnect", enabled: false },
-];
+const LS_KEY = "at-notify-prefs";
+const LS_PHONE = "at-notify-phone";
 
-const ALERT_TYPES: MultiSelectOption[] = [
-  { label: "Overspeed", value: "overspeed" },
-  { label: "Geofence Entry", value: "geofence_enter" },
-  { label: "Geofence Exit", value: "geofence_exit" },
-  { label: "SOS", value: "sos" },
-  { label: "Harsh Braking", value: "harsh_brake" },
-  { label: "Harsh Acceleration", value: "harsh_accel" },
-  { label: "Fuel Theft", value: "fuel_theft" },
-  { label: "Device Offline", value: "offline" },
-];
+type PrefMap = Record<string, ChannelPrefs>;
+
+function loadLocal(): { prefs: PrefMap; phone: string } {
+  try {
+    return {
+      prefs: JSON.parse(localStorage.getItem(LS_KEY) ?? "{}"),
+      phone: localStorage.getItem(LS_PHONE) ?? "",
+    };
+  } catch {
+    return { prefs: {}, phone: "" };
+  }
+}
 
 export default function NotificationSettingsPage() {
-  const [emailFreq, setEmailFreq] = useState("instant");
-  const [pushAlerts, setPushAlerts] = useState<string[]>(["overspeed", "sos", "geofence_enter"]);
+  const [prefs, setPrefs] = useState<PrefMap>({});
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [demo, setDemo] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/settings/notification-prefs")
+      .then(async (r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
+      .then((data) => {
+        if (!active) return;
+        if (data.mode === "demo") {
+          const local = loadLocal();
+          setPrefs(local.prefs);
+          setPhone(local.phone);
+          setDemo(true);
+        } else {
+          setPrefs(data.prefs ?? {});
+          setPhone(data.phone ?? "");
+          setEmail(data.email ?? "");
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        const local = loadLocal();
+        setPrefs(local.prefs);
+        setPhone(local.phone);
+        setDemo(true);
+      })
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const prefFor = (id: string): ChannelPrefs => prefs[id] ?? defaultPrefs(id);
+
+  const toggle = (id: string, channel: keyof ChannelPrefs) => {
+    setPrefs((prev) => ({
+      ...prev,
+      [id]: { ...prefFor(id), [channel]: !prefFor(id)[channel] },
+    }));
+  };
+
+  const save = async () => {
+    setSaving(true);
+    if (demo) {
+      localStorage.setItem(LS_KEY, JSON.stringify(prefs));
+      localStorage.setItem(LS_PHONE, phone);
+      toast.success("Notification preferences saved (demo — sign in to sync)");
+      setSaving(false);
+      return;
+    }
+    const payload = {
+      phone: phone || null,
+      prefs: NOTIFY_EVENTS.map((e) => ({ event_type: e.id, ...prefFor(e.id) })),
+    };
+    try {
+      const res = await fetch("/api/settings/notification-prefs", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success("Notification preferences saved");
+    } catch {
+      toast.error("Failed to save preferences");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <PageContainer className="max-w-[900px]">
       <PageHeader
         title="Notification Settings"
-        subtitle="Configure how and when you receive alerts"
+        subtitle="Choose which events reach you — and by which channel"
+        actions={
+          <Button onClick={save} disabled={saving || loading} className="rounded-xl">
+            {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+            Save preferences
+          </Button>
+        }
       />
 
       <div className="space-y-4">
         <Panel className="p-6">
-          <div className="flex items-center gap-2.5 pb-4">
-            <Mail className="size-4.5 text-primary" />
-            <h3 className="text-[15px] font-semibold">Email Notifications</h3>
-          </div>
-
-          <div className="mb-4 flex items-center justify-between rounded-xl border border-border/60 bg-accent/40 p-3">
-            <div className="text-sm font-medium">Email frequency</div>
-            <Select value={emailFreq} onValueChange={(v) => setEmailFreq(v ?? "instant")}>
-              <SelectTrigger className="w-44 rounded-lg bg-card">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                <SelectItem value="instant">Instant</SelectItem>
-                <SelectItem value="hourly">Hourly digest</SelectItem>
-                <SelectItem value="daily">Daily digest</SelectItem>
-                <SelectItem value="disabled">Disabled</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="divide-y divide-border/50">
-            {EMAIL_NOTIFICATIONS.map((item) => (
-              <div key={item.id} className="flex items-center justify-between py-3">
-                <div className="text-[13.5px] font-medium">{item.label}</div>
-                <Switch
-                  defaultChecked={item.enabled}
-                  onCheckedChange={(c) => toast.success(`${item.label} ${c ? "enabled" : "disabled"}`)}
-                />
-              </div>
-            ))}
-          </div>
-        </Panel>
-
-        <Panel className="p-6">
-          <div className="flex items-center gap-2.5 pb-4">
-            <MessageSquare className="size-4.5 text-primary" />
-            <h3 className="text-[15px] font-semibold">SMS Alerts</h3>
-          </div>
-
-          <div className="mb-4 rounded-xl border border-warning/40 bg-warning/5 p-3 text-xs text-warning">
-            <strong>Note:</strong> SMS alerts may incur additional charges based on your subscription plan.
-          </div>
-
-          <div className="divide-y divide-border/50">
-            {SMS_ALERTS.map((item) => (
-              <div key={item.id} className="flex items-center justify-between py-3">
-                <div className="text-[13.5px] font-medium">{item.label}</div>
-                <Switch
-                  defaultChecked={item.enabled}
-                  onCheckedChange={(c) => toast.success(`SMS: ${item.label} ${c ? "enabled" : "disabled"}`)}
-                />
-              </div>
-            ))}
-          </div>
-        </Panel>
-
-        <Panel className="p-6">
-          <div className="flex items-center gap-2.5 pb-4">
-            <Smartphone className="size-4.5 text-primary" />
-            <h3 className="text-[15px] font-semibold">Push Notifications (Mobile App)</h3>
-          </div>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-muted-foreground">
-                Select alert types to receive as push notifications
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <Mail className="size-3.5" /> Email address
               </label>
-              <MultiSelect
-                options={ALERT_TYPES}
-                value={pushAlerts}
-                onChange={setPushAlerts}
-                placeholder="Select alert types..."
+              <Input value={email || "—"} disabled className="rounded-xl bg-accent/40" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <MessageSquare className="size-3.5" /> SMS number (E.164, e.g. +2637…)
+              </label>
+              <Input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+263771234567"
+                className="rounded-xl"
               />
             </div>
-
-            <div className="flex items-center justify-between rounded-xl border border-border/60 bg-accent/40 p-3">
-              <div className="text-sm font-medium">Notification sounds</div>
-              <Switch defaultChecked onCheckedChange={(c) => toast.success(`Sounds ${c ? "on" : "off"}`)} />
-            </div>
           </div>
+          {demo && (
+            <p className="mt-3 rounded-xl border border-warning/40 bg-warning/5 p-3 text-xs text-warning">
+              Demo mode — preferences save to this browser only. Sign in to sync
+              them to your account.
+            </p>
+          )}
         </Panel>
 
-        <Panel className="p-6">
-          <div className="flex items-center gap-2.5 pb-4">
-            <Bell className="size-4.5 text-primary" />
-            <h3 className="text-[15px] font-semibold">In-App Notifications</h3>
+        <Panel className="overflow-hidden">
+          <div className="grid grid-cols-[1fr_repeat(3,4.5rem)] items-center gap-2 border-b border-border/60 bg-accent/30 px-6 py-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <div>Event</div>
+            <div className="text-center"><Bell className="mx-auto size-4" /></div>
+            <div className="text-center"><Mail className="mx-auto size-4" /></div>
+            <div className="text-center"><MessageSquare className="mx-auto size-4" /></div>
           </div>
 
-          <div className="space-y-3">
-            {[
-              { label: "Desktop notifications", desc: "Show browser notifications", on: true },
-              { label: "Toast notifications", desc: "Show toast messages in app", on: true },
-              { label: "Notification badge", desc: "Show unread count badge", on: true },
-            ].map((item) => (
-              <div key={item.label} className="flex items-center justify-between py-2">
-                <div>
-                  <div className="text-[13.5px] font-medium">{item.label}</div>
-                  <div className="text-xs text-muted-foreground">{item.desc}</div>
-                </div>
-                <Switch
-                  defaultChecked={item.on}
-                  onCheckedChange={(c) => toast.success(`${item.label} ${c ? "enabled" : "disabled"}`)}
-                />
-              </div>
-            ))}
-          </div>
+          {loading ? (
+            <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Loading preferences…
+            </div>
+          ) : (
+            <div className="divide-y divide-border/50">
+              {NOTIFY_EVENTS.map((evt) => {
+                const p = prefFor(evt.id);
+                return (
+                  <div
+                    key={evt.id}
+                    className="grid grid-cols-[1fr_repeat(3,4.5rem)] items-center gap-2 px-6 py-3.5"
+                  >
+                    <div>
+                      <div className="text-[13.5px] font-medium">{evt.label}</div>
+                      <div className="text-xs text-muted-foreground">{evt.description}</div>
+                    </div>
+                    {(
+                      [
+                        ["in_app_enabled", p.in_app_enabled],
+                        ["email_enabled", p.email_enabled],
+                        ["sms_enabled", p.sms_enabled],
+                      ] as const
+                    ).map(([channel, on]) => (
+                      <div key={channel} className="flex justify-center">
+                        <Switch
+                          checked={on}
+                          onCheckedChange={() => toggle(evt.id, channel)}
+                          aria-label={`${evt.label} — ${channel}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Panel>
+
+        <Panel className="p-4">
+          <p className="text-xs text-muted-foreground">
+            <Bell className="mr-1 inline size-3.5" /> In-app alerts appear in the notification center.
+            <Mail className="ml-3 mr-1 inline size-3.5" /> Email is sent to your account address.
+            <MessageSquare className="ml-3 mr-1 inline size-3.5" /> SMS may incur carrier charges.
+          </p>
         </Panel>
       </div>
     </PageContainer>

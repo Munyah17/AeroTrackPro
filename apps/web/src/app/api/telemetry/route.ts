@@ -6,6 +6,8 @@ import {
   verifyForwardSecret,
 } from "@/lib/traccar";
 import { createAdminClient, isServiceRoleConfigured } from "@/lib/supabase/server";
+import { notifyEvent } from "@/lib/notify";
+import { mapTraccarAlarm, eventDef, type NotifyEventType } from "@/lib/notify-events";
 
 type PositionInsert = Database["public"]["Tables"]["positions"]["Insert"];
 type DeviceUpdate = Database["public"]["Tables"]["devices"]["Update"];
@@ -51,6 +53,11 @@ export async function POST(req: Request): Promise<Response> {
   const db = createAdminClient();
   const rows: PositionInsert[] = [];
   const skipped: { deviceId?: number; uniqueId?: string; reason: string }[] = [];
+  // Alarm notifications are deduped per device+event within one payload.
+  const alarms = new Map<
+    string,
+    { tenantId: string; event: NotifyEventType; alarm: string; imei: string; vehicleId: string | null; speedKmh: number | null }
+  >();
   // Aggregate device stamps so each device row is updated once per payload.
   const stamps = new Map<string, DeviceUpdate>();
 
@@ -68,6 +75,20 @@ export async function POST(req: Request): Promise<Response> {
 
     const attrs = position.attributes ?? {};
     const recordedAt = position.fixTime ?? position.deviceTime ?? position.serverTime;
+
+    if (typeof attrs.alarm === "string") {
+      const evt = mapTraccarAlarm(attrs.alarm);
+      if (evt) {
+        alarms.set(`${bridge.id}:${evt}`, {
+          tenantId: bridge.tenant_id,
+          event: evt,
+          alarm: attrs.alarm,
+          imei: bridge.imei,
+          vehicleId: bridge.vehicle_id,
+          speedKmh: typeof position.speed === "number" ? position.speed * 1.852 : null,
+        });
+      }
+    }
 
     rows.push({
       tenant_id: bridge.tenant_id,
@@ -131,6 +152,27 @@ export async function POST(req: Request): Promise<Response> {
   for (const [deviceId, stamp] of stamps) {
     const { error } = await db.from("devices").update(stamp).eq("id", deviceId);
     if (error) console.error(`[traccar/telemetry] device stamp failed for ${deviceId}:`, error.message);
+  }
+
+  // Opt-in notifications for alarm fixes (rare; awaited so edge doesn't drop them).
+  for (const a of alarms.values()) {
+    let vehicleName = "";
+    if (a.vehicleId) {
+      const { data: vehicle } = await db
+        .from("vehicles")
+        .select("name, plate")
+        .eq("id", a.vehicleId)
+        .maybeSingle();
+      vehicleName = vehicle?.name ?? vehicle?.plate ?? "";
+    }
+    const label = eventDef(a.event)?.label ?? a.event;
+    await notifyEvent(db, a.tenantId, a.event, {
+      title: label,
+      body: `${vehicleName ? `${vehicleName} ` : ""}(tracker ${a.imei}) raised "${a.alarm}"${
+        a.speedKmh != null ? ` at ${Math.round(a.speedKmh)} km/h` : ""
+      }.`,
+      link: "/tracking",
+    });
   }
 
   return NextResponse.json({ received: fixes.length, stored, skipped });

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient, isServiceRoleConfigured } from "@/lib/supabase/server";
+import { notifyEvent } from "@/lib/notify";
 import { apiError, badRequest, ok } from "../../_lib/respond";
 
 /**
@@ -73,6 +74,18 @@ export async function POST(req: NextRequest) {
       const mapped = ERROR_MAP[error.message];
       if (mapped) return apiError(mapped.status, error.message, mapped.message);
       throw error;
+    }
+
+    // Opt-in notification to the coupon issuer's team.
+    const tenantId = (data as { tenant_id?: unknown } | null)?.tenant_id;
+    if (typeof tenantId === "string" && tenantId) {
+      await notifyEvent(db, tenantId, "coupon_redeemed", {
+        title: "Fuel coupon redeemed",
+        body: `Coupon ${body.code} was redeemed at ${body.station}${
+          body.litres ? ` for ${body.litres}L` : body.amount_usd ? ` for $${body.amount_usd}` : ""
+        }.`,
+        link: "/fuel/coupons",
+      });
     }
     return ok(data);
   } catch (err) {

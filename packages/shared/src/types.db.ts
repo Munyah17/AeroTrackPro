@@ -587,6 +587,40 @@ export type Database = {
         Update: Partial<Omit<Database["public"]["Tables"]["notifications"]["Row"], "id" | "created_at">>;
         Relationships: [];
       };
+      notification_preferences: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          user_id: string;
+          event_type: string;
+          in_app_enabled: boolean;
+          email_enabled: boolean;
+          sms_enabled: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["notification_preferences"]["Row"], "id" | "created_at" | "updated_at" | "in_app_enabled" | "email_enabled" | "sms_enabled"> &
+          Partial<Pick<Database["public"]["Tables"]["notification_preferences"]["Row"], "in_app_enabled" | "email_enabled" | "sms_enabled">>;
+        Update: Partial<Omit<Database["public"]["Tables"]["notification_preferences"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
+      notification_deliveries: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          user_id: string;
+          event_type: string;
+          channel: "in_app" | "email" | "sms";
+          destination: string | null;
+          status: "sent" | "failed";
+          detail: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["notification_deliveries"]["Row"], "id" | "created_at" | "status"> &
+          Partial<Pick<Database["public"]["Tables"]["notification_deliveries"]["Row"], "status">>;
+        Update: Partial<Omit<Database["public"]["Tables"]["notification_deliveries"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

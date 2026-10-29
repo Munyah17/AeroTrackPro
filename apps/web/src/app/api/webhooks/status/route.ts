@@ -6,6 +6,7 @@ import {
   type TraccarEvent,
 } from "@/lib/traccar";
 import { createAdminClient, isServiceRoleConfigured } from "@/lib/supabase/server";
+import { notifyEvent } from "@/lib/notify";
 
 /**
  * Traccar event-webhook endpoint for device connectivity heartbeats.
@@ -60,7 +61,8 @@ export async function POST(req: Request): Promise<Response> {
     });
   }
 
-  const { error } = await createAdminClient()
+  const db = createAdminClient();
+  const { error } = await db
     .from("devices")
     .update({
       connection_status: event.type === "deviceOnline" ? "online" : "offline",
@@ -75,6 +77,25 @@ export async function POST(req: Request): Promise<Response> {
       { status: 500 },
     );
   }
+
+  // Opt-in notifications: users who enabled this event get email/SMS/in-app.
+  const online = event.type === "deviceOnline";
+  let vehicleName = "";
+  if (bridge.vehicle_id) {
+    const { data: vehicle } = await db
+      .from("vehicles")
+      .select("name, plate")
+      .eq("id", bridge.vehicle_id)
+      .maybeSingle();
+    vehicleName = vehicle?.name ?? vehicle?.plate ?? "";
+  }
+  await notifyEvent(db, bridge.tenant_id, online ? "device_online" : "device_offline", {
+    title: online ? "Device back online" : "Device went offline",
+    body: `${vehicleName ? `${vehicleName} ` : ""}(tracker ${bridge.imei}) ${
+      online ? "resumed reporting" : "stopped reporting"
+    } at ${event.eventTime ?? new Date().toISOString()}.`,
+    link: "/tracking",
+  });
 
   return NextResponse.json({
     handled: true,
