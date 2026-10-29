@@ -19,6 +19,7 @@ const TABS = [
   { label: "Driver Journal", href: "/fleet/journal" },
   { label: "Eco Driving", href: "/fleet/eco" },
   { label: "Maintenance", href: "/fleet/maintenance" },
+  { label: "Reports", href: "/fleet/reports" },
 ] as const;
 
 export default function FleetLayout({ children }: { children: React.ReactNode }) {
