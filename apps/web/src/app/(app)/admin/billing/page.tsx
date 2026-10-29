@@ -2,7 +2,7 @@
 
 import { CreditCard, Download, Wallet } from "lucide-react";
 import { toast } from "sonner";
-import { tenants, invoices } from "@aerotrack/shared";
+import { useInvoices, useTenants } from "@/hooks/use-platform-data";
 import { Button } from "@/components/ui/button";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
@@ -10,6 +10,8 @@ import { StatCard } from "@/components/shared/stat-card";
 import { usd } from "@/lib/format";
 
 export default function BillingPage() {
+  const { rows: tenants } = useTenants();
+  const { rows: invoices } = useInvoices();
   const mrr = tenants.reduce((n, t) => n + t.mrrUsd, 0);
   const arr = mrr * 12;
   const overdueAmt = invoices.filter((i) => i.status === "overdue").reduce((n, i) => n + i.amountUsd, 0);
@@ -26,7 +28,7 @@ export default function BillingPage() {
         }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         <StatCard label="MRR" value={mrr} suffix="USD" icon={Wallet} trend={9.8} trendLabel="MoM" />
         <StatCard label="ARR (run rate)" value={arr} suffix="USD" icon={CreditCard} delay={0.05} />
         <StatCard label="Paying Clients" value={tenants.filter((t) => t.mrrUsd > 0).length} icon={CreditCard} delay={0.1} />

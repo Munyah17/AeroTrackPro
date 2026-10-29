@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Ban,
   CheckCircle2,
   Clock,
   Download,
@@ -11,6 +12,8 @@ import {
   QrCode as QrIcon,
   Ticket,
 } from "lucide-react";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import type { Database } from "@aerotrack/shared";
 import { toast } from "sonner";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
@@ -32,7 +35,14 @@ import { usd } from "@/lib/format";
 
 type CouponStatus = "active" | "redeemed" | "expired" | "void";
 
+type CouponRow = Database["public"]["Tables"]["fuel_coupons"]["Row"];
+
+const isConfigured = Boolean(
+  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+);
+
 interface Coupon {
+  id?: string;
   code: string;
   amountUsd: number | null;
   litres: number | null;
@@ -43,6 +53,42 @@ interface Coupon {
   expiresAt?: string;
   redeemedAt?: string;
   redeemedStation?: string;
+}
+
+function toCoupon(r: CouponRow): Coupon {
+  return {
+    id: r.id,
+    code: r.code,
+    amountUsd: r.amount_usd != null ? Number(r.amount_usd) : null,
+    litres: r.litres != null ? Number(r.litres) : null,
+    fuelType: r.fuel_type,
+    status: r.status,
+    driver: r.driver_name ?? undefined,
+    createdAt: r.created_at,
+    expiresAt: r.expires_at ?? undefined,
+    redeemedAt: r.redeemed_at ?? undefined,
+    redeemedStation: r.redeemed_station ?? undefined,
+  };
+}
+
+/** Applies a realtime fuel_coupons change to the list (dedupes by code). */
+function applyCouponEvent(
+  prev: Coupon[],
+  payload: RealtimePostgresChangesPayload<{ [key: string]: unknown }>,
+): Coupon[] {
+  if (payload.eventType === "INSERT") {
+    const next = toCoupon(payload.new as CouponRow);
+    return prev.some((c) => c.code === next.code) ? prev : [next, ...prev];
+  }
+  if (payload.eventType === "UPDATE") {
+    const next = toCoupon(payload.new as CouponRow);
+    return prev.map((c) => (c.id === next.id ? next : c));
+  }
+  if (payload.eventType === "DELETE") {
+    const id = (payload.old as Partial<CouponRow>).id;
+    return prev.filter((c) => c.id !== id);
+  }
+  return prev;
 }
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -81,8 +127,69 @@ function redeemUrl(code: string) {
 
 export default function FuelCouponsPage() {
   const [coupons, setCoupons] = useState<Coupon[]>(SEED);
+  const [live, setLive] = useState(false);
   const [issueOpen, setIssueOpen] = useState(false);
+  const [issuing, setIssuing] = useState(false);
   const [viewing, setViewing] = useState<Coupon | null>(null);
+  const ctxRef = useRef<{ tenantId: string; userId: string } | null>(null);
+
+  // Load coupons through RLS and stream changes; falls back to the demo list
+  // when there's no signed-in user (RLS returns nothing without a session).
+  useEffect(() => {
+    if (!isConfigured) return;
+    let cancelled = false;
+    let cleanup: (() => void) | undefined;
+
+    void (async () => {
+      try {
+        const { supabase } = await import("@/lib/supabase");
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user || cancelled) return;
+
+        const { data: me } = await supabase
+          .from("users")
+          .select("id, tenant_id")
+          .eq("auth_id", user.id)
+          .maybeSingle();
+        if (!me || cancelled) return;
+        ctxRef.current = { tenantId: me.tenant_id, userId: me.id };
+
+        const { data, error } = await supabase
+          .from("fuel_coupons")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(500);
+        if (error || cancelled) return;
+
+        setCoupons((data ?? []).map(toCoupon));
+        setLive(true);
+
+        const channel = supabase
+          .channel("fuel-coupons")
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "fuel_coupons",
+              filter: `tenant_id=eq.${me.tenant_id}`,
+            },
+            (payload) => setCoupons((prev) => applyCouponEvent(prev, payload)),
+          )
+          .subscribe();
+        cleanup = () => void supabase.removeChannel(channel);
+      } catch {
+        // Stay in demo mode on any failure.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
+  }, []);
   const [form, setForm] = useState({
     valueType: "amount" as "amount" | "litres",
     amount: "50",
@@ -100,12 +207,53 @@ export default function FuelCouponsPage() {
     return { active: active.length, redeemed: redeemed.length, outstanding };
   }, [coupons]);
 
-  const issue = () => {
+  const issue = async () => {
     const qty = Math.min(Math.max(parseInt(form.quantity || "1"), 1), 100);
     const amount = form.valueType === "amount" ? parseFloat(form.amount) : null;
     const litres = form.valueType === "litres" ? parseFloat(form.litres) : null;
     if (form.valueType === "amount" && (!amount || amount <= 0)) return toast.error("Enter a valid amount");
     if (form.valueType === "litres" && (!litres || litres <= 0)) return toast.error("Enter valid litres");
+
+    const expiresAt = new Date(Date.now() + parseInt(form.validDays || "30") * DAY).toISOString();
+
+    if (live && ctxRef.current) {
+      setIssuing(true);
+      try {
+        const { supabase } = await import("@/lib/supabase");
+        const rows = Array.from({ length: qty }, () => ({
+          tenant_id: ctxRef.current!.tenantId,
+          issued_by: ctxRef.current!.userId,
+          code: generateCode(),
+          amount_usd: amount,
+          litres,
+          fuel_type: form.fuelType,
+          driver_id: null,
+          driver_name: form.driver || null,
+          vehicle_id: null,
+          notes: null,
+          expires_at: expiresAt,
+        }));
+        const { data, error } = await supabase.from("fuel_coupons").insert(rows).select();
+        if (error) {
+          toast.error(error.code === "23505" ? "Code collision — please retry" : error.message);
+          return;
+        }
+        // Realtime also delivers these; applyCouponEvent dedupes by code.
+        const fresh = (data ?? []).map(toCoupon);
+        setCoupons((prev) => [
+          ...fresh.filter((f) => !prev.some((c) => c.code === f.code)),
+          ...prev,
+        ]);
+        setIssueOpen(false);
+        if (qty === 1 && fresh[0]) setViewing(fresh[0]);
+        toast.success(`${qty} coupon${qty > 1 ? "s" : ""} issued`);
+      } catch {
+        toast.error("Failed to issue coupons");
+      } finally {
+        setIssuing(false);
+      }
+      return;
+    }
 
     const fresh: Coupon[] = Array.from({ length: qty }, () => ({
       code: generateCode(),
@@ -115,12 +263,27 @@ export default function FuelCouponsPage() {
       status: "active" as const,
       driver: form.driver || undefined,
       createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + parseInt(form.validDays || "30") * DAY).toISOString(),
+      expiresAt,
     }));
     setCoupons((prev) => [...fresh, ...prev]);
     setIssueOpen(false);
     if (qty === 1) setViewing(fresh[0]!);
     toast.success(`${qty} coupon${qty > 1 ? "s" : ""} issued`);
+  };
+
+  const voidCoupon = async (c: Coupon) => {
+    if (live && c.id) {
+      try {
+        const { supabase } = await import("@/lib/supabase");
+        const { error } = await supabase.from("fuel_coupons").update({ status: "void" }).eq("id", c.id);
+        if (error) return toast.error(error.message);
+      } catch {
+        return toast.error("Failed to void coupon");
+      }
+    } else {
+      setCoupons((prev) => prev.map((x) => (x.code === c.code ? { ...x, status: "void" as const } : x)));
+    }
+    toast.success(`${c.code} voided`);
   };
 
   const exportCoupons = () => {
@@ -224,8 +387,8 @@ export default function FuelCouponsPage() {
                     <Input value={form.driver} onChange={(e) => setForm({ ...form, driver: e.target.value })} placeholder="Driver name" className="rounded-xl" />
                   </div>
 
-                  <Button onClick={issue} className="w-full gap-2 rounded-xl">
-                    <Ticket className="size-4" /> Issue
+                  <Button onClick={issue} disabled={issuing} className="w-full gap-2 rounded-xl">
+                    <Ticket className="size-4" /> {issuing ? "Issuing…" : "Issue"}
                   </Button>
                 </div>
               </DialogContent>
@@ -253,7 +416,9 @@ export default function FuelCouponsPage() {
       <Panel className="mt-4">
         <div className="flex items-center justify-between border-b border-border/60 px-5 py-3.5">
           <h3 className="text-[14px] font-semibold">Issued coupons</h3>
-          <span className="text-xs text-muted-foreground">{coupons.length} total</span>
+          <span className="text-xs text-muted-foreground">
+            {coupons.length} total · {live ? "live" : "demo"}
+          </span>
         </div>
         <div className="divide-y divide-border/50">
           {coupons.map((c) => (
@@ -272,6 +437,17 @@ export default function FuelCouponsPage() {
                   {c.status === "redeemed" && c.redeemedStation && ` · at ${c.redeemedStation}`}
                 </div>
               </div>
+              {c.status === "active" && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 shrink-0 rounded-lg text-muted-foreground hover:text-destructive"
+                  onClick={() => voidCoupon(c)}
+                  aria-label="Void coupon"
+                >
+                  <Ban className="size-4" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"

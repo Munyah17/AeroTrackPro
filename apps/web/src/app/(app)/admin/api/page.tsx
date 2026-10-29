@@ -2,7 +2,7 @@
 
 import { Copy, KeyRound, Plus, Webhook } from "lucide-react";
 import { toast } from "sonner";
-import { apiKeys, tenantById } from "@aerotrack/shared";
+import { useApiKeys, useTenants } from "@/hooks/use-platform-data";
 import { Button } from "@/components/ui/button";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
@@ -15,6 +15,9 @@ const WEBHOOKS = [
 ];
 
 export default function ApiPage() {
+  const { rows: apiKeys } = useApiKeys();
+  const { rows: tenants } = useTenants();
+  const tenantById = (id: string) => tenants.find((t) => t.id === id);
   return (
     <PageContainer className="max-w-[1100px]">
       <PageHeader

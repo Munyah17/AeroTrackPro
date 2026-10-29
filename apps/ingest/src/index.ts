@@ -40,6 +40,8 @@ const LISTENERS: ProtocolListener[] = [
   { port: 5020, protocol: "meitrack" },
   { port: 5049, protocol: "topflytech" },
   { port: 5045, protocol: "vt200" },
+  { port: 5027, protocol: "teltonika" },
+  { port: 5015, protocol: "jt808" },
 ];
 
 function reply(socket: net.Socket, response: Uint8Array | string | undefined) {
@@ -136,9 +138,11 @@ function handleConnection(socket: net.Socket, protocol: ProtocolKey) {
 
         switch (decoded.kind) {
           case "position":
+            reply(socket, decoded.response);
             await savePositions(protocol, socket, session, [decoded.position]);
             break;
           case "positions":
+            reply(socket, decoded.response);
             await savePositions(protocol, socket, session, decoded.positions);
             break;
           case "login":

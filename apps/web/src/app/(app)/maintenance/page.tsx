@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { CalendarClock, CircleCheck, Clock4, Plus, Wrench } from "lucide-react";
 import { toast } from "sonner";
-import { maintenance, vehicleById, vehicles } from "@aerotrack/shared";
+import { useMaintenanceItems } from "@/hooks/use-live-data";
+import { useFleet } from "@/hooks/use-fleet";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -19,20 +20,42 @@ import { shortDate, usd } from "@/lib/format";
 
 type Tab = "upcoming" | "overdue" | "completed";
 
+/** UI select values → DB check-constraint values. */
+const TYPE_MAP: Record<string, "oil" | "tyres" | "brakes" | "service" | "inspection" | "other"> = {
+  oil_change: "oil",
+  tire_rotation: "tyres",
+  brake_check: "brakes",
+  filter_replace: "service",
+  inspection: "inspection",
+  other: "other",
+};
+const RECUR_MONTHS: Record<string, number | null> = {
+  none: null,
+  monthly: 1,
+  "3months": 3,
+  "6months": 6,
+  yearly: 12,
+};
+
+const emptyForm = {
+  vehicleId: "",
+  type: "oil_change",
+  title: "",
+  dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+  cost: "",
+  notes: "",
+  recurring: "none",
+};
+
 export default function MaintenancePage() {
   const [tab, setTab] = useState<Tab>("upcoming");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({
-    vehicleId: vehicles[0]?.id ?? "",
-    type: "oil_change",
-    title: "",
-    dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    cost: "",
-    notes: "",
-    recurring: "none",
-  });
+  const [saving, setSaving] = useState(false);
+  const { rows: maintenance, insert, update } = useMaintenanceItems();
+  const { vehicles } = useFleet();
+  const [form, setForm] = useState(emptyForm);
 
-  const rows = useMemo(() => maintenance.filter((m) => m.status === tab), [tab]);
+  const rows = useMemo(() => maintenance.filter((m) => m.status === tab), [maintenance, tab]);
   const counts = {
     upcoming: maintenance.filter((m) => m.status === "upcoming").length,
     overdue: maintenance.filter((m) => m.status === "overdue").length,
@@ -40,22 +63,30 @@ export default function MaintenancePage() {
   };
   const totalCost = maintenance.reduce((n, m) => n + (m.costUsd ?? 0), 0);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.title.trim()) {
       toast.error("Please enter a maintenance title");
       return;
     }
-    toast.success("Maintenance scheduled successfully");
-    setDialogOpen(false);
-    setForm({
-      vehicleId: vehicles[0]?.id ?? "",
-      type: "oil_change",
-      title: "",
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      cost: "",
-      notes: "",
-      recurring: "none",
+    const vehicleId = form.vehicleId || vehicles[0]?.id || "";
+    setSaving(true);
+    const ok = await insert({
+      vehicle_id: vehicleId,
+      title: form.title.trim(),
+      type: TYPE_MAP[form.type] ?? "other",
+      due_date: form.dueDate.toISOString().slice(0, 10),
+      due_odometer_km: null,
+      repeat_every_km: null,
+      repeat_every_months: RECUR_MONTHS[form.recurring] ?? null,
+      cost_usd: form.cost ? Number(form.cost) : null,
+      provider: null,
+      notes: form.notes.trim() || null,
     });
+    setSaving(false);
+    if (ok) toast.success("Maintenance scheduled successfully");
+    else toast.info("Demo mode — sign in to persist schedules");
+    setDialogOpen(false);
+    setForm(emptyForm);
   };
 
   return (
@@ -64,7 +95,7 @@ export default function MaintenancePage() {
         title="Maintenance"
         subtitle="Schedules, alerts and service history"
         actions={
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (o) setForm((f) => ({ ...f, vehicleId: vehicles[0]?.id ?? "" })); }}>
             <DialogTrigger
               render={
                 <Button className="gap-2 rounded-xl shadow-card">
@@ -170,8 +201,8 @@ export default function MaintenancePage() {
                   />
                 </div>
 
-                <Button onClick={handleSave} className="w-full rounded-xl">
-                  Schedule Maintenance
+                <Button onClick={handleSave} disabled={saving} className="w-full rounded-xl">
+                  {saving ? "Saving…" : "Schedule Maintenance"}
                 </Button>
               </div>
             </DialogContent>
@@ -179,7 +210,7 @@ export default function MaintenancePage() {
         }
       />
 
-      <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-5 grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Upcoming" value={counts.upcoming} icon={CalendarClock} />
         <StatCard label="Overdue" value={counts.overdue} icon={Clock4} iconClassName="bg-destructive/10 text-destructive" delay={0.05} />
         <StatCard label="Completed" value={counts.completed} icon={CircleCheck} iconClassName="bg-success/10 text-success" delay={0.1} />
@@ -198,7 +229,7 @@ export default function MaintenancePage() {
 
       <div className="flex flex-col gap-2.5">
         {rows.map((m) => {
-          const v = vehicleById(m.vehicleId);
+          const v = vehicles.find((x) => x.id === m.vehicleId);
           return (
             <Panel key={m.id} hover className="flex flex-wrap items-center gap-4 p-4">
               <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -223,7 +254,11 @@ export default function MaintenancePage() {
                   variant="outline"
                   size="sm"
                   className="rounded-xl"
-                  onClick={() => toast.success(`${m.title} marked complete`)}
+                  onClick={async () => {
+                    const ok = await update(m.id, { status: "completed", completed_at: new Date().toISOString() });
+                    if (ok) toast.success(`${m.title} marked complete`);
+                    else toast.info("Demo mode — sign in to persist changes");
+                  }}
                 >
                   Mark complete
                 </Button>

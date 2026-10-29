@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { computeResellerBill } from "@/lib/reseller";
+import { useInvoices } from "@/hooks/use-platform-data";
 import { downloadCsv } from "@/lib/export";
 import { usd } from "@/lib/format";
 
@@ -21,12 +22,20 @@ const MONTHS = ["Jul 2026", "Jun 2026", "May 2026", "Apr 2026", "Mar 2026", "Feb
 
 export default function ResellerInvoicesPage() {
   const bill = computeResellerBill();
-  const invoices = MONTHS.map((m, i) => ({
-    number: `RSL-${String(1042 - i).padStart(4, "0")}`,
-    period: m,
-    amount: bill.monthlyTotal * (1 - i * 0.03),
-    status: i === 0 ? ("pending" as const) : ("paid" as const),
-  }));
+  const { rows: dbInvoices, live } = useInvoices();
+  const invoices = live
+    ? dbInvoices.map((v) => ({
+        number: v.number,
+        period: new Date(v.issuedAt).toLocaleDateString("en-GB", { month: "short", year: "numeric" }),
+        amount: v.amountUsd,
+        status: v.status as "paid" | "pending" | "overdue" | "failed",
+      }))
+    : MONTHS.map((m, i) => ({
+        number: `RSL-${String(1042 - i).padStart(4, "0")}`,
+        period: m,
+        amount: bill.monthlyTotal * (1 - i * 0.03),
+        status: i === 0 ? ("pending" as const) : ("paid" as const),
+      }));
 
   const exportAll = () => {
     downloadCsv(
@@ -66,7 +75,7 @@ export default function ResellerInvoicesPage() {
                 <TableCell className="text-[13px]">{v.period}</TableCell>
                 <TableCell className="text-right font-medium tabular-nums">{usd(v.amount)}</TableCell>
                 <TableCell>
-                  <Pill tone={v.status === "paid" ? "success" : "warning"}>{v.status}</Pill>
+                  <Pill tone={v.status === "paid" ? "success" : v.status === "pending" ? "warning" : "danger"}>{v.status}</Pill>
                 </TableCell>
                 <TableCell className="pr-5 text-right">
                   <Button variant="ghost" size="icon" className="size-8 rounded-lg" onClick={() => toast.success(`${v.number} downloaded`)}>

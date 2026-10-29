@@ -154,6 +154,10 @@
   body {
     @apply bg-background text-foreground antialiased;
   }
+  /* Stop a wide child (chart, table, badge row) from blowing out the page. */
+  main .grid > * {
+    min-width: 0;
+  }
   ::selection {
     @apply bg-primary/15 text-primary;
   }
@@ -211,4 +215,71 @@
 .dark .maplibregl-popup-content {
   background: oklch(0.205 0.025 262);
   color: oklch(0.955 0.005 248);
+}
+
+/* A finger on the map pans the map. Scrolling still works on the page around it. */
+.fleet-map,
+.fleet-map .maplibregl-canvas-container,
+.fleet-map .maplibregl-canvas {
+  touch-action: none;
+}
+
+/* Trip scrubber: same track and a thumb large enough to drag. */
+.playback-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 2.75rem;
+  margin: 0;
+  background: transparent;
+  touch-action: none;
+  cursor: pointer;
+}
+.playback-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--muted);
+}
+.playback-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -8px;
+  border: 2px solid white;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.35);
+}
+.playback-range::-moz-range-track {
+  height: 6px;
+  border: none;
+  border-radius: 999px;
+  background: var(--muted);
+}
+.playback-range::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border: 2px solid white;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
+/* Zoom and attribution sit above whatever card is parked on the map. */
+@media (max-width: 1023px) {
+  .tracking-stage .maplibregl-ctrl-bottom-right,
+  .tracking-stage .maplibregl-ctrl-bottom-left,
+  .playback-stage .maplibregl-ctrl-bottom-right,
+  .playback-stage .maplibregl-ctrl-bottom-left,
+  .draw-stage .maplibregl-ctrl-bottom-right,
+  .draw-stage .maplibregl-ctrl-bottom-left {
+    bottom: 0.75rem;
+  }
+  .tracking-stage[data-sheet="open"] .maplibregl-ctrl-bottom-right,
+  .tracking-stage[data-sheet="open"] .maplibregl-ctrl-bottom-left,
+  .playback-stage .maplibregl-ctrl-bottom-right,
+  .playback-stage .maplibregl-ctrl-bottom-left,
+  .draw-stage[data-drawing="open"] .maplibregl-ctrl-bottom-right,
+  .draw-stage[data-drawing="open"] .maplibregl-ctrl-bottom-left {
+    bottom: var(--overlay-offset, 6.5rem);
+  }
 }

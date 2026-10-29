@@ -2,7 +2,7 @@
 
 import { KeyRound, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { tenants } from "@aerotrack/shared";
+import { useTenants } from "@/hooks/use-platform-data";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
@@ -11,6 +11,7 @@ import { StatCard } from "@/components/shared/stat-card";
 import { shortDate } from "@/lib/format";
 
 export default function LicensesPage() {
+  const { rows: tenants } = useTenants();
   const total = 5000;
   const inUse = tenants.reduce((n, t) => n + t.vehicleCount, 0);
 
@@ -26,7 +27,7 @@ export default function LicensesPage() {
         }
       />
 
-      <div className="mb-4 grid grid-cols-3 gap-4">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         <StatCard label="Total Licenses" value={total} icon={KeyRound} />
         <StatCard label="In Use" value={inUse} icon={KeyRound} iconClassName="bg-success/10 text-success" delay={0.05} />
         <StatCard label="Available" value={total - inUse} icon={KeyRound} iconClassName="bg-muted text-muted-foreground" delay={0.1} />

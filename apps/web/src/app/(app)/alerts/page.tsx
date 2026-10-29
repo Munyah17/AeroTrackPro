@@ -19,10 +19,14 @@ import {
   Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
-import { alerts as allAlerts, vehicleById, type FleetAlert } from "@aerotrack/shared";
+import type { FleetAlert } from "@aerotrack/shared";
+import { useAlerts } from "@/hooks/use-live-data";
+import { useFleet } from "@/hooks/use-fleet";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
+import { useBrand } from "@/components/shell/brand-provider";
+import { defaultSms, providerLabel } from "@/lib/brand";
 import { AlertStatusChip, SeverityChip } from "@/components/shared/status";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/format";
@@ -52,6 +56,15 @@ type Tab = "all" | "active" | "acknowledged" | "resolved";
 export default function AlertsPage() {
   const [tab, setTab] = useState<Tab>("all");
   const [acked, setAcked] = useState<Set<string>>(new Set());
+  const { rows: allAlerts, live, update } = useAlerts();
+  const { vehicles } = useFleet();
+  const { brand } = useBrand();
+  const sms = defaultSms(brand);
+
+  const acknowledge = (ids: string[]) => {
+    setAcked(new Set(ids));
+    if (live) ids.forEach((id) => void update(id, { status: "acknowledged", acknowledged_at: new Date().toISOString() }));
+  };
 
   const rows = useMemo(() => {
     const withLocal = allAlerts.map((a) =>
@@ -59,7 +72,7 @@ export default function AlertsPage() {
     );
     if (tab === "all") return withLocal;
     return withLocal.filter((a) => a.status === tab);
-  }, [tab, acked]);
+  }, [allAlerts, tab, acked]);
 
   const counts = {
     all: allAlerts.length,
@@ -78,7 +91,7 @@ export default function AlertsPage() {
             variant="outline"
             className="gap-2 rounded-xl"
             onClick={() => {
-              setAcked(new Set(allAlerts.filter((a) => a.status === "active").map((a) => a.id)));
+              acknowledge(allAlerts.filter((a) => a.status === "active").map((a) => a.id));
               toast.success("All active alerts acknowledged");
             }}
           >
@@ -86,6 +99,12 @@ export default function AlertsPage() {
           </Button>
         }
       />
+
+      {sms && (
+        <p className="mb-4 text-[12.5px] text-muted-foreground">
+          SMS for these alerts goes out as <span className="font-semibold text-foreground">{sms.senderId}</span> via {providerLabel(sms.provider)}.
+        </p>
+      )}
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
         <TabsList className="mb-4 h-10 rounded-xl p-1">
@@ -99,8 +118,8 @@ export default function AlertsPage() {
 
       <div className="flex flex-col gap-2.5">
         {rows.map((a, i) => {
-          const Icon = TYPE_ICONS[a.type];
-          const vehicle = vehicleById(a.vehicleId);
+          const Icon = TYPE_ICONS[a.type] ?? Bell;
+          const vehicle = vehicles.find((v) => v.id === a.vehicleId);
           return (
             <motion.div
               key={a.id}
@@ -138,7 +157,7 @@ export default function AlertsPage() {
                     size="sm"
                     className="shrink-0 gap-1.5 rounded-xl"
                     onClick={() => {
-                      setAcked((prev) => new Set(prev).add(a.id));
+                      acknowledge([a.id]);
                       toast.success(`Alert acknowledged — ${a.title}`);
                     }}
                   >

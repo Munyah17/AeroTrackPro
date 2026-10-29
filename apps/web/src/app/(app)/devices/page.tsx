@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Cable, Link2, Plus, Radio } from "lucide-react";
 import { toast } from "sonner";
 import { DEVICE_MODELS, type DeviceModel } from "@aerotrack/protocols";
-import { vehicles } from "@aerotrack/shared";
+import { useFleet } from "@/hooks/use-fleet";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
@@ -51,6 +51,7 @@ function CapabilityPills({ model }: { model: DeviceModel }) {
 
 export default function DevicesPage() {
   const [tab, setTab] = useState<"catalog" | "bound">("catalog");
+  const { vehicles } = useFleet();
   const boundCount = (id: string) => vehicles.filter((v) => v.deviceModelId === id).length;
 
   return (

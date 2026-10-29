@@ -9,13 +9,18 @@ import {
 
 type VehicleRow = Database["public"]["Tables"]["vehicles"]["Row"];
 type PositionRow = Database["public"]["Tables"]["positions"]["Row"];
+type DeviceRow = Database["public"]["Tables"]["devices"]["Row"];
 
 const isConfigured = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
 );
 
-/** Maps a DB vehicle + latest position into the UI's domain Vehicle. */
-function toDomainVehicle(row: VehicleRow, position: PositionRow | undefined): Vehicle {
+/** Maps a DB vehicle + latest position + bound device into the UI's domain Vehicle. */
+function toDomainVehicle(
+  row: VehicleRow,
+  position: PositionRow | undefined,
+  device: DeviceRow | undefined,
+): Vehicle {
   const speed = Number(position?.speed_kmh ?? 0);
   const ageMs = position ? Date.now() - new Date(position.recorded_at).getTime() : Infinity;
   const status: Vehicle["status"] =
@@ -32,9 +37,11 @@ function toDomainVehicle(row: VehicleRow, position: PositionRow | undefined): Ve
     year: row.year ?? 0,
     color: row.color ?? "#1E40FF",
     status,
-    deviceModelId: "",
-    imei: "",
-    simMsisdn: "",
+    deviceModelId: device?.device_model ?? "",
+    imei: device?.imei ?? "",
+    simMsisdn: device?.phone_number ?? device?.sim_number ?? "",
+    driverId: row.driver_id ?? undefined,
+    groupId: row.group_id ?? undefined,
     position: {
       lat: Number(position?.lat ?? 0),
       lng: Number(position?.lng ?? 0),
@@ -46,11 +53,13 @@ function toDomainVehicle(row: VehicleRow, position: PositionRow | undefined): Ve
     odometerKm: Number(row.odometer_km ?? 0),
     engineHours: 0,
     fuelCapacityL: Number(row.fuel_capacity_liters ?? 0) || undefined,
-    gsmSignal: 80,
+    gsmSignal: device?.signal_strength ?? 80,
     satellites: 10,
     ignition: speed > 0,
     blocked: false,
     healthScore: 90,
+    insuranceExpiry: row.insurance_expiry ?? undefined,
+    licenseExpiry: row.license_expiry ?? undefined,
   };
 }
 
@@ -130,7 +139,7 @@ export function useFleet(): {
       try {
         const { supabase } = await import("@/lib/supabase");
 
-        const [{ data: vehicleRows, error: vErr }, { data: positionRows, error: pErr }] =
+        const [{ data: vehicleRows, error: vErr }, { data: positionRows, error: pErr }, { data: deviceRows }] =
           await Promise.all([
             supabase.from("vehicles").select("*").limit(500),
             supabase
@@ -138,6 +147,7 @@ export function useFleet(): {
               .select("*")
               .order("recorded_at", { ascending: false })
               .limit(2000),
+            supabase.from("devices").select("*").limit(500),
           ]);
 
         if (cancelled) return;
@@ -150,8 +160,11 @@ export function useFleet(): {
         for (const p of positionRows ?? []) {
           if (p.vehicle_id && !latest.has(p.vehicle_id)) latest.set(p.vehicle_id, p);
         }
+        const devicesById = new Map((deviceRows ?? []).map((d) => [d.id, d]));
+        const deviceFor = (r: VehicleRow) =>
+          r.device_id ? devicesById.get(r.device_id) : undefined;
         rowsRef.current = new Map(vehicleRows.map((r) => [r.id, r]));
-        setFleet(vehicleRows.map((r) => toDomainVehicle(r, latest.get(r.id))));
+        setFleet(vehicleRows.map((r) => toDomainVehicle(r, latest.get(r.id), deviceFor(r))));
         setLive(true);
 
         const channel = supabase
@@ -166,7 +179,9 @@ export function useFleet(): {
               if (!row) return;
               appendTrail(pos.vehicle_id, Number(pos.lng), Number(pos.lat));
               setFleet((f) =>
-                f.map((v) => (v.id === pos.vehicle_id ? toDomainVehicle(row, pos) : v)),
+                f.map((v) =>
+                  v.id === pos.vehicle_id ? toDomainVehicle(row, pos, deviceFor(row)) : v,
+                ),
               );
             },
           )

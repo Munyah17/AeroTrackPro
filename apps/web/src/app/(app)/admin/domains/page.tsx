@@ -2,7 +2,7 @@
 
 import { Globe, Lock, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { tenants } from "@aerotrack/shared";
+import { useTenants } from "@/hooks/use-platform-data";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
@@ -10,6 +10,7 @@ import { Pill } from "@/components/shared/status";
 import { shortDate } from "@/lib/format";
 
 export default function DomainsPage() {
+  const { rows: tenants } = useTenants();
   const rows = tenants.map((t) => ({
     tenant: t,
     domain: t.customDomain ?? `${t.slug}.aerotrack.app`,

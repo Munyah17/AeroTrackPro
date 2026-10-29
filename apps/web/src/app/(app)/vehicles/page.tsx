@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Car, ChevronRight, Download, Filter, Plus, Search, Star } from "lucide-react";
 import { toast } from "sonner";
-import { vehicles, driverById, groups } from "@aerotrack/shared";
+import { useDrivers, useVehicleGroups } from "@/hooks/use-live-data";
+import { useFleet } from "@/hooks/use-fleet";
 import { getDeviceModel } from "@aerotrack/protocols";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,9 @@ import { VehicleStatusChip } from "@/components/shared/status";
 import { timeAgo } from "@/lib/format";
 
 export default function VehiclesPage() {
+  const { vehicles } = useFleet();
+  const { rows: drivers } = useDrivers();
+  const { rows: groups } = useVehicleGroups();
   const [query, setQuery] = useState("");
   const [groupFilter, setGroupFilter] = useState<string[]>([]);
 
@@ -37,7 +41,7 @@ export default function VehiclesPage() {
           `${v.make} ${v.model}`.toLowerCase().includes(q)
         );
       }),
-    [query, groupFilter],
+    [vehicles, query, groupFilter],
   );
 
   return (
@@ -60,7 +64,7 @@ export default function VehiclesPage() {
       <Panel>
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-2.5 border-b border-border/60 p-4">
-          <div className="relative w-full max-w-xs">
+          <div className="relative w-full min-w-0 sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
@@ -95,7 +99,7 @@ export default function VehiclesPage() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <span className="ml-auto text-[12.5px] text-muted-foreground">
+          <span className="text-[12.5px] text-muted-foreground sm:ml-auto">
             Showing {rows.length} of {vehicles.length}
           </span>
         </div>
@@ -117,7 +121,7 @@ export default function VehiclesPage() {
             </TableHeader>
             <TableBody>
               {rows.map((v) => {
-                const driver = driverById(v.driverId);
+                const driver = drivers.find((d) => d.id === v.driverId);
                 const device = getDeviceModel(v.deviceModelId);
                 return (
                   <TableRow key={v.id} className="group cursor-pointer">

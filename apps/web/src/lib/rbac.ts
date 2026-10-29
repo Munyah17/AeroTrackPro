@@ -1,64 +1,58 @@
 import {
-  Activity,
   BadgeDollarSign,
-  BarChart3,
   Bell,
   Building2,
   Car,
-  CreditCard,
-  Database,
-  Fuel,
-  Gauge,
   Globe,
-  Hexagon,
-  KeyRound,
   LayoutDashboard,
   LifeBuoy,
-  Lock,
-  Mail,
+  MessageSquare,
   Navigation,
-  Package,
   Palette,
+  PanelsTopLeft,
   Radio,
   Receipt,
   Route,
   Settings,
-  Shield,
-  ShieldCheck,
-  Ticket,
+  Smartphone,
   Users,
-  UserCog,
   Wallet,
-  Wrench,
 } from "lucide-react";
 import { ADMIN_NAV, FLEET_NAV, type NavSection } from "./nav";
 
 /**
- * The three account tiers.
- *  - super_admin: platform owner (us). Master platform portal + the ability
- *    to switch into a Reseller portal (we also resell). Only this role can
- *    switch portals.
- *  - reseller: GPS tracking service providers. Manage their own clients and
- *    devices, view all their clients' devices in tracking, see what they owe
- *    the platform.
- *  - client: end customer. Tracking dashboard only, scoped to devices
- *    assigned to them.
+ * Account tiers.
+ *  - super_admin: Master Admin (the founder). Platform portal, plus the
+ *    reseller portal and corporate fleet management.
+ *  - reseller: sells vehicle tracking. Admin dashboard only — clients,
+ *    devices, billing, branding. No fleet-management console unless delegated.
+ *  - user: the end customer. Live tracking for the vehicles assigned to them.
+ *
+ * Corporate fleet management (fuel, drivers, maintenance, insurance, reports,
+ * geofences, commands) is a partnership product. Master Admin always has it.
+ * Everyone else needs an explicit grant from Master Admin.
  */
-export type Role = "super_admin" | "reseller" | "client";
+export type Role = "super_admin" | "reseller" | "user";
 
-/** Which portal surface a super_admin is currently viewing. */
-export type Portal = "master" | "reseller";
+/** Which surface the sidebar is showing. */
+export type Portal = "master" | "reseller" | "fleet" | "tracking";
 
 export const ROLE_LABELS: Record<Role, string> = {
-  super_admin: "Platform Owner",
+  super_admin: "Master Admin",
   reseller: "Reseller",
-  client: "Client",
+  user: "User",
 };
 
-/** Master (platform owner) portal — the existing full admin surface. */
+/** Display identity for the demo account switcher. */
+export const ROLE_IDENTITY: Record<Role, { name: string; initials: string }> = {
+  super_admin: { name: "Munya M.", initials: "MM" },
+  reseller: { name: "Tariro N.", initials: "TN" },
+  user: { name: "Alex Moyo", initials: "AM" },
+};
+
 export const MASTER_NAV = ADMIN_NAV;
 
-/** Reseller portal — manage their downline of clients, devices and billing. */
+/** Reseller portal — an admin dashboard for a tracking business. */
 export const RESELLER_NAV: NavSection[] = [
   {
     items: [
@@ -77,9 +71,18 @@ export const RESELLER_NAV: NavSection[] = [
     ],
   },
   {
-    label: "Workspace",
+    label: "White Label",
     items: [
       { label: "Branding", href: "/reseller/branding", icon: Palette },
+      { label: "Login Page", href: "/reseller/login-page", icon: Smartphone },
+      { label: "Landing Pages", href: "/reseller/landing", icon: PanelsTopLeft },
+      { label: "Domains", href: "/reseller/domains", icon: Globe },
+      { label: "SMS Gateway", href: "/reseller/sms", icon: MessageSquare },
+    ],
+  },
+  {
+    label: "Workspace",
+    items: [
       { label: "Team", href: "/reseller/team", icon: Users },
       { label: "Support", href: "/reseller/support", icon: LifeBuoy },
       { label: "Settings", href: "/settings", icon: Settings },
@@ -87,66 +90,163 @@ export const RESELLER_NAV: NavSection[] = [
   },
 ];
 
-/** Client portal — tracking and fleet operations for their own vehicles. */
-export const CLIENT_NAV: NavSection[] = [
+/** End-user portal — live tracking and the history that belongs with it. */
+export const USER_NAV: NavSection[] = [
   {
     items: [
-      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { label: "Live Tracking", href: "/tracking", icon: Navigation },
-      { label: "Vehicles", href: "/vehicles", icon: Car },
-      { label: "Trips", href: "/trips", icon: Route },
+      { label: "My Vehicles", href: "/vehicles", icon: Car },
+      { label: "Trip History", href: "/trips", icon: Route },
       { label: "Alerts", href: "/alerts", icon: Bell },
     ],
   },
   {
-    label: "Operations",
-    items: [
-      { label: "Geofences", href: "/geofences", icon: Hexagon },
-      { label: "Drivers", href: "/drivers", icon: Users },
-      { label: "Fuel & Coupons", href: "/fuel", icon: Fuel },
-      { label: "Maintenance", href: "/maintenance", icon: Wrench },
-      { label: "Insurance", href: "/insurance", icon: ShieldCheck },
-      { label: "Reports", href: "/reports", icon: BarChart3 },
-    ],
-  },
-  {
-    label: "Telematics",
-    items: [
-      { label: "Driving Behavior", href: "/behavior", icon: Gauge },
-      { label: "Device Health", href: "/device-health", icon: Activity },
-      { label: "Commands", href: "/commands", icon: Lock },
-    ],
-  },
-  {
-    label: "Workspace",
+    label: "Account",
     items: [{ label: "Settings", href: "/settings", icon: Settings }],
   },
 ];
 
-/** Resolve which nav a user sees, given role + (for super_admin) active portal. */
-export function navFor(role: Role, portal: Portal): NavSection[] {
-  if (role === "super_admin") return portal === "master" ? MASTER_NAV : RESELLER_NAV;
+/** Corporate fleet-management console. Gated. */
+export const FLEET_PORTAL_NAV = FLEET_NAV;
+
+const FLEET_PREFIXES = [
+  "/dashboard",
+  "/geofences",
+  "/drivers",
+  "/fuel",
+  "/maintenance",
+  "/insurance",
+  "/reports",
+  "/behavior",
+  "/device-health",
+  "/devices",
+  "/assets",
+  "/commands",
+];
+
+const TRACKING_PREFIXES = ["/tracking", "/vehicles", "/trips", "/alerts"];
+
+const WORKSPACE_SETTINGS = [
+  "/settings/general",
+  "/settings/users",
+  "/settings/api",
+  "/settings/subscription",
+];
+
+function matches(pathname: string, prefix: string) {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+export function isFleetPath(pathname: string) {
+  return FLEET_PREFIXES.some((prefix) => matches(pathname, prefix));
+}
+
+export function isRole(value: string | null): value is Role {
+  return value === "super_admin" || value === "reseller" || value === "user";
+}
+
+export function isPortal(value: string | null): value is Portal {
+  return value === "master" || value === "reseller" || value === "fleet" || value === "tracking";
+}
+
+/** Older builds stored the end-user tier as "client". */
+export function normalizeRole(value: string | null): Role {
+  if (value === "client") return "user";
+  if (isRole(value)) return value;
+  return "super_admin";
+}
+
+export function defaultPortal(role: Role): Portal {
+  if (role === "super_admin") return "master";
+  if (role === "reseller") return "reseller";
+  return "tracking";
+}
+
+export function hasFleetAccess(role: Role, delegated: boolean) {
+  return role === "super_admin" || delegated;
+}
+
+export function navFor(role: Role, portal: Portal, fleetAccess: boolean): NavSection[] {
+  if (role === "super_admin") {
+    if (portal === "fleet") return FLEET_PORTAL_NAV;
+    if (portal === "reseller") return RESELLER_NAV;
+    return MASTER_NAV;
+  }
+  if (portal === "fleet" && fleetAccess) return FLEET_PORTAL_NAV;
   if (role === "reseller") return RESELLER_NAV;
-  return CLIENT_NAV;
+  return USER_NAV;
 }
 
-/** Only the platform owner may switch portals. */
-export function canSwitchPortal(role: Role): boolean {
-  return role === "super_admin";
+export interface PortalLink {
+  portal: Portal;
+  href: string;
+  label: string;
 }
 
-// Re-export icons used elsewhere to keep a single import surface.
-export {
-  BadgeDollarSign,
-  Building2,
-  CreditCard,
-  Database,
-  Globe,
-  KeyRound,
-  Mail,
-  Package,
-  Shield,
-  Ticket,
-  UserCog,
-  FLEET_NAV,
-};
+/** Portals this account is allowed to move between. */
+export function portalLinks(role: Role, fleetAccess: boolean): PortalLink[] {
+  if (role === "super_admin") {
+    return [
+      { portal: "master", href: "/admin", label: "Master Admin" },
+      { portal: "reseller", href: "/reseller", label: "Reseller Portal" },
+      { portal: "fleet", href: "/dashboard", label: "Fleet Management" },
+    ];
+  }
+  if (!fleetAccess) return [];
+  if (role === "reseller") {
+    return [
+      { portal: "reseller", href: "/reseller", label: "Reseller Portal" },
+      { portal: "fleet", href: "/dashboard", label: "Fleet Management" },
+    ];
+  }
+  return [
+    { portal: "tracking", href: "/tracking", label: "Live Tracking" },
+    { portal: "fleet", href: "/dashboard", label: "Fleet Management" },
+  ];
+}
+
+export function canSwitchPortal(role: Role, fleetAccess: boolean) {
+  return portalLinks(role, fleetAccess).length > 1;
+}
+
+export function surfaceLabel(role: Role, portal: Portal) {
+  if (portal === "fleet") return "Fleet Management";
+  if (role === "super_admin") return "Master Admin";
+  if (role === "reseller") return "Reseller Portal";
+  return "Live Tracking";
+}
+
+export function homeFor(role: Role, portal: Portal, fleetAccess: boolean) {
+  if (role === "super_admin") {
+    if (portal === "reseller") return "/reseller";
+    if (portal === "fleet") return "/dashboard";
+    return "/admin";
+  }
+  if (role === "reseller") {
+    return portal === "fleet" && fleetAccess ? "/dashboard" : "/reseller";
+  }
+  return portal === "fleet" && fleetAccess ? "/dashboard" : "/tracking";
+}
+
+/** Whether this account may open the path. Master Admin is never blocked. */
+export function canVisit(pathname: string, role: Role, fleetAccess: boolean) {
+  if (role === "super_admin") return true;
+  if (pathname.startsWith("/admin")) return false;
+  if (isFleetPath(pathname)) return fleetAccess;
+  if (matches(pathname, "/reseller")) return role === "reseller";
+  if (TRACKING_PREFIXES.some((prefix) => matches(pathname, prefix))) return true;
+  if (pathname === "/settings" || matches(pathname, "/settings/profile") || matches(pathname, "/settings/notifications")) {
+    return true;
+  }
+  if (WORKSPACE_SETTINGS.some((prefix) => matches(pathname, prefix))) {
+    return role === "reseller" || fleetAccess;
+  }
+  return false;
+}
+
+export function isNavActive(pathname: string, href: string) {
+  if (href === "/admin" || href === "/reseller" || href === "/dashboard") {
+    return pathname === href;
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}

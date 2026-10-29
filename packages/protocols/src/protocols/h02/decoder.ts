@@ -69,7 +69,8 @@ export class H02Decoder implements ProtocolDecoder {
 
     if (type === "V1" || type === "V4" || type === "VI1") {
       // V1: time, validity, lat, NS, lon, EW, speed, course, date, status
-      const base = type === "V4" ? 4 : 3; // V4 injects a response field
+      // V4: cmd, confirmed-cmd-time, then the V1 field set (base offset 5)
+      const base = type === "V4" ? 5 : 3;
       const time = parts[base]!;
       const valid = parts[base + 1] === "A";
       const lat = nmeaToDecimal(parseFloat(parts[base + 2]!), parts[base + 3]!);
@@ -99,6 +100,11 @@ export class H02Decoder implements ProtocolDecoder {
 
     if (type === "V3") {
       // LBS report: mcc, mnc, lac..., we acknowledge but skip decoding cells here
+      return { kind: "heartbeat", deviceId: id };
+    }
+
+    if (type === "B0" || type === "B1") {
+      // Status/keep-alive frame (battery + GSM reported by some firmwares).
       return { kind: "heartbeat", deviceId: id };
     }
 
@@ -144,21 +150,25 @@ export class H02Decoder implements ProtocolDecoder {
       String(now.getUTCHours()).padStart(2, "0") +
       String(now.getUTCMinutes()).padStart(2, "0") +
       String(now.getUTCSeconds()).padStart(2, "0");
-    const wrap = (body: string): EncodedCommand => ({
+    /* Spec: *HQ,id,CMD,HHMMSS,PARA1,PARA2,...# — time precedes parameters. */
+    const wrap = (cmd: string, ...params: (string | number)[]): EncodedCommand => ({
       transport: "tcp",
-      payload: asciiBytes(`*HQ,${id},${body},${hhmmss}#`),
-      description: `H02 command: ${body}`,
+      payload: asciiBytes(`*HQ,${id},${cmd},${hhmmss}${params.length ? "," + params.join(",") : ""}#`),
+      description: `H02 command: ${cmd} ${params.join(" ")}`.trim(),
     });
 
     switch (command.type) {
       case "engineStop":
-        return wrap("S20,1,1");
+        return wrap("S20", 1, 1); // cut oil
       case "engineResume":
-        return wrap("S20,1,0");
+        return wrap("S20", 1, 0); // restore oil
       case "locate":
-        return wrap("CQ");
+        return wrap("CQ"); // request a fix
       case "setInterval":
-        return wrap(`S71,22,${command.seconds}`);
+        return wrap("S71", 22, command.seconds);
+      case "setServer":
+        // S23 expects a dotted IP; most ST-901A firmware rejects domain names.
+        return wrap("S23", command.host, command.port);
       case "custom":
         return wrap(command.payload);
       default:
@@ -168,18 +178,58 @@ export class H02Decoder implements ProtocolDecoder {
 }
 
 /**
- * SinoTrack SMS command catalog (sent to the device SIM, password default 0000).
- * These are surfaced in the UI as "Quick Commands".
+ * SinoTrack SMS command catalog — verified against the ST-901A User Manual
+ * (sent to the device SIM, password default 0000). Replies "SET OK".
  */
 export const SINOTRACK_SMS_COMMANDS = {
-  setAdmin: (pwd: string, phone: string) => `admin${pwd} ${phone}`,
-  locate: (pwd: string) => `position${pwd}`,
-  googleLink: (pwd: string) => `url${pwd}`,
-  setInterval: (pwd: string, seconds: number) => `freq${pwd} ${seconds}`,
+  /* --- Setup --------------------------------------------------------- */
+  /** Control (admin) number: phone + password + blank + slot 1-3. */
+  setControlNumber: (phone: string, pwd: string, slot: 1 | 2 | 3) => `${phone}${pwd} ${slot}`,
+  setApn: (pwd: string, apn: string, user?: string, apnPass?: string) =>
+    `803${pwd} ${apn}${user ? ` ${user} ${apnPass ?? ""}` : ""}`,
+  /** Manual requires a dotted IP — most firmware rejects domain names. */
+  setServer: (pwd: string, ip: string, port: number) => `804${pwd} ${ip} ${port}`,
+  setTimezone: (pwd: string, ew: "E" | "W", hours: number) => `896${pwd}${ew}${String(hours).padStart(2, "0")}`,
+  changePassword: (newPwd: string, oldPwd: string) => `777${newPwd}${oldPwd}`,
+
+  /* --- Mode ----------------------------------------------------------- */
+  smsMode: (pwd: string) => `700${pwd}`,
+  gprsMode: (pwd: string) => `710${pwd}`,
+
+  /* --- Reporting ------------------------------------------------------- */
+  /** ACC-on upload interval, 10-18000 s (0 disables GPRS). */
+  setIntervalAccOn: (pwd: string, seconds: number) => `805${pwd} ${seconds}`,
+  /** ACC-off upload interval, 10-18000 s (0 disables GPRS). */
+  setIntervalAccOff: (pwd: string, seconds: number) => `809${pwd} ${seconds}`,
+  /** Daily scheduled report: 665+pwd+HHMM; OFF disables. */
+  setDailyReport: (pwd: string, hhmm: string | "OFF") => `665${pwd}${hhmm}`,
+
+  /* --- Queries --------------------------------------------------------- */
+  /** Google Maps link with current fix (replies via SMS). */
+  locate: (pwd: string) => `669${pwd}`,
+  /** Read back full configuration (APN/IP/intervals/status). */
+  readConfig: () => `RCONF`,
+  /** Reboot the tracker — takes no password on ST-901A. */
+  reboot: () => `RESTART`,
+
+  /* --- Alarms ---------------------------------------------------------- */
+  geoFenceOn: (pwd: string) => `211${pwd}`,
+  geoFenceOff: (pwd: string) => `210${pwd}`,
+  /** Radius in metres; vendor suggests >= 1000. */
+  setGeoFenceRadius: (pwd: string, metres: number) => `005${pwd} ${metres}`,
+  /** km/h; 0 disables. */
+  setOverspeed: (pwd: string, kmh: number) => `122${pwd} ${kmh}`,
+  shockAlarmOn: (pwd: string, seconds: number) => `181${pwd}T${seconds}`,
+  shockAlarmOff: (pwd: string) => `180${pwd}`,
+  accAlarmOn: (pwd: string) => `886${pwd}`,
+  accAlarmOff: (pwd: string) => `887${pwd}`,
+  /** 150 = alarms phone-call + SMS, 151 = SMS only. */
+  callModeOn: (pwd: string) => `150${pwd}`,
+  callModeOff: (pwd: string) => `151${pwd}`,
+
+  /* --- Relay (unverified on ST-901A) ------------------------------------ */
+  /** From the ST-901 family / H02 protocol doc (S20) — not in the ST-901A
+   *  manual, which only documents the cut-power *alarm*. Test on bench first. */
   cutOil: (pwd: string) => `stopelec${pwd}`,
   restoreOil: (pwd: string) => `supplyelec${pwd}`,
-  setServer: (pwd: string, host: string, port: number) => `804${pwd} ${host} ${port}`,
-  setApn: (pwd: string, apn: string) => `803${pwd} ${apn}`,
-  reboot: (pwd: string) => `reboot${pwd}`,
-  sosOn: (pwd: string, phone: string) => `101${pwd} ${phone}`,
 } as const;

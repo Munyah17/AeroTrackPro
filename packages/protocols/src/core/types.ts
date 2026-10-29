@@ -91,8 +91,8 @@ export type AlarmType =
 
 /** Everything a decoder can yield from one inbound frame. */
 export type DecodedMessage =
-  | { kind: "position"; position: Position }
-  | { kind: "positions"; positions: Position[] }
+  | { kind: "position"; position: Position; response?: Uint8Array | string }
+  | { kind: "positions"; positions: Position[]; response?: Uint8Array | string }
   | { kind: "login"; deviceId: string; response?: Uint8Array | string }
   | { kind: "heartbeat"; deviceId?: string; response?: Uint8Array | string }
   | { kind: "commandResult"; deviceId?: string; command: string; result: string }

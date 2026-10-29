@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Lock, LockOpen, MapPin, MessageSquareText, Power, RefreshCw, Timer, Volume2 } from "lucide-react";
 import { toast } from "sonner";
-import { vehicles } from "@aerotrack/shared";
+import { useFleet } from "@/hooks/use-fleet";
 import { getDeviceModel, SINOTRACK_SMS_COMMANDS, COBAN_SMS_COMMANDS } from "@aerotrack/protocols";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,10 +19,13 @@ const HISTORY = [
 ];
 
 export default function CommandsPage() {
-  const [vehicleId, setVehicleId] = useState(vehicles[0]!.id);
-  const vehicle = vehicles.find((v) => v.id === vehicleId)!;
-  const device = getDeviceModel(vehicle.deviceModelId);
+  const { vehicles } = useFleet();
+  const [vehicleId, setVehicleId] = useState("");
+  const vehicle = vehicles.find((v) => v.id === vehicleId) ?? vehicles[0];
+  const device = vehicle ? getDeviceModel(vehicle.deviceModelId) : undefined;
   const caps = device?.capabilities;
+
+  if (!vehicle) return null;
 
   const send = (label: string, warn = false) => {
     if (warn) {
@@ -59,7 +62,7 @@ export default function CommandsPage() {
         title="Remote Commands"
         subtitle="Immobilization, configuration and device control — with full audit trail"
         actions={
-          <Select value={vehicleId} onValueChange={(v) => v && setVehicleId(v)}>
+          <Select value={vehicleId || vehicle.id} onValueChange={(v) => v && setVehicleId(v)}>
             <SelectTrigger className="w-60 rounded-xl bg-card">
               <SelectValue />
             </SelectTrigger>

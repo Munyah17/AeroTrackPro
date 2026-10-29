@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { Phone, Plus, Search, ShieldAlert, Star, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
-import { drivers, vehicleById } from "@aerotrack/shared";
+import { useDrivers } from "@/hooks/use-live-data";
+import { useFleet } from "@/hooks/use-fleet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,12 +17,14 @@ const RISK_TONE = { low: "success", medium: "warning", high: "danger" } as const
 
 export default function DriversPage() {
   const [query, setQuery] = useState("");
+  const { rows: allDrivers } = useDrivers();
+  const { vehicles: fleet } = useFleet();
   const rows = useMemo(
     () =>
-      drivers.filter(
+      allDrivers.filter(
         (d) => !query || d.name.toLowerCase().includes(query.toLowerCase()),
       ),
-    [query],
+    [allDrivers, query],
   );
 
   return (
@@ -48,7 +51,7 @@ export default function DriversPage() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {rows.map((d) => {
-          const vehicle = vehicleById(d.assignedVehicleId ?? "");
+          const vehicle = fleet.find((v) => v.id === d.assignedVehicleId);
           return (
             <Panel key={d.id} hover className="p-5">
               <div className="flex items-start gap-3.5">

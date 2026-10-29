@@ -4,6 +4,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Bell, ChevronRight, CreditCard, Globe2, Plug, Settings2, UserCircle2, Users2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { useRole } from "@/components/shell/role-provider";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 
 const SECTIONS = [
@@ -23,12 +24,25 @@ const TOGGLES = [
 ];
 
 export default function SettingsPage() {
+  const { role, fleetAccess } = useRole();
+  const workspace = role === "super_admin" || role === "reseller" || fleetAccess;
+  const sections = SECTIONS.filter((s) =>
+    workspace ? true : s.href === "/settings/profile" || s.href === "/settings/notifications",
+  );
+
   return (
     <PageContainer className="max-w-[900px]">
-      <PageHeader title="Settings" subtitle="Configure your workspace, users, notifications and integrations" />
+      <PageHeader
+        title="Settings"
+        subtitle={
+          workspace
+            ? "Configure your workspace, users, notifications and integrations"
+            : "Your profile and how you hear about your vehicles"
+        }
+      />
 
       <div className="flex flex-col gap-2.5">
-        {SECTIONS.map((s) => (
+        {sections.map((s) => (
           <Panel key={s.title} hover className="cursor-pointer">
             <Link href={s.href} className="flex w-full items-center gap-4 p-4.5 text-left">
               <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">

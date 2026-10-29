@@ -1,13 +1,16 @@
 "use client";
 
 import { History } from "lucide-react";
-import { activityLogs, tenantById } from "@aerotrack/shared";
+import { useActivityLogs, useTenants } from "@/hooks/use-platform-data";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
 import { timeAgo } from "@/lib/format";
 
 export default function ActivityPage() {
+  const { rows: activityLogs } = useActivityLogs();
+  const { rows: tenants } = useTenants();
+  const tenantById = (id: string) => tenants.find((t) => t.id === id);
   return (
     <PageContainer className="max-w-[1100px]">
       <PageHeader title="Activity Logs" subtitle="Full audit trail of actions across the platform" />

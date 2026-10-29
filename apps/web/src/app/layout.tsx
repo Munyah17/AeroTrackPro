@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { BrandProvider } from "@/components/shell/brand-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -84,8 +85,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${geistMono.variable} font-sans antialiased`}>
-        <TooltipProvider delay={200}>{children}</TooltipProvider>
-        <Toaster position="top-right" richColors />
+        <BrandProvider>
+          <TooltipProvider delay={200}>{children}</TooltipProvider>
+          <Toaster position="top-right" richColors />
+        </BrandProvider>
       </body>
     </html>
   );

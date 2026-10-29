@@ -226,5 +226,5 @@ export function FleetMap({
     if (v) map.flyTo({ center: [v.position.lng, v.position.lat], zoom: Math.max(map.getZoom(), 13.5), duration: 800 });
   }, [selectedId, vehicles]);
 
-  return <div ref={containerRef} className={cn("h-full w-full", className)} />;
+  return <div ref={containerRef} className={cn("fleet-map h-full w-full", className)} />;
 }

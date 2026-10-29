@@ -11,7 +11,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { fuelRecords, vehicles, vehicleById } from "@aerotrack/shared";
+import { useFuelRecords } from "@/hooks/use-live-data";
+import { useFleet } from "@/hooks/use-fleet";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -35,13 +36,15 @@ const fuelTrend = [
 ];
 
 export default function FuelPage() {
-  const [vehicleId, setVehicleId] = useState(vehicles[0]!.id);
+  const [vehicleId, setVehicleId] = useState("all");
   const [sensorDialogOpen, setSensorDialogOpen] = useState(false);
   const [sensorType, setSensorType] = useState<"probe" | "bluetooth" | "can">("probe");
+  const { rows: fuelRecords } = useFuelRecords();
+  const { vehicles } = useFleet();
 
   const rows = useMemo(
     () => fuelRecords.filter((r) => r.vehicleId === vehicleId || vehicleId === "all").slice(0, 14),
-    [vehicleId],
+    [fuelRecords, vehicleId],
   );
 
   const refills = fuelRecords.filter((r) => r.kind === "refill");
@@ -136,7 +139,7 @@ export default function FuelPage() {
               </SelectTrigger>
               <SelectContent className="rounded-xl">
                 <SelectItem value="all">All vehicles</SelectItem>
-                {vehicles.filter((v) => v.fuelLevelPct !== undefined).slice(0, 12).map((v) => (
+                {vehicles.filter((v) => v.fuelCapacityL !== undefined).slice(0, 12).map((v) => (
                   <SelectItem key={v.id} value={v.id}>{v.plate} — {v.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -145,7 +148,7 @@ export default function FuelPage() {
         }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Fuel Used (30d)" value={usedL} suffix="L" icon={FuelIcon} />
         <StatCard label="Fuel Cost (30d)" value={cost} suffix="USD" icon={Droplets} delay={0.05} />
         <StatCard label="Avg Consumption" value={8.5} decimals={1} suffix="km/L" icon={TrendingDown} delay={0.1} />
@@ -205,7 +208,7 @@ export default function FuelPage() {
               <TableBody>
                 {rows.map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell className="pl-4 text-[12.5px] font-medium">{vehicleById(r.vehicleId)?.plate}</TableCell>
+                    <TableCell className="pl-4 text-[12.5px] font-medium">{vehicles.find((v) => v.id === r.vehicleId)?.plate}</TableCell>
                     <TableCell>
                       <Pill tone={r.kind === "refill" ? "success" : r.kind === "theftSuspected" ? "danger" : "muted"}>
                         {r.kind === "theftSuspected" ? "theft?" : r.kind}

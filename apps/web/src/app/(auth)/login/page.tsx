@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Eye, EyeOff, Loader2, LocateFixed } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { BrandMark } from "@/components/brand/mark";
+import { useBrand } from "@/components/shell/brand-provider";
 import { signInWithEmail } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,6 +24,8 @@ type FormValues = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const router = useRouter();
+  const { brand } = useBrand();
+  const login = brand.login;
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const {
@@ -43,20 +47,24 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    toast.success(`Welcome back`, { description: values.email });
+    toast.success(login.welcome, { description: values.email });
     router.push("/select-tenant");
   };
 
   return (
     <div>
-      <div className="mb-8 lg:hidden">
-        <div className="flex size-11 items-center justify-center rounded-xl bg-primary">
-          <LocateFixed className="size-6 text-white" />
+      {login.layout === "split" && <div className="mb-8 flex items-center gap-3 lg:hidden">
+        <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary">
+          <BrandMark logo={brand.logoDataUrl} className="size-6 text-white" />
         </div>
-      </div>
+        <div className="min-w-0">
+          <div className="truncate text-[15px] font-bold">{brand.name}</div>
+          <div className="truncate text-[12px] text-muted-foreground">{brand.tagline}</div>
+        </div>
+      </div>}
 
-      <h2 className="text-2xl font-bold tracking-tight">Welcome back</h2>
-      <p className="mt-1.5 text-sm text-muted-foreground">Sign in to your fleet console</p>
+      <h2 className="text-2xl font-bold tracking-tight">{login.welcome}</h2>
+      <p className="mt-1.5 text-sm text-muted-foreground">{login.subtitle}</p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-5">
         <div className="space-y-1.5">
@@ -74,9 +82,11 @@ export default function LoginPage() {
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="password" className="text-[13px]">Password</Label>
-            <Link href="/forgot-password" className="text-[12.5px] font-medium text-primary hover:underline">
-              Forgot password?
-            </Link>
+            {login.allowPasswordReset && (
+              <Link href="/forgot-password" className="text-[12.5px] font-medium text-primary hover:underline">
+                Forgot password?
+              </Link>
+            )}
           </div>
           <div className="relative">
             <Input

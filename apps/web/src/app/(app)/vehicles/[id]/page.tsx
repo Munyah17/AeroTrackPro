@@ -19,12 +19,8 @@ import {
   User,
   Wrench,
 } from "lucide-react";
-import {
-  driverById,
-  maintenance,
-  trips,
-  vehicleById,
-} from "@aerotrack/shared";
+import { useDrivers, useMaintenanceItems, useTrips } from "@/hooks/use-live-data";
+import { useFleet } from "@/hooks/use-fleet";
 import { getDeviceModel } from "@aerotrack/protocols";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -39,10 +35,25 @@ const FleetMap = dynamic(() => import("@/components/map/fleet-map").then((m) => 
 
 export default function VehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const vehicle = vehicleById(id);
+  const { vehicles, live } = useFleet();
+  const { rows: drivers } = useDrivers();
+  const { rows: trips } = useTrips();
+  const { rows: maintenance } = useMaintenanceItems();
+
+  const vehicle = vehicles.find((v) => v.id === id);
+
+  /* Live mode: the mock fleet renders first, so a live id that hasn't loaded
+     yet shows a loader instead of 404ing. */
+  if (!vehicle && live) {
+    return (
+      <PageContainer>
+        <Skeleton className="h-40 w-full rounded-2xl" />
+      </PageContainer>
+    );
+  }
   if (!vehicle) notFound();
 
-  const driver = driverById(vehicle.driverId);
+  const driver = drivers.find((d) => d.id === vehicle.driverId);
   const device = getDeviceModel(vehicle.deviceModelId);
   const vehicleTrips = trips.filter((t) => t.vehicleId === vehicle.id).slice(0, 6);
   const lastTrip = vehicleTrips[0];
@@ -74,7 +85,7 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Quick stats */}
-      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="mb-4 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
         {[
           { icon: Gauge, label: "Speed", value: kmh(vehicle.position.speedKmh) },
           { icon: RouteIcon, label: "Odometer", value: `${vehicle.odometerKm.toLocaleString()} km` },
@@ -104,10 +115,10 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
         {/* Map */}
         <Panel className="overflow-hidden xl:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 px-4 py-3.5">
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
               <MapPin className="size-4 shrink-0 text-primary" />
-              <span className="truncate text-[13.5px] font-medium">{vehicle.position.address}</span>
-              <span className="shrink-0 text-[11.5px] text-muted-foreground">{timeAgo(vehicle.position.updatedAt)}</span>
+              <span className="min-w-0 truncate text-[13.5px] font-medium">{vehicle.position.address}</span>
+              <span className="text-[11.5px] text-muted-foreground">{timeAgo(vehicle.position.updatedAt)}</span>
             </div>
             <div className="flex gap-1.5">
               <Button

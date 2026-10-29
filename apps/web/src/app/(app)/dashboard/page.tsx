@@ -28,13 +28,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  alerts,
-  fleetStats,
-  maintenance,
-  vehicles,
-  weeklyDistance,
-} from "@aerotrack/shared";
+import { fleetStats, weeklyDistance } from "@aerotrack/shared";
+import { useAlerts, useMaintenanceItems } from "@/hooks/use-live-data";
+import { useFleet } from "@/hooks/use-fleet";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageContainer, Panel } from "@/components/shared/page";
@@ -57,7 +53,19 @@ const ALERT_ICONS: Record<string, typeof Bell> = {
 };
 
 export default function DashboardPage() {
-  const stats = fleetStats();
+  const { vehicles } = useFleet();
+  const { rows: alerts } = useAlerts();
+  const { rows: maintenance } = useMaintenanceItems();
+  const fallback = fleetStats();
+  const stats = {
+    ...fallback,
+    total: vehicles.length,
+    moving: vehicles.filter((v) => v.status === "moving").length,
+    stopped: vehicles.filter((v) => v.status === "stopped" || v.status === "parked").length,
+    idle: vehicles.filter((v) => v.status === "idle").length,
+    offline: vehicles.filter((v) => v.status === "offline").length,
+    activeAlerts: alerts.filter((a) => a.status === "active").length,
+  };
   const donut = [
     { name: "Moving", value: stats.moving, color: "var(--chart-1)" },
     { name: "Stopped", value: stats.stopped, color: "oklch(0.72 0.09 262)" },
@@ -73,9 +81,9 @@ export default function DashboardPage() {
   return (
     <PageContainer>
       {/* Greeting */}
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-[26px] font-bold tracking-tight">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-2xl font-bold tracking-tight sm:text-[26px]">
             Welcome back, Munya <span className="align-middle">👋</span>
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { Backpack, Baby, BatteryLow, Dog, MapPin, Package, PawPrint, Wrench } from "lucide-react";
-import { vehicles, type Vehicle } from "@aerotrack/shared";
+import type { Vehicle } from "@aerotrack/shared";
+import { useFleet } from "@/hooks/use-fleet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
@@ -29,6 +30,7 @@ const KIND_ICON: Partial<Record<Vehicle["kind"], typeof Dog>> = {
 };
 
 export default function AssetsPage() {
+  const { vehicles } = useFleet();
   const assets = vehicles.filter((v) => ASSET_KINDS.includes(v.kind));
   const [selectedId, setSelectedId] = useState(assets[0]?.id);
 

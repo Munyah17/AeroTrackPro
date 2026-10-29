@@ -1,7 +1,8 @@
 "use client";
 
 import { Activity, BatteryWarning, RadioTower, WifiOff } from "lucide-react";
-import { deviceHealth, vehicleById } from "@aerotrack/shared";
+import { useDeviceHealth } from "@/hooks/use-live-data";
+import { useFleet } from "@/hooks/use-fleet";
 import { getDeviceModel } from "@aerotrack/protocols";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -12,6 +13,9 @@ import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/format";
 
 export default function DeviceHealthPage() {
+  const { rows: deviceHealth } = useDeviceHealth();
+  const { vehicles } = useFleet();
+  const vehicleById = (id: string) => vehicles.find((v) => v.id === id);
   const online = deviceHealth.filter((d) => d.online).length;
   const offline = deviceHealth.length - online;
   const lowBattery = deviceHealth.filter((d) => (d.backupBatteryPct ?? 100) < 30).length;
@@ -20,7 +24,7 @@ export default function DeviceHealthPage() {
     <PageContainer>
       <PageHeader title="Device Health" subtitle="Connectivity, battery, SIM and firmware status in real time" />
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Devices" value={deviceHealth.length} icon={RadioTower} />
         <StatCard label="Online" value={online} icon={Activity} iconClassName="bg-success/10 text-success" delay={0.05} />
         <StatCard label="Offline" value={offline} icon={WifiOff} iconClassName="bg-destructive/10 text-destructive" delay={0.1} />

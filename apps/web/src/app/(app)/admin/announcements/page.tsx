@@ -2,13 +2,14 @@
 
 import { Megaphone, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { announcements } from "@aerotrack/shared";
+import { useAnnouncements } from "@/hooks/use-platform-data";
 import { Button } from "@/components/ui/button";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
 import { shortDate } from "@/lib/format";
 
 export default function AnnouncementsPage() {
+  const { rows: announcements } = useAnnouncements();
   return (
     <PageContainer className="max-w-[900px]">
       <PageHeader

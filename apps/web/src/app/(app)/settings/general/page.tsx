@@ -57,7 +57,7 @@ export default function GeneralSettingsPage() {
             <h3 className="text-[15px] font-semibold">Units of Measurement</h3>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Distance</Label>
               <Select value={prefs.distanceUnit} onValueChange={set("distanceUnit")}>
@@ -106,7 +106,7 @@ export default function GeneralSettingsPage() {
             <h3 className="text-[15px] font-semibold">Localization</h3>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Time zone</Label>
               <Select value={prefs.timezone} onValueChange={set("timezone")}>

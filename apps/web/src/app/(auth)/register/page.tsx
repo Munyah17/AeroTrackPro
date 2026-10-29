@@ -65,7 +65,7 @@ export default function RegisterPage() {
       <p className="mt-1.5 text-sm text-muted-foreground">Start tracking your fleet in minutes</p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label className="text-[13px]">Full name</Label>
             <Input placeholder="Munya M." className="h-11 rounded-xl" {...register("name")} />

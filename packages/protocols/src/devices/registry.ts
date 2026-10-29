@@ -13,7 +13,9 @@ export type ProtocolKey =
   | "queclink"
   | "meitrack"
   | "topflytech"
-  | "vt200";
+  | "vt200"
+  | "teltonika"
+  | "jt808";
 
 export type DeviceCategory = "vehicle" | "asset" | "personal" | "obd";
 
@@ -61,6 +63,16 @@ export const DEVICE_MODELS: DeviceModel[] = [
     description: "Waterproof hardwired vehicle tracker (12V/24V), relay-ready fuel cut.",
     smsPasswordDefault: "0000",
     capabilities: { gps: true, lbs: true, engineCut: true, sos: false, network: ["2G", "4G"] },
+  },
+  {
+    id: "sinotrack-st901a",
+    vendor: "SinoTrack",
+    model: "ST-901A",
+    protocol: "h02",
+    category: "vehicle",
+    description: "4G LTE variant of the ST-901 — ACC detection, relay fuel cut, waterproof hardwired install.",
+    smsPasswordDefault: "0000",
+    capabilities: { gps: true, lbs: true, engineCut: true, network: ["2G", "4G"] },
   },
   {
     id: "sinotrack-st902",
@@ -247,6 +259,111 @@ export const DEVICE_MODELS: DeviceModel[] = [
     category: "obd",
     description: "Advanced OBDII tracker with driving diagnostics and WiFi hotspot.",
     capabilities: { gps: true, lbs: true, obd: true, wifi: true, drivingBehavior: true, network: ["3G", "4G"] },
+  },
+
+  /* --- Teltonika Codec 8 family ------------------------------------- */
+  {
+    id: "teltonika-fmb920",
+    vendor: "Teltonika",
+    model: "FMB920",
+    protocol: "teltonika",
+    category: "vehicle",
+    description: "Best-selling compact fleet terminal — ignition, fuel-cut relay, sleep modes.",
+    capabilities: { gps: true, lbs: true, engineCut: true, gSensor: true, ota: true, network: ["2G", "4G"] },
+  },
+  {
+    id: "teltonika-fmb001",
+    vendor: "Teltonika",
+    model: "FMB001",
+    protocol: "teltonika",
+    category: "obd",
+    description: "Plug-and-play OBDII terminal with real engine diagnostics.",
+    capabilities: { gps: true, lbs: true, obd: true, drivingBehavior: true, ota: true, network: ["4G"] },
+  },
+  {
+    id: "teltonika-fmc130",
+    vendor: "Teltonika",
+    model: "FMC130",
+    protocol: "teltonika",
+    category: "vehicle",
+    description: "4G Cat-1 advanced terminal — RFID driver auth, fuel/ADC inputs, Bluetooth sensors.",
+    capabilities: { gps: true, lbs: true, engineCut: true, rfid: true, fuelSensor: true, temperature: true, drivingBehavior: true, ota: true, network: ["4G"] },
+  },
+
+  /* --- JT/T 808 government-standard terminals ------------------------- */
+  {
+    id: "j16-4g",
+    vendor: "Generic",
+    model: "J16 4G",
+    protocol: "jt808",
+    variant: "j16",
+    category: "vehicle",
+    description: "4G CAT1 vehicle locator — SMS control + anti-theft relay, JT808-compliant firmware.",
+    capabilities: { gps: true, lbs: true, engineCut: true, sos: true, network: ["4G"] },
+  },
+  {
+    id: "jt808-generic",
+    vendor: "Generic",
+    model: "JT808 Terminal",
+    protocol: "jt808",
+    category: "vehicle",
+    description: "Any JT/T 808-2013/2019 compliant terminal (Chinese-market Suntech, JW-family, mandated fleet hardware).",
+    capabilities: { gps: true, lbs: true, engineCut: true, sos: true, network: ["2G", "4G"] },
+  },
+
+  /* --- Brands riding existing protocols ------------------------------- */
+  {
+    id: "concox-at4",
+    vendor: "Concox",
+    model: "AT4",
+    protocol: "gt06",
+    variant: "concox",
+    category: "asset",
+    description: "Magnetic 10,000 mAh asset tracker — voice monitor, drop alert.",
+    capabilities: { gps: true, lbs: true, wifi: true, sos: true, voiceMonitor: true, magneticMount: true, internalBatteryDays: 30, network: ["2G"] },
+  },
+  {
+    id: "kingwo-ntk20",
+    vendor: "Kingwo",
+    model: "NTK20",
+    protocol: "gt06",
+    variant: "kingwo",
+    category: "vehicle",
+    description: "4G CAT1 fleet unit on the GT06-family architecture — fuel cut, SOS, ACC detect.",
+    capabilities: { gps: true, lbs: true, engineCut: true, sos: true, network: ["4G"] },
+  },
+  {
+    id: "tkstar-tk909",
+    vendor: "TKStar",
+    model: "TK909",
+    protocol: "h02",
+    variant: "tkstar",
+    category: "asset",
+    // TK905/TK915/TK935 use the "watch" protocol (Traccar port 5093) —
+    // only the TK909 variant speaks the H02 ASCII dialect.
+    description: "Magnetic long-battery asset tracker; H02-family ASCII dialect (*TK frames).",
+    smsPasswordDefault: "123456",
+    capabilities: { gps: true, lbs: true, sos: true, voiceMonitor: true, magneticMount: true, internalBatteryDays: 90, network: ["2G"] },
+  },
+  {
+    id: "cantrack-g19l",
+    vendor: "Cantrack",
+    model: "G19L",
+    protocol: "h02",
+    category: "vehicle",
+    description: "Compact hardwired fleet tracker speaking the H02 ASCII protocol.",
+    capabilities: { gps: true, lbs: true, engineCut: true, network: ["2G", "4G"] },
+  },
+  {
+    id: "xexun-tk103",
+    vendor: "Xexun",
+    model: "TK103-2",
+    protocol: "gps103",
+    variant: "xexun",
+    category: "vehicle",
+    description: "The original GPS103-protocol unit — TK103/TK306 family and clones.",
+    smsPasswordDefault: "123456",
+    capabilities: { gps: true, lbs: true, engineCut: true, sos: true, voiceMonitor: true, fuelSensor: true, network: ["2G"] },
   },
 ];
 

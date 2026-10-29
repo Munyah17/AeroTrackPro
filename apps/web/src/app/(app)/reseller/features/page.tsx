@@ -7,14 +7,22 @@ import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
 import { Switch } from "@/components/ui/switch";
 import { ADDON_MODULES, ENABLED_ADDONS, computeResellerBill } from "@/lib/reseller";
+import { useTenantAddons } from "@/hooks/use-platform-data";
 import { usd } from "@/lib/format";
 
 export default function ResellerFeaturesPage() {
-  const [enabled, setEnabled] = useState<string[]>(ENABLED_ADDONS);
+  const { rows: addons, live, insert, update } = useTenantAddons();
+  const [local, setLocal] = useState<string[]>(ENABLED_ADDONS);
+  const enabled = live ? addons.filter((a) => a.active).map((a) => a.module) : local;
   const bill = computeResellerBill(undefined, enabled);
 
-  const toggle = (id: string, name: string, on: boolean) => {
-    setEnabled((prev) => (on ? [...prev, id] : prev.filter((x) => x !== id)));
+  const toggle = async (id: string, name: string, on: boolean) => {
+    if (live) {
+      const row = addons.find((a) => a.module === id);
+      if (row) void update(row.id, { active: on });
+      else if (on) void insert({ module: id });
+    }
+    setLocal((prev) => (on ? [...prev, id] : prev.filter((x) => x !== id)));
     toast.success(`${name} ${on ? "enabled" : "disabled"} for your account`);
   };
 

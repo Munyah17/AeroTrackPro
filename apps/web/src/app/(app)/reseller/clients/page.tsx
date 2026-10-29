@@ -23,10 +23,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { RESELLER_CLIENTS, type ResellerClient } from "@/lib/reseller";
+import { useResellerClients } from "@/hooks/use-platform-data";
+import type { ResellerClient } from "@/lib/reseller";
 
 export default function ResellerClientsPage() {
-  const [clients, setClients] = useState<ResellerClient[]>(RESELLER_CLIENTS);
+  const { rows: liveClients } = useResellerClients();
+  const [added, setAdded] = useState<ResellerClient[]>([]);
+  const clients: ResellerClient[] = [...added, ...liveClients];
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: "", contact: "", devices: "" });
@@ -38,7 +41,7 @@ export default function ResellerClientsPage() {
   const addClient = () => {
     if (!form.name.trim()) return toast.error("Client name is required");
     const devices = Math.max(0, parseInt(form.devices || "0"));
-    setClients((prev) => [
+    setAdded((prev) => [
       {
         id: `cl-${Date.now()}`,
         name: form.name.trim(),

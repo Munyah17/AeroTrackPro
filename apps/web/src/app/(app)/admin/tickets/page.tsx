@@ -2,13 +2,16 @@
 
 import { LifeBuoy, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { tickets, tenantById } from "@aerotrack/shared";
+import { useSupportTickets, useTenants } from "@/hooks/use-platform-data";
 import { Button } from "@/components/ui/button";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
 import { timeAgo } from "@/lib/format";
 
 export default function TicketsPage() {
+  const { rows: tickets } = useSupportTickets();
+  const { rows: tenants } = useTenants();
+  const tenantById = (id: string) => tenants.find((t) => t.id === id);
   return (
     <PageContainer className="max-w-[1000px]">
       <PageHeader

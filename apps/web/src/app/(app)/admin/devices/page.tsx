@@ -2,7 +2,8 @@
 
 import { Plus, Radio } from "lucide-react";
 import { toast } from "sonner";
-import { vehicles, tenants } from "@aerotrack/shared";
+import { useTenants } from "@/hooks/use-platform-data";
+import { useFleet } from "@/hooks/use-fleet";
 import { getDeviceModel } from "@aerotrack/protocols";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,6 +11,8 @@ import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
 
 export default function AdminDevicesPage() {
+  const { vehicles } = useFleet();
+  const { rows: tenants } = useTenants();
   return (
     <PageContainer className="max-w-[1100px]">
       <PageHeader
@@ -38,7 +41,7 @@ export default function AdminDevicesPage() {
             <TableBody>
               {vehicles.slice(0, 16).map((v, i) => {
                 const m = getDeviceModel(v.deviceModelId);
-                const tenant = tenants[i % tenants.length]!;
+                const tenant = tenants.find((t) => t.id === v.tenantId) ?? tenants[i % Math.max(1, tenants.length)];
                 return (
                   <TableRow key={v.id}>
                     <TableCell className="pl-5 font-mono text-[12px]">TKD-{String(10001 + i)}</TableCell>

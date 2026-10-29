@@ -1,7 +1,8 @@
 "use client";
 
 import { Gauge, Route, TrendingUp, TriangleAlert } from "lucide-react";
-import { drivers, trips, vehicleById, driverById } from "@aerotrack/shared";
+import { useDrivers, useDriverEvents, useTrips } from "@/hooks/use-live-data";
+import { useFleet } from "@/hooks/use-fleet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
@@ -9,7 +10,16 @@ import { Pill } from "@/components/shared/status";
 import { StatCard } from "@/components/shared/stat-card";
 import { km, kmh, shortDateTime } from "@/lib/format";
 
-const BREAKDOWN = [
+const EVENT_LABELS: Record<string, string> = {
+  overspeed: "Speeding",
+  harsh_acceleration: "Harsh Acceleration",
+  harsh_braking: "Harsh Braking",
+  harsh_cornering: "Sharp Turning",
+  idling: "Idle Time",
+  crash: "Crash",
+};
+
+const FALLBACK_BREAKDOWN = [
   { label: "Speeding", value: 20 },
   { label: "Harsh Acceleration", value: 30 },
   { label: "Harsh Braking", value: 15 },
@@ -18,15 +28,32 @@ const BREAKDOWN = [
 ];
 
 export default function BehaviorPage() {
-  const fleetScore = Math.round(drivers.reduce((n, d) => n + d.behaviorScore, 0) / drivers.length);
+  const { rows: drivers } = useDrivers();
+  const { rows: trips } = useTrips();
+  const { rows: events } = useDriverEvents();
+  const { vehicles } = useFleet();
+
+  const fleetScore = drivers.length
+    ? Math.round(drivers.reduce((n, d) => n + d.behaviorScore, 0) / drivers.length)
+    : 0;
   const leaderboard = [...drivers].sort((a, b) => b.behaviorScore - a.behaviorScore);
   const riskyTrips = trips.filter((t) => t.maxSpeedKmh > 110).slice(0, 6);
+
+  const BREAKDOWN = events.length
+    ? Object.entries(EVENT_LABELS).map(([type, label]) => ({
+        label,
+        value: Math.round((events.filter((e) => e.type === type).length / events.length) * 100),
+      }))
+    : FALLBACK_BREAKDOWN;
+
+  const driverById = (id?: string) => drivers.find((d) => d.id === id);
+  const vehicleById = (id: string) => vehicles.find((v) => v.id === id);
 
   return (
     <PageContainer>
       <PageHeader title="Driving Behavior" subtitle="Scoring, events and risk analysis for safer roads and lower premiums" />
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Fleet Score" value={fleetScore} suffix="/100" icon={Gauge} />
         <StatCard label="Trips Analyzed" value={trips.length * 5} icon={Route} delay={0.05} />
         <StatCard label="Distance Analyzed" value={4250} suffix="km" icon={TrendingUp} delay={0.1} />

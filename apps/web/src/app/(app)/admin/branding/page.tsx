@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { LocateFixed, Paintbrush, Save, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
-import { tenants } from "@aerotrack/shared";
+import { useTenants } from "@/hooks/use-platform-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,10 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 
 export default function BrandingPage() {
-  const [tenantId, setTenantId] = useState(tenants[0]!.id);
-  const tenant = tenants.find((t) => t.id === tenantId)!;
-  const [primary, setPrimary] = useState(tenant.primaryColor);
-  const [name, setName] = useState(tenant.name);
+  const { rows: tenants } = useTenants();
+  const [tenantId, setTenantId] = useState("");
+  const tenant = tenants.find((t) => t.id === tenantId) ?? tenants[0];
+  const [primary, setPrimary] = useState(tenant?.primaryColor ?? "#1E40FF");
+  const [name, setName] = useState(tenant?.name ?? "");
+
+  if (!tenant) return null;
 
   return (
     <PageContainer className="max-w-[1100px]">
@@ -23,7 +26,7 @@ export default function BrandingPage() {
         subtitle="Logo, colors, favicon and identity for each client portal"
         actions={
           <Select
-            value={tenantId}
+            value={tenantId || tenant.id}
             onValueChange={(v) => {
               if (!v) return;
               setTenantId(v);
@@ -65,7 +68,7 @@ export default function BrandingPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label className="text-[12.5px]">Primary color</Label>
                 <div className="flex items-center gap-2">

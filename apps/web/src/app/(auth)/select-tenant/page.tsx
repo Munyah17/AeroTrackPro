@@ -4,11 +4,12 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ChevronRight, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { tenants } from "@aerotrack/shared";
+import { useTenants } from "@/hooks/use-platform-data";
 import { Pill } from "@/components/shared/status";
 
 export default function SelectTenantPage() {
   const router = useRouter();
+  const { rows: tenants } = useTenants();
   const mine = tenants.slice(0, 3);
 
   return (

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { LocateFixed, Save, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
-import { tenants } from "@aerotrack/shared";
+import { useTenants } from "@/hooks/use-platform-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,9 +12,12 @@ import { Switch } from "@/components/ui/switch";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 
 export default function LoginPageCustomizer() {
-  const [tenantId, setTenantId] = useState(tenants[0]!.id);
-  const tenant = tenants.find((t) => t.id === tenantId)!;
+  const { rows: tenants } = useTenants();
+  const [tenantId, setTenantId] = useState("");
+  const tenant = tenants.find((t) => t.id === tenantId) ?? tenants[0];
   const [welcome, setWelcome] = useState("Welcome back");
+
+  if (!tenant) return null;
 
   return (
     <PageContainer className="max-w-[1100px]">
@@ -22,7 +25,7 @@ export default function LoginPageCustomizer() {
         title="Login Page Customization"
         subtitle="The first thing each client's users see — make it theirs"
         actions={
-          <Select value={tenantId} onValueChange={(v) => v && setTenantId(v)}>
+          <Select value={tenantId || tenant.id} onValueChange={(v) => v && setTenantId(v)}>
             <SelectTrigger className="w-56 rounded-xl bg-card"><SelectValue /></SelectTrigger>
             <SelectContent className="rounded-xl">
               {tenants.map((t) => (

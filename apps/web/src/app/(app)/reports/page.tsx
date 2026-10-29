@@ -25,7 +25,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { monthlyDistance, vehicles, trips } from "@aerotrack/shared";
+import { monthlyDistance } from "@aerotrack/shared";
+import { useTrips } from "@/hooks/use-live-data";
+import { useFleet } from "@/hooks/use-fleet";
 import { downloadCsv, downloadExcel, printPdf, type ExportCell } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/ui/date-picker";
@@ -56,6 +58,8 @@ const SUMMARY = [
 ];
 
 export default function ReportsPage() {
+  const { rows: trips } = useTrips();
+  const { vehicles } = useFleet();
   const [type, setType] = useState("summary");
   const [from, setFrom] = useState<Date>(new Date(2026, 4, 1));
   const [to, setTo] = useState<Date>(new Date(2026, 4, 31));
@@ -187,7 +191,7 @@ export default function ReportsPage() {
 
         {/* Body */}
         <div className="flex flex-col gap-4 lg:col-span-3">
-          <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:gap-4 xl:grid-cols-4">
             {SUMMARY.map((s) => (
               <Panel key={s.label} className="p-4">
                 <div className="text-[12px] text-muted-foreground">{s.label}</div>

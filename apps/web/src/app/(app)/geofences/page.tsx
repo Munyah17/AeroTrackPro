@@ -5,7 +5,9 @@ import dynamic from "next/dynamic";
 import { Circle, Hexagon, Plus, Route as RouteIcon, Waypoints } from "lucide-react";
 import { toast } from "sonner";
 import type { Map as MlMap } from "maplibre-gl";
-import { geofences, vehicles, type Geofence } from "@aerotrack/shared";
+import type { Geofence } from "@aerotrack/shared";
+import { useGeofences } from "@/hooks/use-live-data";
+import { useFleet } from "@/hooks/use-fleet";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,31 +25,33 @@ const FleetMap = dynamic(() => import("@/components/map/fleet-map").then((m) => 
 const KIND_ICON = { circle: Circle, polygon: Hexagon, route: RouteIcon } as const;
 
 export default function GeofencesPage() {
-  const [active, setActive] = useState<Record<string, boolean>>(
-    Object.fromEntries(geofences.map((g) => [g.id, g.active])),
-  );
-  const [selectedId, setSelectedId] = useState(geofences[0]?.id);
+  const { rows: geofences, live, insert, update } = useGeofences();
+  const { vehicles } = useFleet();
+  const [active, setActive] = useState<Record<string, boolean>>({});
+  const [selectedId, setSelectedId] = useState<string | undefined>();
   const [drawMode, setDrawMode] = useState<DrawMode>(null);
-  const [localGeofences, setLocalGeofences] = useState(geofences);
   const mapRef = useRef<MlMap | null>(null);
 
-  const shown = localGeofences.map((g) => ({ ...g, active: active[g.id] ?? g.active }));
+  const shown = geofences.map((g) => ({ ...g, active: active[g.id] ?? g.active }));
 
-  const handleGeofenceComplete = (
+  const handleGeofenceComplete = async (
     geofence: Omit<Geofence, "id" | "tenantId" | "active" | "alertOnEnter" | "alertOnExit" | "dwellMinutes">,
   ) => {
-    const newGeofence: Geofence = {
-      ...geofence,
-      id: `geofence-${Date.now()}`,
-      tenantId: geofences[0]?.tenantId ?? "tn-speedtrack",
+    const ok = await insert({
+      name: geofence.name,
+      kind: geofence.kind === "route" ? "polygon" : geofence.kind,
+      center: geofence.center ?? null,
+      radius_m: geofence.radiusM ?? null,
+      points: geofence.points ?? null,
+      color: geofence.color,
       active: true,
-      alertOnEnter: true,
-      alertOnExit: false,
-    };
-    setLocalGeofences((prev) => [...prev, newGeofence]);
-    setActive((prev) => ({ ...prev, [newGeofence.id]: true }));
+      alert_on_enter: true,
+      alert_on_exit: false,
+      alert_users: [],
+    });
     setDrawMode(null);
-    toast.success(`Geofence "${geofence.name}" created successfully`);
+    if (ok) toast.success(`Geofence "${geofence.name}" created successfully`);
+    else toast.info("Demo mode — sign in to persist geofences");
   };
 
   return (
@@ -100,7 +104,7 @@ export default function GeofencesPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-[14px] font-semibold">{g.name}</div>
-                    <div className="mt-0.5 flex items-center gap-2 text-[12px] text-muted-foreground">
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-muted-foreground">
                       <span className="capitalize">{g.kind}</span>
                       {g.radiusM && <span>· Radius {g.radiusM} m</span>}
                       {g.points && <span>· {g.points.length} points</span>}
@@ -113,13 +117,14 @@ export default function GeofencesPage() {
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <Switch
-                      checked={active[g.id]}
+                      checked={active[g.id] ?? g.active}
                       onCheckedChange={(c) => {
                         setActive((p) => ({ ...p, [g.id]: c }));
+                        if (live) void update(g.id, { active: c });
                         toast.success(`${g.name} ${c ? "activated" : "deactivated"}`);
                       }}
                     />
-                    <Pill tone={active[g.id] ? "success" : "muted"}>{active[g.id] ? "Active" : "Inactive"}</Pill>
+                    <Pill tone={(active[g.id] ?? g.active) ? "success" : "muted"}>{(active[g.id] ?? g.active) ? "Active" : "Inactive"}</Pill>
                   </div>
                 </button>
               </Panel>
@@ -135,7 +140,10 @@ export default function GeofencesPage() {
               {shown.filter((g) => g.active).length} active zones
             </span>
           </div>
-          <div className="relative h-[560px]">
+          <div
+            data-drawing={drawMode ? "open" : "closed"}
+            className="draw-stage relative h-[min(70dvh,560px)] min-h-[320px]"
+          >
             <FleetMap
               key={JSON.stringify(active)}
               vehicles={vehicles.slice(0, 10)}

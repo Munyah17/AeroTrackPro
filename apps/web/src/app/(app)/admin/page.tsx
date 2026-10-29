@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { tenants, tickets, invoices } from "@aerotrack/shared";
+import { useInvoices, useSupportTickets, useTenants } from "@/hooks/use-platform-data";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
 import { StatCard } from "@/components/shared/stat-card";
@@ -22,6 +22,9 @@ const MRR_TREND = [
 ];
 
 export default function AdminOverviewPage() {
+  const { rows: tenants } = useTenants();
+  const { rows: tickets } = useSupportTickets();
+  const { rows: invoices } = useInvoices();
   const mrr = tenants.reduce((n, t) => n + t.mrrUsd, 0);
   const devices = tenants.reduce((n, t) => n + t.vehicleCount, 0);
   const openTickets = tickets.filter((t) => t.status !== "closed").length;
@@ -31,7 +34,7 @@ export default function AdminOverviewPage() {
     <PageContainer>
       <PageHeader title="Platform Overview" subtitle="Your white-label tracking business at a glance" />
 
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
         <StatCard label="Client Organizations" value={tenants.length} icon={Building2} trend={2} trendLabel="this quarter" />
         <StatCard label="Monthly Recurring Revenue" value={mrr} suffix="USD" icon={CreditCard} trend={9.8} trendLabel="MoM" delay={0.05} />
         <StatCard label="Devices Online" value={devices} icon={Radio} delay={0.1} />
@@ -114,7 +117,7 @@ export default function AdminOverviewPage() {
             <h3 className="text-[15px] font-semibold">Billing Health</h3>
             <Link href="/admin/payments" className="text-[12.5px] font-medium text-primary hover:underline">Payments</Link>
           </div>
-          <div className="grid grid-cols-3 divide-x divide-border/50 text-center">
+          <div className="grid grid-cols-1 divide-y divide-border/50 text-center sm:grid-cols-3 sm:divide-x sm:divide-y-0">
             {[
               { label: "Paid (90d)", value: invoices.filter((i) => i.status === "paid").length, tone: "text-success" },
               { label: "Pending", value: invoices.filter((i) => i.status === "pending").length, tone: "text-warning-foreground" },

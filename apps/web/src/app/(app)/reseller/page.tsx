@@ -12,8 +12,11 @@ import {
 } from "recharts";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
+import { useBrand } from "@/components/shell/brand-provider";
+import { defaultSms, subdomainHost } from "@/lib/brand";
 import { Button } from "@/components/ui/button";
-import { RESELLER_CLIENTS, computeResellerBill } from "@/lib/reseller";
+import { computeResellerBill } from "@/lib/reseller";
+import { useResellerClients } from "@/hooks/use-platform-data";
 import { usd } from "@/lib/format";
 
 const DEVICE_TREND = [
@@ -22,11 +25,15 @@ const DEVICE_TREND = [
 ];
 
 export default function ResellerOverviewPage() {
-  const bill = computeResellerBill();
-  const activeClients = RESELLER_CLIENTS.filter((c) => c.status === "active").length;
+  const { rows: clients } = useResellerClients();
+  const { brand } = useBrand();
+  const connected = brand.domains.find((domain) => domain.status === "active");
+  const sender = defaultSms(brand);
+  const bill = computeResellerBill(clients);
+  const activeClients = clients.filter((c) => c.status === "active").length;
 
   const stats = [
-    { label: "Clients", value: RESELLER_CLIENTS.length, sub: `${activeClients} active`, icon: Building2 },
+    { label: "Clients", value: clients.length, sub: `${activeClients} active`, icon: Building2 },
     { label: "Active devices", value: bill.activeDevices, sub: `${bill.totalDevices} total`, icon: Radio },
     { label: "Your monthly bill", value: usd(bill.monthlyTotal), sub: "billed to you", icon: Wallet },
     { label: "Est. margin", value: usd(bill.activeDevices * 4.5 - bill.monthlyTotal), sub: "at $7/device retail", icon: TrendingUp },
@@ -36,7 +43,7 @@ export default function ResellerOverviewPage() {
     <PageContainer>
       <PageHeader
         title="Reseller Overview"
-        subtitle="Your clients, devices and what you owe the platform"
+        subtitle="Admin portal for the tracking service you provide to your clients"
         actions={
           <Button render={<Link href="/reseller/billing" />} className="gap-2 rounded-xl shadow-card">
             <CircleDollarSign className="size-4" /> View billing
@@ -56,6 +63,25 @@ export default function ResellerOverviewPage() {
           </Panel>
         ))}
       </div>
+
+      <Panel className="mt-4 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="text-[14px] font-semibold">Client-facing brand</div>
+          <p className="truncate text-[12.5px] text-muted-foreground">
+            {brand.name} · {subdomainHost(brand.slug)}
+            {connected ? ` · ${connected.host}` : ""}
+            {sender ? ` · SMS ${sender.senderId}` : ""}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="rounded-xl" render={<Link href="/reseller/branding" />}>
+            Edit brand
+          </Button>
+          <Button variant="outline" className="rounded-xl" render={<Link href="/site" />}>
+            View site
+          </Button>
+        </div>
+      </Panel>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Panel className="p-5 lg:col-span-2">
@@ -81,7 +107,7 @@ export default function ResellerOverviewPage() {
         <Panel className="p-5">
           <h3 className="text-[15px] font-semibold">Top clients</h3>
           <div className="mt-3 space-y-2.5">
-            {[...RESELLER_CLIENTS].sort((a, b) => b.devices - a.devices).slice(0, 5).map((c) => (
+            {[...clients].sort((a, b) => b.devices - a.devices).slice(0, 5).map((c) => (
               <Link
                 key={c.id}
                 href="/reseller/clients"

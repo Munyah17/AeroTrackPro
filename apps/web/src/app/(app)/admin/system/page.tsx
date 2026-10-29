@@ -36,7 +36,7 @@ export default function SystemSettingsPage() {
               <Label className="text-[12.5px]">Platform name</Label>
               <Input defaultValue="AeroTrack Pro" className="rounded-xl" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label className="text-[12.5px]">Time zone</Label>
                 <Select defaultValue="cat">

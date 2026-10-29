@@ -17,7 +17,9 @@ import {
   Table2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { trips, vehicles, vehicleById, type Vehicle } from "@aerotrack/shared";
+import type { Vehicle } from "@aerotrack/shared";
+import { useTrips } from "@/hooks/use-live-data";
+import { useFleet } from "@/hooks/use-fleet";
 import { downloadCsv, downloadExcel, printPdf } from "@/lib/export";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,8 +51,10 @@ function bearing(a: [number, number], b: [number, number]): number {
 }
 
 export default function TripsPage() {
+  const { rows: trips } = useTrips();
+  const { vehicles } = useFleet();
   const [vehicleFilter, setVehicleFilter] = useState<string>("all");
-  const [selectedTripId, setSelectedTripId] = useState(trips[0]?.id);
+  const [selectedTripId, setSelectedTripId] = useState<string | undefined>();
 
   // Playback state: progress is a fractional index into the trip path.
   const [playing, setPlaying] = useState(false);
@@ -58,9 +62,11 @@ export default function TripsPage() {
   const [speed, setSpeed] = useState(1);
   const rafRef = useRef<number>(0);
 
+  const vehicleById = (id: string) => vehicles.find((v) => v.id === id);
+
   const rows = useMemo(
     () => trips.filter((t) => vehicleFilter === "all" || t.vehicleId === vehicleFilter),
-    [vehicleFilter],
+    [trips, vehicleFilter],
   );
   const selected = trips.find((t) => t.id === selectedTripId) ?? rows[0];
   const selectedVehicle = selected ? vehicleById(selected.vehicleId) : undefined;
@@ -116,6 +122,23 @@ export default function TripsPage() {
   }, [selected, selectedVehicle, progress, maxIndex]);
 
   const elapsedMin = selected ? Math.round((progress / Math.max(1, maxIndex)) * selected.durationMin) : 0;
+  const stageRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    const bar = barRef.current;
+    if (!stage) return;
+    if (!bar) {
+      stage.style.removeProperty("--overlay-offset");
+      return;
+    }
+    const apply = () => stage.style.setProperty("--overlay-offset", `${bar.offsetHeight + 12}px`);
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, [selected?.id]);
 
   const totals = useMemo(
     () => ({
@@ -175,7 +198,7 @@ export default function TripsPage() {
         actions={
           <div className="flex flex-wrap gap-2">
             <Select value={vehicleFilter} onValueChange={(v) => setVehicleFilter(v ?? "all")}>
-              <SelectTrigger className="w-52 rounded-xl bg-card">
+              <SelectTrigger className="w-full rounded-xl bg-card sm:w-52">
                 <SelectValue placeholder="All vehicles" />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
@@ -211,8 +234,9 @@ export default function TripsPage() {
         }
       />
 
-      {/* Totals */}
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="flex flex-col gap-4">
+      {/* Totals sit under the player on a phone, and above it on a wide screen. */}
+      <div className="order-2 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 xl:order-1">
         {[
           { label: "Total Trips", value: totals.trips, icon: RouteIcon },
           { label: "Total Distance", value: km(totals.distance), icon: MapPin },
@@ -231,9 +255,9 @@ export default function TripsPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
+      <div className="order-1 grid grid-cols-1 gap-4 xl:order-2 xl:grid-cols-5">
         {/* Trip list */}
-        <Panel className="xl:col-span-2">
+        <Panel className="order-2 xl:order-1 xl:col-span-2">
           <div className="flex items-center justify-between border-b border-border/60 px-4 py-3.5">
             <h3 className="text-[14px] font-semibold">Trips ({rows.length})</h3>
             <Calendar className="size-4 text-muted-foreground" />
@@ -263,7 +287,7 @@ export default function TripsPage() {
                     </div>
                     <div className="mt-0.5 truncate text-[12px] text-muted-foreground">{t.startAddress}</div>
                     <div className="truncate text-[12px] text-muted-foreground">→ {t.endAddress}</div>
-                    <div className="mt-1 flex gap-3 text-[11px] font-medium text-muted-foreground">
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] font-medium text-muted-foreground">
                       <span>{km(t.distanceKm)}</span>
                       <span>{Math.floor(t.durationMin / 60)}h {t.durationMin % 60}m</span>
                       <span>max {kmh(t.maxSpeedKmh)}</span>
@@ -277,7 +301,7 @@ export default function TripsPage() {
         </Panel>
 
         {/* Trip replay map */}
-        <Panel className="overflow-hidden xl:col-span-3">
+        <Panel className="order-1 overflow-hidden xl:order-2 xl:col-span-3">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 px-4 py-3.5">
             <div>
               <h3 className="text-[14px] font-semibold">
@@ -290,7 +314,7 @@ export default function TripsPage() {
               )}
             </div>
           </div>
-          <div className="relative h-[480px]">
+          <div ref={stageRef} className="playback-stage relative h-[min(68dvh,480px)] min-h-[300px]">
             {selected && playbackVehicle && (
               <FleetMap
                 key={selected.id}
@@ -301,60 +325,67 @@ export default function TripsPage() {
               />
             )}
 
-            {/* Floating playback bar */}
             {selected && (
-              <div className="absolute bottom-4 left-1/2 z-10 flex w-[min(560px,92%)] -translate-x-1/2 items-center gap-3 rounded-2xl border border-border/60 bg-card/95 px-4 py-3 shadow-float backdrop-blur-xl">
-                <Button
-                  size="icon-sm"
-                  className="shrink-0 rounded-full shadow-card"
-                  onClick={() => {
-                    if (progress >= maxIndex) setProgress(0);
-                    setPlaying((p) => !p);
-                  }}
-                >
-                  {playing ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
-                </Button>
-                <Button
-                  size="icon-sm"
-                  variant="ghost"
-                  className="shrink-0 rounded-full"
-                  onClick={() => {
-                    setProgress(0);
-                    setPlaying(false);
-                  }}
-                >
-                  <RotateCcw className="size-3.5" />
-                </Button>
-
-                {/* Scrubber */}
-                <input
-                  type="range"
-                  min={0}
-                  max={maxIndex}
-                  step={0.01}
-                  value={progress}
-                  onChange={(e) => {
-                    setProgress(parseFloat(e.target.value));
-                    setPlaying(false);
-                  }}
-                  className="h-1.5 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-muted accent-primary"
-                />
-
-                <span className="shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground">
-                  {Math.floor(elapsedMin / 60)}:{String(elapsedMin % 60).padStart(2, "0")} /{" "}
+              <div
+                ref={barRef}
+                className="absolute inset-x-2 bottom-2 z-10 rounded-2xl border border-border/60 bg-card/95 px-2.5 py-2 shadow-float backdrop-blur-xl sm:inset-x-auto sm:left-1/2 sm:w-[min(560px,calc(100%-1rem))] sm:-translate-x-1/2 sm:px-3"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="icon"
+                    className="size-11 shrink-0 rounded-full shadow-card"
+                    aria-label={playing ? "Pause trip" : "Play trip"}
+                    onClick={() => {
+                      if (progress >= maxIndex) setProgress(0);
+                      setPlaying((p) => !p);
+                    }}
+                  >
+                    {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-11 shrink-0 rounded-full"
+                    aria-label="Restart trip"
+                    onClick={() => {
+                      setProgress(0);
+                      setPlaying(false);
+                    }}
+                  >
+                    <RotateCcw className="size-4" />
+                  </Button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={maxIndex}
+                    step={0.01}
+                    value={progress}
+                    aria-label="Trip position"
+                    onChange={(e) => {
+                      setProgress(parseFloat(e.target.value));
+                      setPlaying(false);
+                    }}
+                    className="playback-range min-w-0 flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSpeed((s) => (s === 1 ? 2 : s === 2 ? 4 : 1))}
+                    className="h-11 shrink-0 rounded-xl border px-2.5 text-[12px] font-bold text-primary transition-colors hover:bg-accent"
+                    aria-label="Playback speed"
+                  >
+                    {speed}x
+                  </button>
+                </div>
+                <div className="px-1 text-center text-[11px] font-medium tabular-nums text-muted-foreground">
+                  {Math.floor(elapsedMin / 60)}:{String(elapsedMin % 60).padStart(2, "0")}
+                  <span className="px-1 text-muted-foreground/60">/</span>
                   {Math.floor(selected.durationMin / 60)}:{String(selected.durationMin % 60).padStart(2, "0")}
-                </span>
-
-                <button
-                  onClick={() => setSpeed((s) => (s === 1 ? 2 : s === 2 ? 4 : 1))}
-                  className="shrink-0 rounded-lg border px-2 py-1 text-[11px] font-bold text-primary transition-colors hover:bg-accent"
-                >
-                  {speed}x
-                </button>
+                </div>
               </div>
             )}
           </div>
         </Panel>
+      </div>
       </div>
     </PageContainer>
   );

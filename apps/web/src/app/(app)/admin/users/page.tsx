@@ -2,7 +2,7 @@
 
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import { users, tenantById } from "@aerotrack/shared";
+import { usePlatformUsers, useTenants } from "@/hooks/use-platform-data";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -20,6 +20,9 @@ const ROLE_TONE = {
 } as const;
 
 export default function UsersPage() {
+  const { rows: users } = usePlatformUsers();
+  const { rows: tenants } = useTenants();
+  const tenantById = (id: string) => tenants.find((t) => t.id === id);
   return (
     <PageContainer className="max-w-[1100px]">
       <PageHeader

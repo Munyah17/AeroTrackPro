@@ -2,15 +2,18 @@
 
 import { BadgeCheck, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { plans, tenants } from "@aerotrack/shared";
+import { usePlans, useTenants } from "@/hooks/use-platform-data";
 import { Button } from "@/components/ui/button";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
 import { cn } from "@/lib/utils";
 
 export default function PlansPage() {
+  const { rows: plans } = usePlans();
+  const { rows: tenants } = useTenants();
+  /* Match by plan slug/name — DB plan ids are uuids, tenants store plan text. */
   const subscribers = (planId: string) =>
-    tenants.filter((t) => `pln-${t.plan}` === planId).length;
+    tenants.filter((t) => `pln-${t.plan}` === planId || t.plan === planId).length;
 
   return (
     <PageContainer className="max-w-[1200px]">
@@ -26,7 +29,7 @@ export default function PlansPage() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {plans.map((p) => {
-          const highlight = p.id === "pln-pro";
+          const highlight = p.id === "pln-pro" || p.name.toLowerCase() === "pro";
           return (
             <Panel
               key={p.id}

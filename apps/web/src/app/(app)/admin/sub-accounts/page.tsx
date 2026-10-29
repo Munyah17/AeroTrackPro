@@ -2,7 +2,7 @@
 
 import { Plus, Users } from "lucide-react";
 import { toast } from "sonner";
-import { tenants } from "@aerotrack/shared";
+import { useTenants } from "@/hooks/use-platform-data";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
@@ -18,6 +18,7 @@ const SUBS = [
 ];
 
 export default function SubAccountsPage() {
+  const { rows: tenants } = useTenants();
   return (
     <PageContainer className="max-w-[1000px]">
       <PageHeader

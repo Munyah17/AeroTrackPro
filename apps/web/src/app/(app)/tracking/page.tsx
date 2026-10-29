@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronRight, MapPin, Navigation, Search, Star, X } from "lucide-react";
-import { geofences, type Vehicle } from "@aerotrack/shared";
+import type { Vehicle } from "@aerotrack/shared";
+import { useGeofences } from "@/hooks/use-live-data";
 import { useFleet } from "@/hooks/use-fleet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,7 +86,7 @@ function VehicleSummary({ vehicle, onClose }: { vehicle: Vehicle; onClose: () =>
             {vehicle.make} {vehicle.model} · {vehicle.name}
           </p>
         </div>
-        <Button variant="ghost" size="icon" className="-mr-1 -mt-1 size-7 shrink-0 rounded-lg" onClick={onClose}>
+        <Button variant="ghost" size="icon" className="-mr-1 -mt-1 size-9 shrink-0 rounded-lg" onClick={onClose}>
           <X className="size-4" />
         </Button>
       </div>
@@ -115,15 +116,15 @@ function VehicleSummary({ vehicle, onClose }: { vehicle: Vehicle; onClose: () =>
         ))}
       </div>
 
-      <div className="mt-2.5 grid grid-cols-[1fr_auto] gap-1.5">
-        <Button render={<a href={`/vehicles/${vehicle.id}`} />} size="sm" className="gap-1.5 rounded-xl text-[12.5px] shadow-card">
+      <div className="mt-2.5 flex flex-col gap-1.5 min-[420px]:flex-row">
+        <Button render={<a href={`/vehicles/${vehicle.id}`} />} size="sm" className="h-10 w-full min-w-0 flex-1 gap-1.5 rounded-xl text-[12.5px] shadow-card">
           Details &amp; trips <ChevronRight className="size-3.5" />
         </Button>
         <Button
           render={<a href={mapLinks.google(vehicle.position.lat, vehicle.position.lng)} target="_blank" rel="noreferrer" />}
           variant="outline"
           size="sm"
-          className="gap-1.5 rounded-xl text-[12.5px]"
+          className="h-10 w-full min-w-0 flex-1 gap-1.5 rounded-xl text-[12.5px]"
         >
           <Navigation className="size-3.5" /> Navigate
         </Button>
@@ -134,19 +135,28 @@ function VehicleSummary({ vehicle, onClose }: { vehicle: Vehicle; onClose: () =>
 
 export default function TrackingPage() {
   const { vehicles, trails } = useFleet();
+  const { rows: geofences } = useGeofences();
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("all");
+  const [isDesktop, setIsDesktop] = useState(false);
 
-  // Keep the control card present on desktop: select the first vehicle as
-  // soon as the fleet is available (mock or live), and heal a stale selection
-  // if the fleet swaps from mock to live rows.
   useEffect(() => {
-    if (vehicles.length === 0) return;
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const apply = () => setIsDesktop(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
+  // On a wide layout, keep a vehicle selected so the detail column is useful.
+  // On a phone, leave the map clear until the person picks one.
+  useEffect(() => {
+    if (!isDesktop || vehicles.length === 0) return;
     if (!selectedId || !vehicles.some((v) => v.id === selectedId)) {
       setSelectedId(vehicles[0]!.id);
     }
-  }, [vehicles, selectedId]);
+  }, [isDesktop, vehicles, selectedId]);
 
   const filtered = useMemo(() => {
     return vehicles.filter((v) => {
@@ -165,43 +175,58 @@ export default function TrackingPage() {
 
   const selected = vehicles.find((v) => v.id === selectedId);
   const trail = selectedId ? trails[selectedId] : undefined;
+  const stageRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    const sheet = sheetRef.current;
+    if (!stage) return;
+    if (!sheet) {
+      stage.style.removeProperty("--overlay-offset");
+      return;
+    }
+    const apply = () => stage.style.setProperty("--overlay-offset", `${sheet.offsetHeight + 12}px`);
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(sheet);
+    return () => observer.disconnect();
+  }, [selectedId, isDesktop]);
 
   const selectVehicle = (id: string) => setSelectedId(id);
 
-  return (
-    <div className="relative h-[calc(100dvh-64px)] overflow-hidden">
-      <FleetMap
-        vehicles={filtered}
-        selectedId={selectedId}
-        onSelect={selectVehicle}
-        geofences={geofences}
-        path={trail && trail.length > 1 ? trail : undefined}
-        fit
-      />
+  const filters = (
+    <Tabs value={filter} onValueChange={(v) => setFilter(v as StatusFilter)}>
+      <TabsList className="grid h-8 w-full grid-cols-4 rounded-lg p-0.5">
+        {(["all", "online", "sleeping", "offline"] as const).map((f) => (
+          <TabsTrigger key={f} value={f} className="min-w-0 truncate rounded-md px-0.5 text-[10.5px] capitalize">
+            {f}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
+  );
 
-      {/* Floating vehicle list (desktop) */}
-      <div className="absolute left-4 top-4 z-10 hidden max-h-[calc(100%-2rem)] w-[300px] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 shadow-float backdrop-blur-xl md:flex">
-        <div className="border-b border-border/60 p-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search vehicles..."
-              className="h-9 rounded-xl border-border/70 bg-background pl-9 text-[13px]"
-            />
-          </div>
-          <Tabs value={filter} onValueChange={(v) => setFilter(v as StatusFilter)} className="mt-2.5">
-            <TabsList className="grid h-8 w-full grid-cols-4 rounded-lg p-0.5">
-              {(["all", "online", "sleeping", "offline"] as const).map((f) => (
-                <TabsTrigger key={f} value={f} className="rounded-md text-[10.5px] capitalize">
-                  {f}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+  const search = (
+    <div className="relative">
+      <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search vehicles..."
+        className="h-9 rounded-xl border-border/70 bg-background pl-9 text-[13px]"
+      />
+    </div>
+  );
+
+  return (
+    <div className="flex h-full min-h-0 flex-col lg:flex-row">
+      <aside className="hidden min-h-0 w-[280px] shrink-0 flex-col border-r border-border/60 bg-card lg:flex xl:w-[300px]">
+        <div className="space-y-2.5 border-b border-border/60 p-3">
+          {search}
+          {filters}
         </div>
-        <div className="scrollbar-thin flex-1 space-y-0.5 overflow-y-auto p-2">
+        <div className="scrollbar-thin min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
           {filtered.map((v) => (
             <VehicleRow key={v.id} vehicle={v} selected={v.id === selectedId} onClick={() => selectVehicle(v.id)} />
           ))}
@@ -212,75 +237,86 @@ export default function TrackingPage() {
         <div className="border-t border-border/60 px-4 py-2.5 text-[11.5px] text-muted-foreground">
           {filtered.length} of {vehicles.length} vehicles
         </div>
-      </div>
+      </aside>
 
-      {/* Vehicle chip scroller (mobile) */}
-      <div className="absolute inset-x-0 top-3 z-10 md:hidden">
-        <div className="scrollbar-none flex gap-2 overflow-x-auto px-3 pb-1">
-          {filtered.map((v) => (
-            <button
-              key={v.id}
-              onClick={() => selectVehicle(v.id)}
-              className={cn(
-                "flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] font-semibold shadow-card backdrop-blur-xl transition-colors",
-                v.id === selectedId
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border/60 bg-card/95 text-foreground",
-              )}
-            >
-              <span
+      <div
+        ref={stageRef}
+        data-sheet={selected && !isDesktop ? "open" : "closed"}
+        className="tracking-stage relative min-h-0 min-w-0 flex-1"
+      >
+        <FleetMap
+          vehicles={filtered}
+          selectedId={selectedId}
+          onSelect={selectVehicle}
+          geofences={geofences}
+          path={trail && trail.length > 1 ? trail : undefined}
+          fit
+        />
+
+        <div className="pointer-events-none absolute inset-x-0 top-2 z-10 max-w-full space-y-2 lg:hidden">
+          <div className="pointer-events-auto px-2">{search}</div>
+          <div className="pointer-events-auto px-2">{filters}</div>
+          <div className="scrollbar-none pointer-events-auto flex max-w-full touch-pan-x gap-2 overflow-x-auto overscroll-x-contain px-2 pb-1">
+            {filtered.map((v) => (
+              <button
+                key={v.id}
+                onClick={() => selectVehicle(v.id)}
                 className={cn(
-                  "size-2 rounded-full",
-                  LIVE_STATUS[liveStatusOf(v.status)].dot,
-                  v.id === selectedId && "bg-primary-foreground",
+                  "flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] font-semibold shadow-card backdrop-blur-xl transition-colors",
+                  v.id === selectedId
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border/60 bg-card/95 text-foreground",
                 )}
-              />
-              {v.plate}
-            </button>
+              >
+                <span
+                  className={cn(
+                    "size-2 rounded-full",
+                    LIVE_STATUS[liveStatusOf(v.status)].dot,
+                    v.id === selectedId && "bg-primary-foreground",
+                  )}
+                />
+                {v.plate}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {selected && (
+            <motion.div
+              ref={sheetRef}
+              key={`sheet-${selected.id}`}
+              initial={{ y: 80, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 80, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 380, damping: 36 }}
+              className="absolute inset-x-2 bottom-2 z-20 max-h-[48%] overflow-y-auto rounded-2xl border border-border/60 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-float backdrop-blur-xl lg:hidden"
+            >
+              <VehicleSummary vehicle={selected} onClose={() => setSelectedId(undefined)} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 hidden -translate-x-1/2 items-center gap-4 rounded-full border border-border/60 bg-card/90 px-4 py-2 shadow-float backdrop-blur-xl xl:flex">
+          {(["online", "sleeping", "offline"] as const).map((s) => (
+            <span key={s} className="flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground">
+              <span className={cn("size-2 rounded-full", LIVE_STATUS[s].dot)} /> {LIVE_STATUS[s].label}
+            </span>
           ))}
         </div>
       </div>
 
-      {/* Summary card — desktop (top-right) */}
-      <AnimatePresence>
-        {selected && (
-          <motion.div
-            key={selected.id}
-            initial={{ opacity: 0, x: 24 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 24 }}
-            transition={{ type: "spring", stiffness: 380, damping: 34 }}
-            className="absolute right-4 top-4 z-10 hidden w-[300px] rounded-2xl border border-border/60 bg-card/95 shadow-float backdrop-blur-xl md:block"
-          >
+      <aside className="hidden min-h-0 w-[250px] shrink-0 flex-col border-l border-border/60 bg-card lg:flex xl:w-[300px]">
+        {selected ? (
+          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
             <VehicleSummary vehicle={selected} onClose={() => setSelectedId(undefined)} />
-          </motion.div>
+          </div>
+        ) : (
+          <div className="flex flex-1 items-center justify-center p-6 text-center text-[13px] text-muted-foreground">
+            Select a vehicle to see where it is.
+          </div>
         )}
-      </AnimatePresence>
-
-      {/* Summary card — mobile (bottom sheet, compact) */}
-      <AnimatePresence>
-        {selected && (
-          <motion.div
-            key={`sheet-${selected.id}`}
-            initial={{ y: 80, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 80, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 380, damping: 36 }}
-            className="absolute inset-x-2 bottom-2 z-20 rounded-2xl border border-border/60 bg-card/95 shadow-float backdrop-blur-xl md:hidden"
-          >
-            <VehicleSummary vehicle={selected} onClose={() => setSelectedId(undefined)} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Map legend */}
-      <div className="absolute bottom-6 left-1/2 z-10 hidden -translate-x-1/2 items-center gap-4 rounded-full border border-border/60 bg-card/90 px-4 py-2 shadow-float backdrop-blur-xl md:flex">
-        {(["online", "sleeping", "offline"] as const).map((s) => (
-          <span key={s} className="flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground">
-            <span className={cn("size-2 rounded-full", LIVE_STATUS[s].dot)} /> {LIVE_STATUS[s].label}
-          </span>
-        ))}
-      </div>
+      </aside>
     </div>
   );
 }

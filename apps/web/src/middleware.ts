@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   "/verify",
   "/select-tenant",
   "/redeem", // public fuel-coupon redemption (station-facing)
+  "/site", // reseller white-label landing page
 ];
 
 /**

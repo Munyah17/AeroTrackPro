@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { AlertTriangle, FileText, Plus, ShieldCheck, ShoppingBag, FileCheck2, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { vehicles } from "@aerotrack/shared";
+import { getLiveTenantId, useInsurancePolicies } from "@/hooks/use-live-data";
+import { useFleet } from "@/hooks/use-fleet";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -18,17 +19,22 @@ import { shortDate } from "@/lib/format";
 
 const DAY = 86_400_000;
 
+const emptyForm = {
+  vehicleId: "",
+  policyNumber: "",
+  provider: "",
+  expiryDate: new Date(Date.now() + 365 * DAY),
+  documents: [] as File[],
+};
+
 export default function InsurancePage() {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({
-    vehicleId: vehicles[0]?.id ?? "",
-    policyNumber: "",
-    provider: "",
-    expiryDate: new Date(Date.now() + 365 * DAY),
-    documents: [] as File[],
-  });
+  const [saving, setSaving] = useState(false);
+  const { rows: policies, insert } = useInsurancePolicies();
+  const { vehicles } = useFleet();
+  const [form, setForm] = useState(emptyForm);
 
-  const insured = vehicles.filter((v) => v.insuranceExpiry);
+  const insured = policies;
   const now = Date.now();
   const status = (expiry: string) => {
     const days = Math.round((new Date(expiry).getTime() - now) / DAY);
@@ -37,28 +43,59 @@ export default function InsurancePage() {
     return { tone: "success" as const, label: "Active", days };
   };
 
-  const expiring = insured.filter((v) => {
-    const d = status(v.insuranceExpiry!).days;
+  const expiring = insured.filter((p) => {
+    const d = status(p.expiryDate).days;
     return d >= 0 && d <= 15;
   }).length;
-  const expired = insured.filter((v) => status(v.insuranceExpiry!).days < 0).length;
+  const expired = insured.filter((p) => status(p.expiryDate).days < 0).length;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.policyNumber.trim() || !form.provider.trim()) {
       toast.error("Please fill in all required fields");
       return;
     }
-    toast.success("Insurance policy added successfully", {
-      description: `Policy ${form.policyNumber} for ${vehicles.find((v) => v.id === form.vehicleId)?.plate}`,
+    const vehicleId = form.vehicleId || vehicles[0]?.id || "";
+    const plate = vehicles.find((v) => v.id === vehicleId)?.plate;
+    setSaving(true);
+
+    /* Best-effort: upload the first document to the private bucket. */
+    let documentPath: string | null = null;
+    if (form.documents[0]) {
+      try {
+        const tid = await getLiveTenantId();
+        if (tid) {
+          const file = form.documents[0];
+          const path = `${tid}/policies/${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
+          const { supabase } = await import("@/lib/supabase");
+          const { error: upErr } = await supabase.storage.from("documents").upload(path, file);
+          if (!upErr) documentPath = path;
+        }
+      } catch {
+        /* document upload is best-effort */
+      }
+    }
+
+    const ok = await insert({
+      vehicle_id: vehicleId,
+      policy_number: form.policyNumber.trim(),
+      provider: form.provider.trim(),
+      coverage: "comprehensive",
+      premium_usd: null,
+      start_date: new Date().toISOString().slice(0, 10),
+      expiry_date: form.expiryDate.toISOString().slice(0, 10),
+      document_path: documentPath,
+      notes: null,
     });
+    setSaving(false);
+    if (ok) {
+      toast.success("Insurance policy added successfully", {
+        description: `Policy ${form.policyNumber} for ${plate ?? "vehicle"}`,
+      });
+    } else {
+      toast.info("Demo mode — sign in to persist policies");
+    }
     setDialogOpen(false);
-    setForm({
-      vehicleId: vehicles[0]?.id ?? "",
-      policyNumber: "",
-      provider: "",
-      expiryDate: new Date(Date.now() + 365 * DAY),
-      documents: [],
-    });
+    setForm(emptyForm);
   };
 
   return (
@@ -68,7 +105,7 @@ export default function InsurancePage() {
         subtitle="Policies, expiry alerts and the insurance marketplace"
         actions={
           <div className="flex gap-2">
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (o) setForm((f) => ({ ...f, vehicleId: vehicles[0]?.id ?? "" })); }}>
               <DialogTrigger
                 render={
                   <Button variant="outline" className="gap-2 rounded-xl">
@@ -140,8 +177,8 @@ export default function InsurancePage() {
                     />
                   </div>
 
-                  <Button onClick={handleSave} className="w-full rounded-xl">
-                    Save Policy
+                  <Button onClick={handleSave} disabled={saving} className="w-full rounded-xl">
+                    {saving ? "Saving…" : "Save Policy"}
                   </Button>
                 </div>
               </DialogContent>
@@ -156,7 +193,7 @@ export default function InsurancePage() {
         }
       />
 
-      <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-5 grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Active Policies" value={insured.length - expired} icon={ShieldCheck} iconClassName="bg-success/10 text-success" />
         <StatCard label="Expiring Soon" value={expiring} icon={AlertTriangle} iconClassName="bg-warning/15 text-warning-foreground" delay={0.05} />
         <StatCard label="Expired" value={expired} icon={AlertTriangle} iconClassName="bg-destructive/10 text-destructive" delay={0.1} />
@@ -168,22 +205,25 @@ export default function InsurancePage() {
           <h3 className="text-[15px] font-semibold">Fleet Policies</h3>
         </div>
         <div className="divide-y divide-border/60">
-          {insured.slice(0, 14).map((v) => {
-            const s = status(v.insuranceExpiry!);
+          {insured.slice(0, 14).map((p) => {
+            const s = status(p.expiryDate);
+            const v = vehicles.find((x) => x.id === p.vehicleId);
             return (
-              <div key={v.id} className="flex flex-wrap items-center gap-4 px-5 py-3.5">
+              <div key={p.id} className="flex flex-wrap items-center gap-4 px-5 py-3.5">
                 <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                   <ShieldCheck className="size-4.5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[13.5px] font-semibold">{v.plate} — {v.make} {v.model}</div>
+                  <div className="text-[13.5px] font-semibold">
+                    {v ? `${v.plate} — ${v.make} ${v.model}` : p.policyNumber}
+                  </div>
                   <div className="text-[12px] text-muted-foreground">
-                    Policy FLEET-2026-{v.id.replace("veh-", "").padStart(3, "0")} · Expires {shortDate(v.insuranceExpiry!)}
+                    {p.policyNumber} · {p.provider} · Expires {shortDate(p.expiryDate)}
                   </div>
                 </div>
                 <Pill tone={s.tone}>{s.label}</Pill>
                 {s.tone !== "success" && (
-                  <Button size="sm" variant="outline" className="rounded-xl" onClick={() => toast.success(`Renewal quote requested for ${v.plate}`)}>
+                  <Button size="sm" variant="outline" className="rounded-xl" onClick={() => toast.success(`Renewal quote requested for ${v?.plate ?? p.policyNumber}`)}>
                     Renew
                   </Button>
                 )}

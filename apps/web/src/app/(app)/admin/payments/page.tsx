@@ -2,7 +2,7 @@
 
 import { Download, Receipt } from "lucide-react";
 import { toast } from "sonner";
-import { invoices, tenantById } from "@aerotrack/shared";
+import { useInvoices, useTenants } from "@/hooks/use-platform-data";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
@@ -11,6 +11,9 @@ import { StatCard } from "@/components/shared/stat-card";
 import { shortDate, usd } from "@/lib/format";
 
 export default function PaymentsPage() {
+  const { rows: invoices } = useInvoices();
+  const { rows: tenants } = useTenants();
+  const tenantById = (id: string) => tenants.find((t) => t.id === id);
   const paid = invoices.filter((i) => i.status === "paid");
   const revenue = paid.reduce((n, i) => n + i.amountUsd, 0);
 
@@ -26,7 +29,7 @@ export default function PaymentsPage() {
         }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Collected (90d)" value={revenue} suffix="USD" icon={Receipt} iconClassName="bg-success/10 text-success" />
         <StatCard label="Invoices Paid" value={paid.length} icon={Receipt} delay={0.05} />
         <StatCard label="Pending" value={invoices.filter((i) => i.status === "pending").length} icon={Receipt} iconClassName="bg-warning/15 text-warning-foreground" delay={0.1} />

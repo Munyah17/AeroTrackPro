@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Building2, Globe, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
-import { tenants } from "@aerotrack/shared";
+import { useTenants } from "@/hooks/use-platform-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -12,10 +12,11 @@ import { Pill } from "@/components/shared/status";
 import { shortDate, usd } from "@/lib/format";
 
 export default function OrganizationsPage() {
+  const { rows: tenants } = useTenants();
   const [query, setQuery] = useState("");
   const rows = useMemo(
     () => tenants.filter((t) => !query || t.name.toLowerCase().includes(query.toLowerCase())),
-    [query],
+    [tenants, query],
   );
 
   return (

@@ -10,6 +10,8 @@ export { QueclinkDecoder } from "./protocols/queclink/decoder";
 export { MeitrackDecoder } from "./protocols/meitrack/decoder";
 export { TopflytechDecoder } from "./protocols/topflytech/decoder";
 export { Vt200Decoder } from "./protocols/vt200/decoder";
+export { TeltonikaDecoder } from "./protocols/teltonika/decoder";
+export { Jt808Decoder } from "./protocols/jt808/decoder";
 
 import type { ProtocolDecoder } from "./core/types";
 import type { ProtocolKey } from "./devices/registry";
@@ -21,6 +23,8 @@ import { QueclinkDecoder } from "./protocols/queclink/decoder";
 import { MeitrackDecoder } from "./protocols/meitrack/decoder";
 import { TopflytechDecoder } from "./protocols/topflytech/decoder";
 import { Vt200Decoder } from "./protocols/vt200/decoder";
+import { TeltonikaDecoder } from "./protocols/teltonika/decoder";
+import { Jt808Decoder } from "./protocols/jt808/decoder";
 
 /** All decoders keyed by protocol, for the ingest server's listener map. */
 export function createDecoders(): Record<ProtocolKey, ProtocolDecoder> {
@@ -33,5 +37,7 @@ export function createDecoders(): Record<ProtocolKey, ProtocolDecoder> {
     meitrack: new MeitrackDecoder(),
     topflytech: new TopflytechDecoder(),
     vt200: new Vt200Decoder(),
+    teltonika: new TeltonikaDecoder(),
+    jt808: new Jt808Decoder(),
   };
 }

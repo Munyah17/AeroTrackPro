@@ -56,7 +56,7 @@ export default function ProfileSettingsPage() {
             <h3 className="text-[15px] font-semibold">Personal Information</h3>
           </div>
 
-          <div className="flex items-start gap-6">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
             <div className="relative">
               <Avatar className="size-24">
                 <AvatarFallback className="text-2xl font-bold">
@@ -71,8 +71,8 @@ export default function ProfileSettingsPage() {
               </button>
             </div>
 
-            <div className="flex-1 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="w-full min-w-0 flex-1 space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Full name</Label>
                   <Input
@@ -92,7 +92,7 @@ export default function ProfileSettingsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Phone number</Label>
                   <Input

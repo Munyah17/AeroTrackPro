@@ -32,6 +32,21 @@ export function GeofenceDraw({ map, mode, onComplete, onCancel }: GeofenceDrawPr
   const [radius, setRadius] = useState(500);
   const [points, setPoints] = useState<[number, number][]>([]);
   const markerRef = useRef<maplibregl.Marker | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const panel = panelRef.current;
+    const stage = panel?.closest(".draw-stage") as HTMLElement | null;
+    if (!panel || !stage) return;
+    const apply = () => stage.style.setProperty("--overlay-offset", `${panel.offsetHeight + 12}px`);
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(panel);
+    return () => {
+      observer.disconnect();
+      stage.style.removeProperty("--overlay-offset");
+    };
+  }, [mode, points.length, center, name]);
 
   useEffect(() => {
     if (!map || !mode) {
@@ -216,7 +231,10 @@ export function GeofenceDraw({ map, mode, onComplete, onCancel }: GeofenceDrawPr
   if (!mode) return null;
 
   return (
-    <div className="absolute left-4 top-4 z-10 w-80 space-y-3 rounded-2xl border border-border/60 bg-card/95 p-4 shadow-float backdrop-blur-xl">
+    <div
+      ref={panelRef}
+      className="absolute inset-x-2 bottom-2 z-10 max-h-[48%] space-y-3 overflow-y-auto rounded-2xl border border-border/60 bg-card/95 p-3 shadow-float backdrop-blur-xl sm:inset-x-auto sm:bottom-auto sm:left-4 sm:top-4 sm:max-h-[calc(100%-2rem)] sm:w-80 sm:p-4"
+    >
       <div className="flex items-center gap-2">
         {mode === "circle" ? <Circle className="size-5 text-primary" /> : <Hexagon className="size-5 text-primary" />}
         <h3 className="text-sm font-semibold">
@@ -235,7 +253,7 @@ export function GeofenceDraw({ map, mode, onComplete, onCancel }: GeofenceDrawPr
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
           <div className="space-y-1.5">
             <Label className="text-xs">Color</Label>
             <div className="flex items-center gap-2">

@@ -66,8 +66,8 @@ export function StatCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay, ease: "easeOut" }}
     >
-      <Panel hover className="p-5">
-        <div className="flex items-start gap-4">
+      <Panel hover className="h-full p-4 sm:p-5">
+        <div className="flex items-start gap-3 sm:gap-4">
           <div
             className={cn(
               "flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary",
@@ -78,7 +78,7 @@ export function StatCard({
           </div>
           <div className="min-w-0">
             <div className="text-[13px] font-medium text-muted-foreground">{label}</div>
-            <div className="mt-0.5 text-[26px] font-bold tracking-tight tabular-nums">
+            <div className="mt-0.5 text-xl font-bold tracking-tight tabular-nums sm:text-[26px]">
               <AnimatedNumber value={value} decimals={decimals} />
               {suffix && <span className="ml-1 text-lg font-semibold text-muted-foreground">{suffix}</span>}
             </div>
