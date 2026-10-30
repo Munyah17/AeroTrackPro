@@ -3,30 +3,48 @@
   Traccar headless hardware engine — merge these entries into conf/traccar.xml
   on the dedicated VPS alongside the normal Traccar datastore/port entries.
 
-  Inbound security: set TRACCAR_FORWARD_SECRET in the AeroTrack env and append
-  ?key=<same value> to both URLs (or use forward.header with a static
-  'Authorization: Bearer <secret>' line instead).
+  Inbound security: set TRACCAR_FORWARD_SECRET in the AeroTrack env and either
+  append ?key=<same value> to both URLs, or keep the URLs clean and add:
+
+    <entry key='forward.header'>Authorization: Bearer REPLACE_WITH_SECRET</entry>
+    <entry key='event.forward.header'>Authorization: Bearer REPLACE_WITH_SECRET</entry>
+
+  (forward.header only applies to the global forward.url — AeroTrack accepts
+  the secret via ?key= query, Authorization: Bearer, or x-forward-key.)
+
+  Legacy keys (forward.enable / forward.json / event.forward.enable) were
+  superseded by forward.type and are ignored on Traccar 6.x.
 -->
 <!DOCTYPE properties SYSTEM 'http://java.sun.com/dtd/properties.dtd'>
 <properties>
 
-    <!-- Position forwarding: every parsed position -> AeroTrack /api/telemetry -->
-    <entry key='forward.enable'>true</entry>
-    <entry key='forward.json'>true</entry>
+    <!-- Position forwarding: every parsed position -> AeroTrack /api/telemetry.
+         forward.type=json POSTs {position, device} JSON (the default 'url'
+         mode would only send query parameters). -->
+    <entry key='forward.type'>json</entry>
     <entry key='forward.url'>https://app.example.com/api/telemetry?key=REPLACE_WITH_SECRET</entry>
 
-    <!-- Event webhooks: deviceOnline / deviceOffline -> /api/webhooks/status -->
-    <entry key='event.forward.enable'>true</entry>
+    <!-- Delivery resilience: retry transient failures (exponential backoff
+         from 100ms, up to 10 attempts, max 100 positions held in memory). -->
+    <entry key='forward.retry.enable'>true</entry>
+    <entry key='forward.retry.delay'>100</entry>
+    <entry key='forward.retry.count'>10</entry>
+    <entry key='forward.retry.limit'>100</entry>
+
+    <!-- Event webhooks: deviceOnline / deviceOffline -> /api/webhooks/status.
+         Setting the URL enables it — no separate .enable key on 6.x. -->
     <entry key='event.forward.url'>https://app.example.com/api/webhooks/status?key=REPLACE_WITH_SECRET</entry>
 
     <!-- REST API stays enabled so AeroTrack can push commands back
-         (POST /api/commands/send via service credentials). -->
+         (POST /api/commands/send via TRACCAR_TOKEN or email/password). -->
     <entry key='web.port'>8082</entry>
 
     <!-- Device listener ports mirror AeroTrack's protocol conventions:
          h02 5013 (SinoTrack) · gt06 5023 (Kingwo) · gps103 5001 ·
          teltonika 5027 · jt808 5015 · meitrack 5020 · queclink 5004 ·
          topflytech 5049 · vt200 5045 · eelink 5064.
-         Per-protocol <port> keys are only needed to override defaults. -->
+         Per-protocol <port> keys are only needed to override defaults.
+         Optionally narrow open sockets:
+         <entry key='protocols.enable'>h02,gt06,gps103,teltonika,jt808,meitrack,queclink,topflytech,vt200,eelink</entry> -->
 
 </properties>
