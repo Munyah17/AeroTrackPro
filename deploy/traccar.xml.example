@@ -35,6 +35,17 @@
          Setting the URL enables it — no separate .enable key on 6.x. -->
     <entry key='event.forward.url'>https://app.example.com/api/webhooks/status?key=REPLACE_WITH_SECRET</entry>
 
+    <!-- OPTIONAL — native push to the official Traccar Manager mobile apps.
+         Key comes from https://www.traccar.org/my-account/ — paste the real
+         value into the VPS copy only, never commit it.
+         Independent of AeroTrack's own notify stack (Resend/Twilio); enable
+         only if users will also carry Traccar Manager alongside AeroTrack.
+         Notifications must also be created per-user/device in Traccar.
+
+    <entry key='notificator.types'>web,mail,command,traccar</entry>
+    <entry key='notificator.traccar.key'>PASTE_TRACCAR_PUSH_KEY_HERE</entry>
+    -->
+
     <!-- REST API stays enabled so AeroTrack can push commands back
          (POST /api/commands/send via TRACCAR_TOKEN or email/password). -->
     <entry key='web.port'>8082</entry>
