@@ -241,9 +241,15 @@ export type Database = {
           id: string;
           tenant_id: string;
           device_id: string;
+          vehicle_id: string | null;
           command: unknown;
-          status: "pending" | "sent" | "acked" | "failed" | "expired";
+          channel: "gprs" | "sms";
+          transport: "traccar" | "ingest" | "sms" | "none";
+          status: "pending" | "sent" | "acked" | "failed" | "expired" | "cancelled";
           requested_by: string | null;
+          requested_by_name: string | null;
+          traccar_type: string | null;
+          response: unknown;
           error: string | null;
           sent_at: string | null;
           acked_at: string | null;
@@ -251,9 +257,32 @@ export type Database = {
         };
         Insert: Omit<
           Database["public"]["Tables"]["device_commands"]["Row"],
-          "id" | "created_at" | "status" | "error" | "sent_at" | "acked_at"
+          | "id"
+          | "created_at"
+          | "status"
+          | "vehicle_id"
+          | "channel"
+          | "transport"
+          | "requested_by_name"
+          | "traccar_type"
+          | "response"
+          | "error"
+          | "sent_at"
+          | "acked_at"
         > &
-          Partial<Pick<Database["public"]["Tables"]["device_commands"]["Row"], "status">>;
+          Partial<
+            Pick<
+              Database["public"]["Tables"]["device_commands"]["Row"],
+              | "status"
+              | "vehicle_id"
+              | "channel"
+              | "transport"
+              | "requested_by_name"
+              | "traccar_type"
+              | "response"
+              | "error"
+            >
+          >;
         Update: Partial<Omit<Database["public"]["Tables"]["device_commands"]["Row"], "id" | "created_at">>;
         Relationships: [];
       };
