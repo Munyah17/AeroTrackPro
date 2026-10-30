@@ -25,6 +25,8 @@ const postSchema = z
   .object({
     vehicle_id: z.string().uuid().optional(),
     device_id: z.string().uuid().optional(),
+    /** 'sms' delivers via Traccar textChannel (SMS fallback for offline GPRS). */
+    channel: z.enum(["gprs", "sms"]).optional(),
     command: commandSchema,
   })
   .refine((b) => b.vehicle_id || b.device_id, {
@@ -152,6 +154,7 @@ export async function POST(req: NextRequest) {
     command: body.command,
     requestedBy: me.id,
     requestedByName: me.full_name ?? me.email,
+    channel: body.channel,
   });
 
   return NextResponse.json(

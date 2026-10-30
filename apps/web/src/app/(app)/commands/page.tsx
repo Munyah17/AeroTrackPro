@@ -116,9 +116,11 @@ export default function CommandsPage() {
       if (body.mode === "demo" || dispatch?.kind === "queued") {
         toast.info(`${label} queued for ${vehicle.plate}`, {
           description:
-            dispatch?.reason === "device_not_linked"
-              ? "Device not yet linked to Traccar — sends when it next reports in."
-              : "Demo mode — command recorded but no transport is configured.",
+            dispatch?.reason === "device_offline"
+              ? "Device offline — Traccar holds it for the next connection."
+              : dispatch?.reason === "device_not_linked"
+                ? "Device not yet linked to Traccar — sends when it next reports in."
+                : "Demo mode — command recorded but no transport is configured.",
         });
       } else if (dispatch?.kind === "failed") {
         toast.error(`${label} rejected`, { description: "Traccar refused the command — see history for detail." });

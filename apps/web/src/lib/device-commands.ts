@@ -47,7 +47,7 @@ export type CommandRow = Database["public"]["Tables"]["device_commands"]["Row"];
 export type DispatchOutcome =
   | { kind: "sent"; traccarType: string }
   | { kind: "failed"; error: string }
-  | { kind: "queued"; reason: "traccar_unconfigured" | "device_not_linked" };
+  | { kind: "queued"; reason: "traccar_unconfigured" | "device_not_linked" | "device_offline" };
 
 /**
  * Persist + best-effort dispatch one command. Never throws on transport
@@ -63,8 +63,11 @@ export async function recordAndDispatch(opts: {
   requestedBy?: string | null;
   requestedByName?: string | null;
   description?: string;
+  /** 'gprs' (default) uses the data channel; 'sms' sets Traccar textChannel. */
+  channel?: "gprs" | "sms";
 }): Promise<{ row: CommandRow; dispatch: DispatchOutcome }> {
   const { db, tenantId, device, command } = opts;
+  const channel = opts.channel ?? "gprs";
 
   const { data: row, error } = await db
     .from("device_commands")
@@ -75,6 +78,7 @@ export async function recordAndDispatch(opts: {
       command,
       requested_by: opts.requestedBy ?? null,
       requested_by_name: opts.requestedByName ?? null,
+      channel,
       transport: traccarConfigured() ? "traccar" : "none",
     })
     .select()
@@ -93,22 +97,31 @@ export async function recordAndDispatch(opts: {
       traccarDeviceId: device.traccar_id,
       command,
       description: opts.description ?? command.type,
+      textChannel: channel === "sms",
     });
 
-    const patch = result.ok
+    // 202 = device offline, Traccar holds the command for its next connect —
+    // keep the audit row pending so history reflects it isn't on-device yet.
+    const patch = result.queued
       ? {
-          status: "sent" as const,
           traccar_type: result.traccarType,
-          response: result.body,
-          sent_at: new Date().toISOString(),
-          error: null,
+          response: { queued: true, result: result.body },
+          error: "device offline — queued by Traccar",
         }
-      : {
-          status: "failed" as const,
-          traccar_type: result.traccarType,
-          response: result.body,
-          error: `Traccar HTTP ${result.status}`,
-        };
+      : result.ok
+        ? {
+            status: "sent" as const,
+            traccar_type: result.traccarType,
+            response: result.body,
+            sent_at: new Date().toISOString(),
+            error: null,
+          }
+        : {
+            status: "failed" as const,
+            traccar_type: result.traccarType,
+            response: result.body,
+            error: `Traccar HTTP ${result.status}`,
+          };
 
     const { data: updated } = await db
       .from("device_commands")
@@ -117,12 +130,13 @@ export async function recordAndDispatch(opts: {
       .select()
       .single();
 
-    return {
-      row: updated ?? ({ ...row, ...patch } as CommandRow),
-      dispatch: result.ok
+    const dispatch: DispatchOutcome = result.queued
+      ? { kind: "queued", reason: "device_offline" }
+      : result.ok
         ? { kind: "sent", traccarType: result.traccarType }
-        : { kind: "failed", error: patch.error ?? "dispatch failed" },
-    };
+        : { kind: "failed", error: `Traccar HTTP ${result.status}` };
+
+    return { row: updated ?? ({ ...row, ...patch } as CommandRow), dispatch };
   } catch (err) {
     const message = err instanceof Error ? err.message : "dispatch failed";
     const { data: updated } = await db

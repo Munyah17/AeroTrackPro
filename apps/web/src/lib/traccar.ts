@@ -281,7 +281,12 @@ export async function ensureTraccarDevice(uniqueId: string, name: string): Promi
 }
 
 export interface SendCommandResult {
+  /** Any 2xx — Traccar accepted the dispatch request. */
   ok: boolean;
+  /** 200 — delivered to the device channel immediately. */
+  sent: boolean;
+  /** 202 — Traccar queued it; device was offline, delivers on next connect. */
+  queued: boolean;
   status: number;
   traccarType: string;
   body: unknown;
@@ -333,13 +338,15 @@ export async function sendTraccarCommand(opts: {
   traccarDeviceId: number;
   command: { type: string } & Record<string, unknown>;
   description?: string;
+  /** true -> SMS (text channel) instead of GPRS data channel. */
+  textChannel?: boolean;
 }): Promise<SendCommandResult> {
   const normalized = toTraccarCommand(opts.command);
   const payload = {
     deviceId: opts.traccarDeviceId,
     description: opts.description ?? opts.command.type,
     type: normalized.type,
-    textChannel: false,
+    textChannel: opts.textChannel ?? false,
     attributes: normalized.attributes ?? {},
   };
 
@@ -356,5 +363,29 @@ export async function sendTraccarCommand(opts: {
   const text = await res.text();
   let body: unknown = text;
   try { body = JSON.parse(text); } catch { /* non-JSON response */ }
-  return { ok: res.ok, status: res.status, traccarType: normalized.type, body };
+  return {
+    ok: res.ok,
+    sent: res.status === 200,
+    queued: res.status === 202,
+    status: res.status,
+    traccarType: normalized.type,
+    body,
+  };
+}
+
+/**
+ * Command types a device supports right now — GET /api/commands/types.
+ * Traccar derives the list from the protocol the device has reported on,
+ * so it's only meaningful after the unit has connected at least once.
+ */
+export async function getTraccarCommandTypes(
+  traccarDeviceId: number,
+  textChannel = false,
+): Promise<string[]> {
+  const res = await traccarFetch(
+    `/api/commands/types?deviceId=${traccarDeviceId}${textChannel ? "&textChannel=true" : ""}`,
+  );
+  if (!res.ok) throw new Error(`Traccar command types failed: HTTP ${res.status}`);
+  const list = (await res.json()) as { type: string }[];
+  return list.map((c) => c.type);
 }
