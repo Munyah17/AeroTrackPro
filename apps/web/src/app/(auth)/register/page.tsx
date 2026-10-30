@@ -42,19 +42,29 @@ export default function RegisterPage() {
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { terms: false } });
 
+  const reportOps = (type: "signup_failed" | "signup_succeeded", detail: string) =>
+    fetch("/api/ops-event", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type, detail }),
+    }).catch(() => {});
+
   const onSubmit = async (values: FormValues) => {
     setLoading(true);
     const { data, error } = await signUpWithEmail(values.email, values.password, values.name);
     if (error) {
       toast.error("Sign up failed", { description: error.message });
+      void reportOps("signup_failed", `${values.name} <${values.email}> — ${error.message}`);
       setLoading(false);
       return;
     }
     if (!data.user) {
       toast.error("No user returned");
+      void reportOps("signup_failed", `${values.name} <${values.email}> — no user returned`);
       setLoading(false);
       return;
     }
+    void reportOps("signup_succeeded", `${values.name} <${values.email}> (${values.company})`);
     toast.success("Account created", { description: `Please confirm your email at ${values.email}` });
     router.push("/login");
   };

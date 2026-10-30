@@ -370,6 +370,45 @@ export type Database = {
         Update: Partial<Omit<Database["public"]["Tables"]["fuel_records"]["Row"], "id" | "created_at">>;
         Relationships: [];
       };
+      leads: {
+        Row: {
+          id: string;
+          name: string;
+          email: string | null;
+          phone: string;
+          company: string | null;
+          fleet_size: number | null;
+          services: string[];
+          message: string | null;
+          status: string;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["leads"]["Row"], "id" | "created_at" | "status"> &
+          Partial<Pick<Database["public"]["Tables"]["leads"]["Row"], "status">>;
+        Update: Partial<Omit<Database["public"]["Tables"]["leads"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
+      payments: {
+        Row: {
+          id: string;
+          lead_id: string | null;
+          reference: string;
+          amount: number;
+          method: string;
+          channel: string;
+          status: string;
+          payer_phone: string | null;
+          poll_url: string | null;
+          instructions: string | null;
+          gateway_status: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["payments"]["Row"]> &
+          Required<Pick<Database["public"]["Tables"]["payments"]["Row"], "reference" | "amount" | "method">>;
+        Update: Partial<Omit<Database["public"]["Tables"]["payments"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
       maintenance_items: {
         Row: {
           id: string;

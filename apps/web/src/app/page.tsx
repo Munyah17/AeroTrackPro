@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ApplyForm } from "@/components/marketing/apply-form";
 import {
   Activity,
   ArrowRight,
@@ -416,6 +417,42 @@ export default function LandingPage() {
             Volume and fleet discounts available — add-ons can be fitted to the same
             visit as your tracker install.
           </p>
+          <div className="mt-8">
+            <a
+              href="#apply"
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-card transition-colors hover:bg-primary/90"
+            >
+              Apply now <ArrowRight className="size-4" />
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Apply ──────────────────────────────────────────────── */}
+      <section id="apply" className="mx-auto max-w-6xl px-6 py-20">
+        <div className="grid items-start gap-10 lg:grid-cols-[0.9fr_1.1fr]">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">Get fitted</p>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight">Apply for tracking today</h2>
+            <p className="mt-4 max-w-md leading-relaxed text-muted-foreground">
+              Pick your services, pay with EcoCash, OneMoney, InnBucks or bank
+              transfer, and we schedule your installation. Every option is
+              fix &amp; supply — hardware and fitting included.
+            </p>
+            <ul className="mt-6 space-y-3 text-sm">
+              {[
+                "Instant mobile-money approval on your phone",
+                "Manual bank & direct transfer options with clear instructions",
+                "Our team confirms every application the same day",
+              ].map((t) => (
+                <li key={t} className="flex items-start gap-2.5">
+                  <BadgeCheck className="mt-0.5 size-4 shrink-0 text-success" />
+                  <span>{t}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <ApplyForm />
         </div>
       </section>
 
