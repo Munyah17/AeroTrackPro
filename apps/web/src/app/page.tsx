@@ -155,6 +155,7 @@ export default function LandingPage() {
             <a href="#services" className="transition-colors hover:text-foreground">Services</a>
             <a href="#model" className="transition-colors hover:text-foreground">B2B model</a>
             <a href="#hardware" className="transition-colors hover:text-foreground">Hardware</a>
+            <Link href="/supported-vehicles" className="transition-colors hover:text-foreground">Vehicles</Link>
             <a href="#pricing" className="transition-colors hover:text-foreground">Pricing</a>
             <a href="#assets" className="transition-colors hover:text-foreground">Assets</a>
           </div>

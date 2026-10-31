@@ -286,6 +286,56 @@ export type Database = {
         Update: Partial<Omit<Database["public"]["Tables"]["device_commands"]["Row"], "id" | "created_at">>;
         Relationships: [];
       };
+      vehicle_profiles: {
+        Row: {
+          id: string;
+          slug: string;
+          make: string;
+          model: string;
+          variant: string | null;
+          year_from: number | null;
+          year_to: number | null;
+          category:
+            | "kei"
+            | "compact"
+            | "sedan"
+            | "suv"
+            | "pickup"
+            | "van"
+            | "minibus"
+            | "bus"
+            | "truck"
+            | "other";
+          market: string | null;
+          voltage: "12V" | "24V" | "hybrid" | "EV";
+          difficulty: "easy" | "moderate" | "advanced";
+          hybrid_or_ev: boolean;
+          canbus: boolean;
+          fusebox_notes: string | null;
+          cutoff_notes: string | null;
+          fuel_sensor_notes: string | null;
+          accessories_notes: string | null;
+          install_notes: string | null;
+          zimbabwe_notes: string | null;
+          is_published: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["vehicle_profiles"]["Row"],
+          "id" | "created_at" | "updated_at" | "is_published"
+        > &
+          Partial<
+            Pick<
+              Database["public"]["Tables"]["vehicle_profiles"]["Row"],
+              "is_published"
+            >
+          >;
+        Update: Partial<
+          Omit<Database["public"]["Tables"]["vehicle_profiles"]["Row"], "id" | "created_at" | "updated_at">
+        >;
+        Relationships: [];
+      };
       fuel_coupons: {
         Row: {
           id: string;
