@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { fetchHeroSlides, type HeroSlide } from "@/lib/hero-slides";
+import { QuickApply } from "@/components/marketing/quick-apply";
 import { cn } from "@/lib/utils";
 
 const AUTO_MS = 6500;
@@ -87,6 +88,11 @@ export function HeroSlider() {
               View live demo
             </Link>
           </div>
+        </div>
+
+        {/* quick apply — right hand side on desktop */}
+        <div className="absolute right-6 top-1/2 hidden w-[340px] -translate-y-1/2 lg:block">
+          <QuickApply />
         </div>
 
         {/* controls: dots + arrows */}

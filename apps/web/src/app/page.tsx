@@ -3,6 +3,8 @@ import { ApplyForm } from "@/components/marketing/apply-form";
 import { HeroSlider } from "@/components/marketing/hero-slider";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { DevicesSection } from "@/components/marketing/devices-section";
+import { PartnersSection } from "@/components/marketing/partners-section";
+import { QuickApply } from "@/components/marketing/quick-apply";
 import {
   ArrowRight,
   BadgeCheck,
@@ -10,9 +12,6 @@ import {
   Gauge,
   LocateFixed,
   MapPin,
-  Package,
-  PawPrint,
-  MonitorSmartphone,
   Radio,
   Route,
   ShieldCheck,
@@ -47,13 +46,6 @@ const packages = [
   { icon: Gauge, name: "Speed governor", price: "$180", unit: "per vehicle", body: "Road-speed limiting hardware fitted and certified.", featured: false },
 ];
 
-const assetTypes = [
-  { icon: Truck, label: "Vehicles & fleets" },
-  { icon: Package, label: "Parcels & cargo" },
-  { icon: MonitorSmartphone, label: "Laptops & IT" },
-  { icon: PawPrint, label: "Pets, kids & bags" },
-];
-
 const stats = [
   { value: "10", label: "Wire protocols, one pipeline" },
   { value: "30+", label: "Device models supported" },
@@ -78,6 +70,13 @@ export default function LandingPage() {
 
       {/* ── Hero slider (managed in Master Portal → Site Content) ── */}
       <HeroSlider />
+
+      {/* quick apply — below hero on mobile only */}
+      <div className="px-5 pt-6 lg:hidden">
+        <div className="mx-auto max-w-md">
+          <QuickApply />
+        </div>
+      </div>
 
       {/* ── Stats strip ── */}
       <section className="border-b border-border/60 bg-card/60">
@@ -211,26 +210,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Assets ── */}
-      <section id="assets" className="border-y border-border/60 bg-muted/30">
-        <div className="mx-auto max-w-6xl px-6 py-16">
-          <SectionHeading
-            kicker="Beyond vehicles"
-            title="If it moves — or might get moved — track it"
-            sub="The same platform watches cargo, laptops, parcels, pets, children and bags with the right alerts for each."
-          />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {assetTypes.map((a) => (
-              <div key={a.label} className="flex items-center gap-3.5 rounded-2xl border border-border bg-card p-5 shadow-card">
-                <span className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <a.icon className="size-5" />
-                </span>
-                <span className="text-sm font-semibold leading-snug">{a.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* ── Our Partners — logo marquee ── */}
+      <PartnersSection />
 
       {/* ── CTA ── */}
       <section className="mx-auto max-w-6xl px-6 py-16">
