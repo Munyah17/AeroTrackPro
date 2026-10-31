@@ -1,11 +1,16 @@
 # Traccar ↔ AeroTrack Integration Reference
 
-Two systems, strict separation of duties. **Traccar** is a headless hardware
-engine — it owns device TCP/UDP sockets and 200-protocol decoding. **AeroTrack**
-owns identity, tenancy, storage, UI, business logic, and customer notifications.
-Each side only reaches the other through the two contract surfaces below;
-neither reads or writes the other's database, and neither duplicates the
-other's job.
+Two systems, strict separation of duties. **Traccar** is a consumed service
+(their hosted servers, e.g. demo.traccar.org or a paid subscription) — it owns
+device TCP/UDP sockets and 200-protocol decoding so we never re-implement the
+protocol grind. **AeroTrack** is Vercel + Supabase only — identity, tenancy,
+storage, UI, business logic, customer notifications. Each side reaches the
+other only through the contract surfaces below; neither reads or writes the
+other's database, and neither duplicates the other's job.
+
+We do NOT self-host Traccar. Everything Traccar-side is configured through
+their REST API or web UI (`forward.url`/`forward.header` are per-device
+attributes, not just config keys) — see §10.
 
 ---
 
@@ -155,22 +160,27 @@ fix must arrive before outbound dispatch works.
 
 ---
 
-## 7. Traccar server config detail
+## 7. Traccar-side config — via attributes, not files
 
-Template: `deploy/traccar.xml.example`.
+We don't touch `traccar.xml` (no server of ours to put it on). On a managed
+Traccar server the same keys are set as **attributes** through their web UI
+(Settings → Server → Attributes) or REST (`PUT /api/server`, `PUT /api/devices/{id}`):
 
-```xml
-<entry key='forward.type'>json</entry>         <!-- legacy forward.enable/forward.json ignored on 6.x -->
-<entry key='forward.url'>https://APP/api/telemetry?key=SECRET</entry>
-<entry key='forward.retry.enable'>true</entry> <!-- 100ms backoff ×10, 100-position buffer -->
-<entry key='event.forward.url'>https://APP/api/webhooks/status?key=SECRET</entry>
-<entry key='web.port'>8082</entry>
-```
+| Key | Level | Value |
+|---|---|---|
+| `forward.url` | server or per-device | `https://APP/api/telemetry?key=SECRET` |
+| `forward.header` | server (global url only) | `Authorization: Bearer SECRET` (alternative to `?key=`) |
+| `forward.type` | config only — default `url` | **must be `json` for our JSON handler — verify the managed server uses `forward.type=json`, or our `/api/telemetry` must also accept url-mode forwards** |
+| `event.forward.url` | server | `https://APP/api/webhooks/status?key=SECRET` |
 
-- `forward.url` is also a **per-device attribute** (scope forwarding per unit).
+Per-device `forward.url` is the escape hatch when server attributes are
+locked — set it on each device via `PUT /api/devices/{id}` `attributes` and
+each unit forwards to its own URL (can even carry the secret per-device).
+
+`deploy/traccar.xml.example` stays in the repo purely as the config reference
+for anyone who does run a dedicated Traccar (not our plan).
+
 - `server.forward` mirrors raw protocol bytes to a second listener (could feed `apps/ingest`).
-- `protocols.enable` narrows open sockets to our 10 protocols.
-- Env overrides: `CONFIG_USE_ENVIRONMENT_VARIABLES=true` (`forward.url`→`FORWARD_URL`).
 - WebSocket `/api/socket` (session cookie) streams `devices`/`positions`/`events` — not consumed yet.
 
 ---
@@ -205,18 +215,25 @@ AeroTrack with no Traccar hop).
 
 ---
 
-## 10. Hosting — NO VPS yet
+## 10. Where the pieces run
 
-| Option | Cost | Positions → AeroTrack? | Commands work? |
+| Piece | Runs on | Notes |
+|---|---|---|
+| AeroTrack app + REST API + inbound webhooks | **Vercel** | serverless — HTTP in/out only |
+| AeroTrack DB + auth | **Supabase** | Postgres + RLS |
+| Device sockets + protocol decode + REST API | **Traccar hosted** (demo.traccar.org free, or paid managed) | the only thing that must hold always-on TCP; NOT our infra |
+| `apps/ingest` native decoders | wherever a TCP host exists later | parallel path for devices not on Traccar; can't run on Vercel either |
+
+So the "hosting question" reduces to **which Traccar instance**:
+
+| Option | Cost | Positions → AeroTrack? | Commands? |
 |---|---|---|---|
-| demo.traccar.org | free | ✗ no config access | ✓ REST works |
-| Traccar managed subscription | paid | ask them first | ✓ |
-| Oracle Cloud Always Free ARM VM | free | ✓ full | ✓ |
-| Hetzner/Contabo/DO/Vultr | ~$4–6/mo | ✓ full | ✓ |
-| Traccar on this PC | free | ✓ local sim only | ✓ |
+| **demo.traccar.org** | free | try: `forward.url` as device attribute (per §7) — worth testing | ✓ |
+| **Traccar paid subscription** (traccar.org) | ~small | ask whether `forward.url`/`event.forward.url` server attributes are allowed | ✓ |
+| Self-hosted Traccar (Oracle free VM / $5 droplet) | free–$5 | ✓ full `traccar.xml` control | ✓ |
 
-Real trackers need an **always-on TCP host** — serverless can't hold sockets.
-`apps/ingest` has the same constraint wherever it runs.
+Only pick the self-hosted row if managed forwarding turns out to be blocked —
+it's the fallback, not the plan.
 
 ---
 
@@ -226,6 +243,9 @@ Real trackers need an **always-on TCP host** — serverless can't hold sockets.
 2. Point ST-901A at it (SMS, pwd `0000`): `8030000 <apn>` → `8040000 144.91.97.245 5013` → `7100000` → `8960000E00` → `8050000 <sec>` → `RCONF`.
 3. `.env.local`: `TRACCAR_BASE_URL=https://demo.traccar.org`, `TRACCAR_EMAIL`, `TRACCAR_PASSWORD`.
 4. Verify: fixes appear in Traccar UI; `/commands` page dispatches real commands (202→queued when offline).
-5. Positions only reach AeroTrack once a host with `forward.url` exists (§10).
+5. **Bridge test**: try `PUT /api/devices/{id}` on demo with
+   `attributes: { "forward.url": "https://APP/api/telemetry?key=SECRET" }` —
+   if the demo forwarder honors per-device URLs, positions flow into AeroTrack
+   without any self-hosting. Fall back to paid subscription if it doesn't.
 
 Dev: `pnpm dev` → **port 3001** (never 3000) · `pnpm sim:traccar` · `pnpm sim:st901a` (`apps/ingest`).
