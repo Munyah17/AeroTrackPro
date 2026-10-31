@@ -39,21 +39,47 @@ import { useRole } from "./role-provider";
 import { useCommandPalette } from "./command-palette";
 
 function useDarkMode() {
-  const [dark, setDark] = useState(false);
-  useEffect(() => {
-    const stored = localStorage.getItem("at-theme");
-    const prefers = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const initial = stored ? stored === "dark" : prefers;
-    setDark(initial);
-    document.documentElement.classList.toggle("dark", initial);
-  }, []);
+  // Initial class is applied by the inline script in layout.tsx before
+  // paint, so the DOM is the source of truth — no effect, no flash, no
+  // hydration mismatch.
+  const [dark, setDark] = useState(() =>
+    typeof document !== "undefined"
+      ? document.documentElement.classList.contains("dark")
+      : false,
+  );
   const toggle = () => {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem("at-theme", next ? "dark" : "light");
+    setDark((current) => {
+      const next = !current;
+      document.documentElement.classList.toggle("dark", next);
+      localStorage.setItem("at-theme", next ? "dark" : "light");
+      return next;
+    });
   };
   return { dark, toggle };
+}
+
+/** Sun | switch | moon theme toggle. */
+function ThemeSwitch({ dark, onToggle }: { dark: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={dark}
+      aria-label="Toggle color theme"
+      onClick={onToggle}
+      className="relative hidden h-8 w-[68px] shrink-0 items-center justify-between rounded-full border border-border/70 bg-muted px-2 transition-colors md:inline-flex"
+    >
+      <Sun className="size-3.5 text-amber-500" />
+      <Moon className="size-3.5 text-slate-500 dark:text-slate-300" />
+      <span
+        aria-hidden
+        className={cn(
+          "absolute top-1/2 size-6 -translate-y-1/2 rounded-full bg-background shadow-md transition-[left] duration-200",
+          dark ? "left-[40px]" : "left-1",
+        )}
+      />
+    </button>
+  );
 }
 
 function MobileNav() {
@@ -221,9 +247,7 @@ export function Topbar() {
         </Button>
       )}
 
-      <Button variant="ghost" size="icon" onClick={toggle} className="hidden shrink-0 rounded-xl md:inline-flex" aria-label="Toggle color theme">
-        {dark ? <Sun className="size-[18px]" /> : <Moon className="size-[18px]" />}
-      </Button>
+      <ThemeSwitch dark={dark} onToggle={toggle} />
 
       <DropdownMenu>
         <DropdownMenuTrigger

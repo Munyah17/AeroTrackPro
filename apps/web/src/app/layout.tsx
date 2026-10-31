@@ -85,6 +85,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${geistMono.variable} font-sans antialiased`}>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              'try{var t=localStorage.getItem("at-theme");var d=t?t==="dark":window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",d)}catch(e){}',
+          }}
+        />
         <BrandProvider>
           <TooltipProvider delay={200}>{children}</TooltipProvider>
           <Toaster position="top-right" richColors />
