@@ -91,7 +91,7 @@ export function HeroSlider() {
         </div>
 
         {/* quick apply — right hand side on desktop */}
-        <div className="absolute right-6 top-1/2 hidden w-[340px] -translate-y-1/2 lg:block">
+        <div className="absolute right-6 top-1/2 hidden w-[380px] -translate-y-1/2 lg:block">
           <QuickApply />
         </div>
 

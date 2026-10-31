@@ -5,9 +5,11 @@ import { GripVertical, ImageIcon, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { fetchAllHeroSlides, type HeroSlide } from "@/lib/hero-slides";
+import { fetchAllPartnerLogos, type PartnerLogo } from "@/lib/partner-logos";
 import type { Database } from "@aerotrack/shared";
 
 type HeroSlideUpdate = Database["public"]["Tables"]["hero_slides"]["Update"];
+type PartnerLogoUpdate = Database["public"]["Tables"]["partner_logos"]["Update"];
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,16 +17,23 @@ import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
 
 const EMPTY = { title: "", description: "", cta_label: "Get Started", cta_href: "/register", image_url: "", sort_order: 0 };
+const EMPTY_LOGO = { name: "", logo_url: "", sort_order: 0 };
 
 export default function SiteContentPage() {
   const [slides, setSlides] = useState<HeroSlide[]>([]);
+  const [logos, setLogos] = useState<PartnerLogo[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showLogoForm, setShowLogoForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingLogo, setSavingLogo] = useState(false);
   const [form, setForm] = useState(EMPTY);
+  const [logoForm, setLogoForm] = useState(EMPTY_LOGO);
 
   const reload = useCallback(async () => {
-    setSlides(await fetchAllHeroSlides());
+    const [s, l] = await Promise.all([fetchAllHeroSlides(), fetchAllPartnerLogos()]);
+    setSlides(s);
+    setLogos(l);
     setLoading(false);
   }, []);
 
@@ -74,6 +83,45 @@ export default function SiteContentPage() {
     if (error) { toast.error(`Delete failed: ${error.message}`); return; }
     setSlides((x) => x.filter((y) => y.id !== s.id));
     toast.success("Slide removed");
+  }
+
+  async function saveLogo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!logoForm.name.trim()) {
+      toast.error("Name is required");
+      return;
+    }
+    setSavingLogo(true);
+    const { error } = await supabase.from("partner_logos").insert({
+      name: logoForm.name.trim(),
+      logo_url: logoForm.logo_url.trim(),
+      sort_order: logoForm.sort_order || logos.length + 1,
+    });
+    setSavingLogo(false);
+    if (error) { toast.error(`Save failed: ${error.message}`); return; }
+    toast.success("Logo added");
+    setLogoForm(EMPTY_LOGO);
+    setShowLogoForm(false);
+    reload();
+  }
+
+  async function updateLogoField(id: string, field: keyof PartnerLogo, value: string | number) {
+    const { error } = await supabase.from("partner_logos").update({ [field]: value } as PartnerLogoUpdate).eq("id", id);
+    if (error) toast.error(`Update failed: ${error.message}`);
+    else setLogos((s) => s.map((x) => (x.id === id ? { ...x, [field]: value } : x)));
+  }
+
+  async function toggleLogoPublished(l: PartnerLogo) {
+    const { error } = await supabase.from("partner_logos").update({ is_published: !l.is_published }).eq("id", l.id);
+    if (error) { toast.error(`Update failed: ${error.message}`); return; }
+    setLogos((x) => x.map((y) => (y.id === l.id ? { ...y, is_published: !l.is_published } : y)));
+  }
+
+  async function removeLogo(l: PartnerLogo) {
+    const { error } = await supabase.from("partner_logos").delete().eq("id", l.id);
+    if (error) { toast.error(`Delete failed: ${error.message}`); return; }
+    setLogos((x) => x.filter((y) => y.id !== l.id));
+    toast.success("Logo removed");
   }
 
   return (
@@ -167,6 +215,79 @@ export default function SiteContentPage() {
           </Panel>
         ))}
       </div>
+
+      {/* ── Partner logos — landing-page marquee ── */}
+      <div className="mt-10 flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Partner Logos</h2>
+          <p className="text-[12.5px] text-muted-foreground">
+            Customer and device-brand entries in the homepage marquee
+          </p>
+        </div>
+        <Button variant="outline" className="gap-2 rounded-xl" onClick={() => setShowLogoForm((s) => !s)}>
+          <Plus className="size-4" /> {showLogoForm ? "Close Form" : "Add Logo"}
+        </Button>
+      </div>
+
+      {showLogoForm && (
+        <Panel className="mt-4 p-5">
+          <h3 className="text-[15px] font-semibold">New partner logo</h3>
+          <form onSubmit={saveLogo} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div><Label className="text-xs">Name</Label>
+              <Input value={logoForm.name} onChange={(e) => setLogoForm((f) => ({ ...f, name: e.target.value }))} className="mt-1" placeholder="Teltonika" /></div>
+            <div><Label className="text-xs">Logo image URL</Label>
+              <Input value={logoForm.logo_url} onChange={(e) => setLogoForm((f) => ({ ...f, logo_url: e.target.value }))} className="mt-1" placeholder="https://… (transparent PNG works best)" /></div>
+            <div><Label className="text-xs">Sort order</Label>
+              <Input value={String(logoForm.sort_order)} onChange={(e) => setLogoForm((f) => ({ ...f, sort_order: Number(e.target.value) || 0 }))} className="mt-1" /></div>
+            <div className="sm:col-span-3">
+              <Button type="submit" disabled={savingLogo} className="rounded-xl">{savingLogo ? "Saving…" : "Save Logo"}</Button>
+            </div>
+          </form>
+        </Panel>
+      )}
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {logos.map((l) => (
+          <Panel key={l.id} className="flex items-center gap-4 p-4">
+            <div className="flex h-14 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted">
+              {l.logo_url ? (
+                <img src={l.logo_url} alt="" className="max-h-10 max-w-20 object-contain" />
+              ) : (
+                <ImageIcon className="size-5 text-muted-foreground" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1 space-y-1">
+              <Input
+                defaultValue={l.name}
+                onBlur={(e) => e.target.value !== l.name && updateLogoField(l.id, "name", e.target.value)}
+                className="h-8 border-transparent bg-transparent px-1 text-[14px] font-semibold hover:border-input focus:border-input"
+              />
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <Pill tone="info">#{l.sort_order}</Pill>
+                <button onClick={() => toggleLogoPublished(l)} title="Toggle visibility">
+                  <Pill tone={l.is_published ? "success" : "muted"}>{l.is_published ? "Live" : "Hidden"}</Pill>
+                </button>
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              <Input
+                defaultValue={String(l.sort_order)}
+                onBlur={(e) => Number(e.target.value) !== l.sort_order && updateLogoField(l.id, "sort_order", Number(e.target.value) || 0)}
+                className="h-8 w-16"
+              />
+              <Button variant="ghost" size="icon" onClick={() => removeLogo(l)} title="Delete logo">
+                <Trash2 className="size-4 text-destructive" />
+              </Button>
+            </div>
+          </Panel>
+        ))}
+      </div>
+      {!loading && logos.length === 0 && (
+        <Panel className="mt-3 p-8 text-center text-sm text-muted-foreground">
+          No partner logos yet — add one above, or the homepage shows defaults.
+        </Panel>
+      )}
     </PageContainer>
   );
 }
+

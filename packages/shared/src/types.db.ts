@@ -362,6 +362,31 @@ export type Database = {
         >;
         Relationships: [];
       };
+      partner_logos: {
+        Row: {
+          id: string;
+          sort_order: number;
+          name: string;
+          logo_url: string;
+          is_published: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["partner_logos"]["Row"],
+          "id" | "created_at" | "updated_at" | "is_published" | "logo_url"
+        > &
+          Partial<
+            Pick<
+              Database["public"]["Tables"]["partner_logos"]["Row"],
+              "is_published" | "logo_url"
+            >
+          >;
+        Update: Partial<
+          Omit<Database["public"]["Tables"]["partner_logos"]["Row"], "id" | "created_at" | "updated_at">
+        >;
+        Relationships: [];
+      };
       fuel_coupons: {
         Row: {
           id: string;
