@@ -1,0 +1,87 @@
+# Fly.io — apps/ingest raw-TCP gateway.
+#
+# Deploy:  fly deploy            (from repo root — fly.toml points at the Dockerfile)
+# Secrets: fly secrets set SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=...
+#
+# Trackers open persistent TCP connections to <app>.fly.dev:<port>. Fly's
+# anycast IPs accept raw TCP when handlers are left empty (no tls/http).
+
+app = "aerotrack-ingest"
+primary_region = "jnb"          # Johannesburg — nearest to the fleet ops region
+
+[build]
+  dockerfile = "apps/ingest/Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+
+# Keep one machine alive — trackers reconnect on socket drop and queue-drain
+# depends on the process being up to see live connections.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+# --- One service block per device-listener port -----------------------------
+
+[[services]]
+  internal_port = 5013
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  [[services.ports]]
+    port = 5013                 # h02 (SinoTrack ST-901A)
+
+[[services]]
+  internal_port = 5023
+  protocol = "tcp"
+  [[services.ports]]
+    port = 5023                 # gt06 (Kingwo etc.)
+
+[[services]]
+  internal_port = 5001
+  protocol = "tcp"
+  [[services.ports]]
+    port = 5001                 # gps103
+
+[[services]]
+  internal_port = 5027
+  protocol = "tcp"
+  [[services.ports]]
+    port = 5027                 # teltonika
+
+[[services]]
+  internal_port = 5015
+  protocol = "tcp"
+  [[services.ports]]
+    port = 5015                 # jt808
+
+[[services]]
+  internal_port = 5020
+  protocol = "tcp"
+  [[services.ports]]
+    port = 5020                 # meitrack
+
+[[services]]
+  internal_port = 5004
+  protocol = "tcp"
+  [[services.ports]]
+    port = 5004                 # queclink / gl200
+
+[[services]]
+  internal_port = 5049
+  protocol = "tcp"
+  [[services.ports]]
+    port = 5049                 # topflytech
+
+[[services]]
+  internal_port = 5045
+  protocol = "tcp"
+  [[services.ports]]
+    port = 5045                 # vt200
+
+[[services]]
+  internal_port = 5064
+  protocol = "tcp"
+  [[services.ports]]
+    port = 5064                 # eelink

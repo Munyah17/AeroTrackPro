@@ -22,10 +22,14 @@ async function markCommand(id: string, fields: Record<string, unknown>) {
 }
 
 async function drainQueue(decoders: Record<ProtocolKey, ProtocolDecoder>) {
+  // Only our own queue: 'traccar' rows are dispatched by the web app through
+  // Traccar's REST API; 'sms' rows wait on a gateway. 'none' = legacy rows
+  // written before transports were distinguished.
   const { data, error } = await db()
     .from("device_commands")
     .select("id, tenant_id, device_id, command")
     .eq("status", "pending")
+    .in("transport", ["ingest", "none"])
     .order("created_at", { ascending: true })
     .limit(50);
 

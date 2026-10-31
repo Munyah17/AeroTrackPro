@@ -47,7 +47,14 @@ export type CommandRow = Database["public"]["Tables"]["device_commands"]["Row"];
 export type DispatchOutcome =
   | { kind: "sent"; traccarType: string }
   | { kind: "failed"; error: string }
-  | { kind: "queued"; reason: "traccar_unconfigured" | "device_not_linked" | "device_offline" };
+  | {
+      kind: "queued";
+      reason:
+        | "traccar_unconfigured" // Traccar-bound but env missing — dead until configured
+        | "device_not_linked"    // legacy reason, kept for older rows/UI
+        | "device_offline"       // Traccar 202 — held server-side for next connect
+        | "native_queued";       // ours — ingest drains it over the device's TCP socket
+    };
 
 /**
  * Persist + best-effort dispatch one command. Never throws on transport
@@ -69,6 +76,17 @@ export async function recordAndDispatch(opts: {
   const { db, tenantId, device, command } = opts;
   const channel = opts.channel ?? "gprs";
 
+  // Transport decides WHO delivers the command:
+  //   traccar — device is linked (traccar_id) and Traccar REST is configured;
+  //             dispatched inline below.
+  //   ingest  — device is NOT Traccar-linked; it lives on our own socket
+  //             listeners, so the row stays pending for apps/ingest to drain.
+  //   none    — Traccar-linked but unconfigured; nothing can reach it.
+  const transport =
+    device.traccar_id != null
+      ? traccarConfigured() ? "traccar" : "none"
+      : "ingest";
+
   const { data: row, error } = await db
     .from("device_commands")
     .insert({
@@ -79,22 +97,24 @@ export async function recordAndDispatch(opts: {
       requested_by: opts.requestedBy ?? null,
       requested_by_name: opts.requestedByName ?? null,
       channel,
-      transport: traccarConfigured() ? "traccar" : "none",
+      transport,
     })
     .select()
     .single();
   if (error) throw error;
 
-  if (!traccarConfigured()) {
-    return { row, dispatch: { kind: "queued", reason: "traccar_unconfigured" } };
+  if (transport === "ingest") {
+    // Native path: apps/ingest polls pending 'ingest' rows and writes the
+    // encoded command down the device's live TCP socket when it connects.
+    return { row, dispatch: { kind: "queued", reason: "native_queued" } };
   }
-  if (device.traccar_id == null) {
-    return { row, dispatch: { kind: "queued", reason: "device_not_linked" } };
+  if (transport === "none") {
+    return { row, dispatch: { kind: "queued", reason: "traccar_unconfigured" } };
   }
 
   try {
     const result = await sendTraccarCommand({
-      traccarDeviceId: device.traccar_id,
+      traccarDeviceId: device.traccar_id!, // transport==='traccar' implies non-null
       command,
       description: opts.description ?? command.type,
       textChannel: channel === "sms",

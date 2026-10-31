@@ -1,16 +1,16 @@
 # Traccar ↔ AeroTrack Integration Reference
 
-Two systems, strict separation of duties. **Traccar** is a consumed service
-(their hosted servers, e.g. demo.traccar.org or a paid subscription) — it owns
-device TCP/UDP sockets and 200-protocol decoding so we never re-implement the
-protocol grind. **AeroTrack** is Vercel + Supabase only — identity, tenancy,
-storage, UI, business logic, customer notifications. Each side reaches the
-other only through the contract surfaces below; neither reads or writes the
-other's database, and neither duplicates the other's job.
+AeroTrack infra = **Vercel + Supabase + one small TCP host running our own
+`apps/ingest`** (Fly.io — see `fly.toml`). Traccar is used the way an open-
+source supplier should be (Apache-2.0): we **mine its codebase** for protocol
+decoders/port maps (already ported into `@aerotrack/protocols`), and its
+**hosted instance can be borrowed per-device** for a protocol we haven't
+decoded yet — point that unit at Traccar, set its `forward.url` device
+attribute to our `/api/telemetry`, done. No Traccar server is ours.
 
-We do NOT self-host Traccar. Everything Traccar-side is configured through
-their REST API or web UI (`forward.url`/`forward.header` are per-device
-attributes, not just config keys) — see §10.
+Each side reaches the other only through the contract surfaces below; neither
+reads or writes the other's database, and neither duplicates the other's job
+for a given device.
 
 ---
 
@@ -18,8 +18,8 @@ attributes, not just config keys) — see §10.
 
 | Concern | Owner | The other side must NOT… |
 |---|---|---|
-| Device sockets (TCP/UDP listeners, ports 5000+) | Traccar | AeroTrack ingest never binds the same ports for the same device — run native decoders **or** Traccar per unit, not both |
-| Wire-protocol decode (h02, gt06, teltonika…) | Traccar | AeroTrack doesn't re-decode Traccar-managed traffic; `apps/ingest` is a *separate* pipeline for devices not on Traccar |
+| Device sockets (TCP listeners, ports 5000+) | **`apps/ingest`** (Fly.io) — default | Traccar only owns sockets for units we deliberately point at it (unhandled protocols); never the same unit on both |
+| Wire-protocol decode (h02, gt06, teltonika…) | `@aerotrack/protocols` | Traccar's decoders are a porting reference, not a runtime dependency |
 | Position storage, retention, history | AeroTrack (`positions`, `devices` tables) | Traccar's own DB copy is treated as transient cache — never queried |
 | Command UX, validation, audit trail | AeroTrack (`device_commands` table) | Traccar's own command history is ignored; its DB is not the record of truth |
 | Command → wire-byte translation | Traccar | AeroTrack sends abstract types only; never writes raw bytes for Traccar-managed devices |
@@ -40,16 +40,27 @@ attributes, not just config keys) — see §10.
 4. **Failures are recorded, not retried across the boundary**: Traccar retries
    forwarding itself (`forward.retry.*`); AeroTrack audits command failures in
    `device_commands` and lets humans re-send.
+5. **Commands pick a transport once, at insert time** (`transport` column):
+   `traccar` = linked device via Traccar REST; `ingest` = unlinked device,
+   drained by apps/ingest over its live TCP socket; `sms`/`none` = no path yet.
+   Each dispatcher only drains its own rows — no cross-transport stealing.
 
 ---
 
 ## 2. Data flow + contract surfaces
 
 ```
-TRACKER ──TCP/UDP──> TRACCAR ──forward.url (JSON)────> POST /api/telemetry
-                     (host)    ──event.forward (JSON)─> POST /api/webhooks/status
+PRIMARY (native):                                          SUPABASE
+TRACKER ──TCP──> apps/ingest (Fly.io) ──positions/devices──>     ▲
+                       ▲                                     device_commands
+   command downlink ◄──┘  (drains transport='ingest' queue)       ▲
+                                                                  │
+UI / REST v1 ──> /api/commands → recordAndDispatch ─insert─────────┘
+                                        │
+BORROWED (per-device, optional):        └─ transport='traccar' ──POST /api/commands/send──> TRACCAR hosted ──> tracker
+TRACKER ──TCP──> TRACCAR hosted ──forward.url──> POST /api/telemetry    (+ event.forward → /api/webhooks/status)
 
-UI / REST v1 ──> /api/commands → recordAndDispatch ──POST /api/commands/send──> TRACCAR ──> tracker
+HTTP devices/phones ────────────> GET|POST /api/ingest/osmand (Vercel, direct to Supabase)
 ```
 
 | Surface | Direction | Payload | AeroTrack handler | Traccar side |
@@ -205,13 +216,17 @@ GET/POST → fix. `id`/`deviceid` required; `lat`,`lon`,`timestamp`,`valid`,
 `speed` (knots),`bearing`,`altitude`,`accuracy`,`hdop`,`batt`,`charge`,
 `driverUniqueId`,`cell`,`wifi`; extras → attributes.
 
+**Implemented natively**: `GET|POST /api/ingest/osmand` (edge route,
+`TRACCAR_FORWARD_SECRET`-guarded, resolves `id`→`devices.imei`, knots→km/h,
+stamps device hot-cache columns). Same device-id semantics as the TCP
+listeners — an OsmAnd client is just another tracker.
+
 ```
-GET http://demo.traccar.org:5055/?id=8160528336&lat=-17.82&lon=31.05&timestamp=1609459200000&speed=15&batt=75
+GET /api/ingest/osmand?id=8160528336&lat=-17.82&lon=31.05&timestamp=1609459200000&speed=15&batt=75&key=SECRET
 ```
 
 Uses: Traccar Client phone app (non-vehicle assets — parcels, pets, staff),
-curl simulation, candidate native `apps/ingest` endpoint (HTTP devices into
-AeroTrack with no Traccar hop).
+curl simulation, any HTTP-capable tracker firmware.
 
 ---
 
@@ -219,33 +234,42 @@ AeroTrack with no Traccar hop).
 
 | Piece | Runs on | Notes |
 |---|---|---|
-| AeroTrack app + REST API + inbound webhooks | **Vercel** | serverless — HTTP in/out only |
-| AeroTrack DB + auth | **Supabase** | Postgres + RLS |
-| Device sockets + protocol decode + REST API | **Traccar hosted** (demo.traccar.org free, or paid managed) | the only thing that must hold always-on TCP; NOT our infra |
-| `apps/ingest` native decoders | wherever a TCP host exists later | parallel path for devices not on Traccar; can't run on Vercel either |
+| AeroTrack app + REST API + inbound webhooks + **OsmAnd ingest** | **Vercel** | serverless — HTTP in/out only |
+| AeroTrack DB + auth + command queue | **Supabase** | Postgres + RLS; `device_commands` doubles as the dispatch queue |
+| **TCP listeners + decoders + command downlink** | **`apps/ingest` on Fly.io** (`fly.toml` + `apps/ingest/Dockerfile`) | raw TCP can't be serverless — this is the only always-on process we own |
+| Protocols we haven't decoded yet | **Traccar hosted** (demo free / paid managed) | borrowed per-device: point unit at Traccar + set `forward.url` device attr → our `/api/telemetry` |
 
-So the "hosting question" reduces to **which Traccar instance**:
+Why the split: trackers speak raw TCP/UDP — no serverless platform holds
+those sockets. Everything else already lived on Vercel/Supabase. Fly.io gives
+anycast TCP services for free-allowance money; `fly secrets set
+SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=…` then `fly deploy`.
 
-| Option | Cost | Positions → AeroTrack? | Commands? |
-|---|---|---|---|
-| **demo.traccar.org** | free | try: `forward.url` as device attribute (per §7) — worth testing | ✓ |
-| **Traccar paid subscription** (traccar.org) | ~small | ask whether `forward.url`/`event.forward.url` server attributes are allowed | ✓ |
-| Self-hosted Traccar (Oracle free VM / $5 droplet) | free–$5 | ✓ full `traccar.xml` control | ✓ |
-
-Only pick the self-hosted row if managed forwarding turns out to be blocked —
-it's the fallback, not the plan.
+**Traccar borrow test** (only if a protocol gap forces it): register device on
+demo.traccar.org → `PUT /api/devices/{id}` `attributes:{"forward.url":"https://APP/api/telemetry?key=SECRET"}`.
+Caveat: `forward.type` defaults to `url` (query params) — if the hosted server
+can't be switched to `json`, `/api/telemetry` must also accept url-mode
+forwards (pending task).
 
 ---
 
-## 11. Current test path
+## 11. Bring-up paths
 
-1. Register on **demo.traccar.org**; add device `uniqueId=8160528336`.
-2. Point ST-901A at it (SMS, pwd `0000`): `8030000 <apn>` → `8040000 144.91.97.245 5013` → `7100000` → `8960000E00` → `8050000 <sec>` → `RCONF`.
-3. `.env.local`: `TRACCAR_BASE_URL=https://demo.traccar.org`, `TRACCAR_EMAIL`, `TRACCAR_PASSWORD`.
-4. Verify: fixes appear in Traccar UI; `/commands` page dispatches real commands (202→queued when offline).
-5. **Bridge test**: try `PUT /api/devices/{id}` on demo with
-   `attributes: { "forward.url": "https://APP/api/telemetry?key=SECRET" }` —
-   if the demo forwarder honors per-device URLs, positions flow into AeroTrack
-   without any self-hosting. Fall back to paid subscription if it doesn't.
+**Native (primary) — ST-901A onto our own ingest:**
+1. `fly deploy` ingest; `fly secrets set SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY`.
+2. SMS to the tracker (pwd `0000`): `8030000 <apn>` → `8040000 <fly-ip-or-hostname> 5013` → `7100000` → `8960000E00` → `8050000 <sec>` → `RCONF`.
+   (Fly assigns a dedicated IPv4 for TCP services — check `fly ips list`; if
+   the firmware needs a dotted IP, use the IPv4, not the hostname.)
+3. Device row needs `imei=8160528336` + `protocol='h02'` — fixes flow
+   immediately; commands queued from `/commands` drain over the live socket.
+
+**Traccar borrow (only for protocols ingest lacks):**
+1. demo.traccar.org → add device `uniqueId=<imei>`; point tracker at
+   `144.91.97.245` + protocol port.
+2. `.env.local`: `TRACCAR_BASE_URL=https://demo.traccar.org`, `TRACCAR_EMAIL`, `TRACCAR_PASSWORD` — `/commands` dispatches via Traccar REST (200 sent / 202 queued).
+3. Positions back into AeroTrack need `forward.url` honored per-device (§10).
+
+**OsmAnd (no socket host at all):** phones/HTTP devices →
+`GET /api/ingest/osmand?id=<imei>&lat=..&lon=..&timestamp=..&key=<secret>` —
+implemented natively on Vercel.
 
 Dev: `pnpm dev` → **port 3001** (never 3000) · `pnpm sim:traccar` · `pnpm sim:st901a` (`apps/ingest`).
