@@ -317,22 +317,48 @@ export type Database = {
           accessories_notes: string | null;
           install_notes: string | null;
           zimbabwe_notes: string | null;
+          install_steps: unknown[] | null;
           is_published: boolean;
           created_at: string;
           updated_at: string;
         };
         Insert: Omit<
           Database["public"]["Tables"]["vehicle_profiles"]["Row"],
-          "id" | "created_at" | "updated_at" | "is_published"
+          "id" | "created_at" | "updated_at" | "is_published" | "install_steps"
         > &
           Partial<
             Pick<
               Database["public"]["Tables"]["vehicle_profiles"]["Row"],
-              "is_published"
+              "is_published" | "install_steps"
             >
           >;
         Update: Partial<
           Omit<Database["public"]["Tables"]["vehicle_profiles"]["Row"], "id" | "created_at" | "updated_at">
+        >;
+        Relationships: [];
+      };
+      hero_slides: {
+        Row: {
+          id: string;
+          sort_order: number;
+          title: string;
+          description: string;
+          cta_label: string;
+          cta_href: string;
+          image_url: string;
+          is_published: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["hero_slides"]["Row"],
+          "id" | "created_at" | "updated_at" | "is_published"
+        > &
+          Partial<
+            Pick<Database["public"]["Tables"]["hero_slides"]["Row"], "is_published">
+          >;
+        Update: Partial<
+          Omit<Database["public"]["Tables"]["hero_slides"]["Row"], "id" | "created_at" | "updated_at">
         >;
         Relationships: [];
       };

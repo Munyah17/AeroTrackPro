@@ -162,16 +162,35 @@ export function Topbar() {
       ? { name: delegate.name, initials: delegate.name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase() }
       : ROLE_IDENTITY[role];
   const showCreate = ready && (role !== "user" || portal === "fleet");
+  const headerLinks = ready ? (navFor(role, portal, fleetAccess)[0]?.items ?? []) : [];
 
   return (
     <header className="z-30 flex h-14 shrink-0 items-center gap-1.5 border-b border-border/60 bg-background/80 px-3 backdrop-blur-xl sm:h-16 sm:gap-2 sm:px-4 md:px-6">
       <MobileNav />
 
-      <div className="min-w-0 flex-1">
+      <div className="hidden min-w-0 flex-1 md:block">
         <h1 className="truncate text-[15px] font-semibold tracking-tight sm:text-[17px]">{meta.title}</h1>
       </div>
 
-      <div className="ml-auto hidden w-full max-w-sm min-w-0 md:block lg:max-w-xs xl:max-w-sm">
+      {/* desktop nav links — right aligned, main section of current portal */}
+      <nav className="ml-auto hidden items-center gap-1 lg:flex">
+        {headerLinks.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={cn(
+              "rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
+              isNavActive(pathname, item.href)
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+
+      <div className="ml-auto hidden w-full max-w-sm min-w-0 md:block lg:ml-0 lg:max-w-xs xl:max-w-sm">
         <button
           onClick={palette.open}
           className="group flex h-10 w-full items-center gap-2.5 rounded-xl border border-border/70 bg-card px-3.5 text-left shadow-card transition-shadow hover:shadow-card-hover"
@@ -202,14 +221,14 @@ export function Topbar() {
         </Button>
       )}
 
-      <Button variant="ghost" size="icon" onClick={toggle} className="shrink-0 rounded-xl" aria-label="Toggle color theme">
+      <Button variant="ghost" size="icon" onClick={toggle} className="hidden shrink-0 rounded-xl md:inline-flex" aria-label="Toggle color theme">
         {dark ? <Sun className="size-[18px]" /> : <Moon className="size-[18px]" />}
       </Button>
 
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Button variant="ghost" size="icon" className="relative shrink-0 rounded-xl" aria-label="Notifications">
+            <Button variant="ghost" size="icon" className="relative hidden shrink-0 rounded-xl md:inline-flex" aria-label="Notifications">
               <Bell className="size-[18px]" />
               {activeAlerts.length > 0 && (
                 <span className="absolute right-1.5 top-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-[9.5px] font-bold text-white">
@@ -271,8 +290,14 @@ export function Topbar() {
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
+          <DropdownMenuItem className="rounded-lg md:hidden" render={<Link href="/alerts" />}>
+            <Bell className="size-4" /> Notifications
+            {activeAlerts.length > 0 && (
+              <Badge variant="secondary" className="ml-auto rounded-full">{activeAlerts.length}</Badge>
+            )}
+          </DropdownMenuItem>
           <DropdownMenuItem className="rounded-lg" render={<Link href="/settings/profile" />}>
-            <User className="size-4" /> Profile
+            <User className="size-4" /> My Profile
           </DropdownMenuItem>
           <DropdownMenuItem className="rounded-lg" render={<Link href="/settings" />}>
             <Settings className="size-4" /> Settings

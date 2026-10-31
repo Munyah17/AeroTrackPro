@@ -8,7 +8,6 @@ import {
   ArrowLeft,
   BatteryCharging,
   Camera,
-  ChevronRight,
   Fuel,
   KeyRound,
   MapPin,
@@ -24,6 +23,8 @@ import {
   profileTitle,
   type VehicleProfile,
 } from "@/lib/vehicle-profiles";
+import { buildInstallSteps, VehicleWiringDiagram } from "@/components/vehicle/install-guide";
+import { SiteHeader } from "@/components/marketing/site-header";
 
 const CATEGORY_LABEL: Record<VehicleProfile["category"], string> = {
   kei: "Kei car",
@@ -69,40 +70,18 @@ export default function VehicleProfilePage() {
     );
   }
 
-  const sections = [
-    { icon: KeyRound, title: "Power & fuse box", body: profile.fusebox_notes },
-    { icon: ShieldAlert, title: "Engine cut-off guidance", body: profile.cutoff_notes, danger: profile.hybrid_or_ev },
-    { icon: Fuel, title: "Fuel level sensor", body: profile.fuel_sensor_notes },
-    { icon: Camera, title: "Accessories (RFID, cameras, alarms)", body: profile.accessories_notes },
-    { icon: Wrench, title: "Installer's notes", body: profile.install_notes },
-    { icon: MapPin, title: "Zimbabwe market notes", body: profile.zimbabwe_notes },
-  ];
+  const steps = buildInstallSteps(profile);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
-          <Link href="/" className="text-lg font-extrabold tracking-tight">
-            Aero<span className="text-cyan-600">Track</span>
-          </Link>
-          <nav className="flex items-center gap-1 text-[13px] text-slate-500">
-            <Link href="/supported-vehicles" className="hover:text-slate-900">
-              Supported Vehicles
-            </Link>
-            <ChevronRight className="size-3.5" />
-            <span className="font-medium text-slate-800">
-              {profile.make} {profile.model}
-            </span>
-          </nav>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="mx-auto max-w-4xl px-5 py-10">
         <Link
           href="/supported-vehicles"
           className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-500 hover:text-slate-900"
         >
-          <ArrowLeft className="size-4" /> All vehicles
+          <ArrowLeft className="size-4" /> Installation Guide
         </Link>
 
         <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
@@ -172,8 +151,60 @@ export default function VehicleProfilePage() {
           </div>
         )}
 
-        <div className="mt-8 space-y-4">
-          {sections
+        {/* wiring diagram */}
+        <section className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="flex items-center gap-2 text-[15px] font-bold">
+            <KeyRound className="size-4.5 text-cyan-700" /> Wiring diagram
+          </h2>
+          <p className="mt-1 text-[12.5px] text-slate-500">
+            Tracker harness + relay cut-off — colours shown are the harness colours, NOT the vehicle&apos;s.
+          </p>
+          <div className="mt-4 overflow-x-auto">
+            <VehicleWiringDiagram voltage={profile.voltage} />
+          </div>
+        </section>
+
+        {/* step-by-step install guide */}
+        <section className="mt-4 rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="flex items-center gap-2 text-[15px] font-bold">
+            <Wrench className="size-4.5 text-cyan-700" />
+            Installation — step by step
+          </h2>
+          <ol className="mt-4 space-y-0">
+            {steps.map((s, i) => (
+              <li
+                key={s.title}
+                className={`relative flex gap-4 pb-5 last:pb-0 ${
+                  s.warn ? "rounded-xl border border-red-200 bg-red-50 p-3.5" : ""
+                }`}
+              >
+                {!s.warn && <div className="absolute left-[13px] top-7 bottom-0 w-px bg-slate-200 last:hidden" />}
+                <span
+                  className={`flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${
+                    s.warn ? "bg-red-600 text-white" : "bg-cyan-700 text-white"
+                  }`}
+                >
+                  {i + 1}
+                </span>
+                <div className="min-w-0">
+                  <div className={`text-[14px] font-semibold ${s.warn ? "text-red-800" : ""}`}>{s.title}</div>
+                  <p className={`mt-1 text-[13px] leading-relaxed ${s.warn ? "text-red-800/90" : "text-slate-600"}`}>
+                    {s.body}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        {/* reference notes */}
+        <div className="mt-4 space-y-4">
+          {[
+            { icon: ShieldAlert, title: "Engine cut-off guidance", body: profile.cutoff_notes, danger: profile.hybrid_or_ev },
+            { icon: Fuel, title: "Fuel level sensor", body: profile.fuel_sensor_notes },
+            { icon: Camera, title: "Accessories (RFID, cameras, alarms)", body: profile.accessories_notes },
+            { icon: MapPin, title: "Zimbabwe market notes", body: profile.zimbabwe_notes },
+          ]
             .filter((s) => s.body)
             .map((s) => (
               <section

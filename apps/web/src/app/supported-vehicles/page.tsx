@@ -20,6 +20,7 @@ import {
   yearsLabel,
   type VehicleProfile,
 } from "@/lib/vehicle-profiles";
+import { SiteHeader } from "@/components/marketing/site-header";
 
 const CATEGORY_ICON: Partial<Record<VehicleProfile["category"], typeof Car>> = {
   truck: Truck,
@@ -59,27 +60,17 @@ export default function SupportedVehiclesPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      {/* header */}
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
-          <Link href="/" className="text-lg font-extrabold tracking-tight">
-            Aero<span className="text-cyan-600">Track</span>
-          </Link>
-          <Link href="/" className="text-sm text-slate-500 hover:text-slate-900">
-            Back to site
-          </Link>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="mx-auto max-w-6xl px-5 py-10">
         <div className="max-w-3xl">
           <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-            Supported Vehicles
+            Vehicle Installation Guide
           </h1>
           <p className="mt-3 text-[15px] leading-relaxed text-slate-600">
-            Installation reference for the vehicles our trackers are most often
-            fitted into — fuse box locations, engine cut-off guidance, fuel
-            sensor taps, and accessory wiring notes per model.
+            Step-by-step tracker fitting instructions for the vehicles we see
+            most — power, ignition detection, remote engine cut-off, fuel
+            sensing and accessories, with wiring diagrams per model.
           </p>
         </div>
 

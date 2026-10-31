@@ -107,6 +107,7 @@ export const ADMIN_NAV: NavSection[] = [
     label: "White Label",
     items: [
       { label: "Branding", href: "/admin/branding", icon: Palette },
+      { label: "Site Content", href: "/admin/site-content", icon: Megaphone },
       { label: "Login Page", href: "/admin/login-page", icon: Smartphone },
       { label: "Domains", href: "/admin/domains", icon: Globe },
       { label: "Email Templates", href: "/admin/email-templates", icon: Mail },
@@ -127,6 +128,7 @@ export const ADMIN_NAV: NavSection[] = [
     items: [
       { label: "Devices", href: "/admin/devices", icon: Radio },
       { label: "Device Groups", href: "/admin/device-groups", icon: Package },
+      { label: "Vehicle Database", href: "/admin/vehicle-database", icon: Car },
       { label: "Users", href: "/admin/users", icon: UserCog },
       { label: "Roles & Permissions", href: "/admin/roles", icon: Shield },
       { label: "API & Integration", href: "/admin/api", icon: Database },
@@ -187,6 +189,8 @@ export const NAV_META: Record<string, { title: string; subtitle?: string }> = {
   "/admin/payments": { title: "Payment History" },
   "/admin/billing": { title: "Billing" },
   "/admin/devices": { title: "Device Management" },
+  "/admin/vehicle-database": { title: "Vehicle Database", subtitle: "Compatibility profiles shown on the public Installation Guide" },
+  "/admin/site-content": { title: "Site Content", subtitle: "Landing-page hero slides" },
   "/admin/device-groups": { title: "Device Groups" },
   "/admin/users": { title: "User Management" },
   "/admin/roles": { title: "Roles & Permissions" },

@@ -89,7 +89,7 @@ const FALLBACK_PROFILES: VehicleProfile[] = [
     accessories_notes: "iButton/RFID mounts beside the key barrel.",
     install_notes: "The most common JDM import on Zim roads.",
     zimbabwe_notes: "Dominant first-car import.",
-    is_published: true, created_at: "", updated_at: "",
+    is_published: true, created_at: "", updated_at: "", install_steps: null,
   },
   {
     id: "fb-2", slug: "toyota-aqua-nhp10", make: "Toyota", model: "Aqua / Prius C",
@@ -102,7 +102,7 @@ const FALLBACK_PROFILES: VehicleProfile[] = [
     accessories_notes: "Standard.",
     install_notes: "Treat as advanced install.",
     zimbabwe_notes: "Very common import.",
-    is_published: true, created_at: "", updated_at: "",
+    is_published: true, created_at: "", updated_at: "", install_steps: null,
   },
   {
     id: "fb-3", slug: "scania-r-series", make: "Scania", model: "R/G/P-series",
@@ -115,6 +115,6 @@ const FALLBACK_PROFILES: VehicleProfile[] = [
     accessories_notes: "RFID driver ID near-universal in Scania fleets.",
     install_notes: "King of the Zim corridor.",
     zimbabwe_notes: "Dominant heavy-haulage choice in Zim.",
-    is_published: true, created_at: "", updated_at: "",
+    is_published: true, created_at: "", updated_at: "", install_steps: null,
   },
 ];
