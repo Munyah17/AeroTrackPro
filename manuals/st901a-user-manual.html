@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AeroTrack ST-901A GPS Tracker — User Manual</title>
+<style>
+  :root { --brand:#0e7490; --dark:#0f172a; --muted:#64748b; --line:#cbd5e1; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", Arial, sans-serif; color: var(--dark);
+         background: #e2e8f0; font-size: 11pt; line-height: 1.55; }
+  .page { width: 148mm; min-height: 210mm; background: #fff; margin: 12px auto;
+          padding: 16mm 14mm; box-shadow: 0 2px 10px rgba(0,0,0,.25);
+          position: relative; }
+  .page:last-child { page-break-after: auto; }
+
+  /* ---------- cover ---------- */
+  .cover { display: flex; flex-direction: column; justify-content: space-between;
+           background: linear-gradient(160deg,#0f172a 0%,#134e5e 60%,#0e7490 100%);
+           color: #fff; text-align: center; }
+  .cover .logo { font-size: 30pt; font-weight: 800; letter-spacing: 2px; margin-top: 30mm; }
+  .cover .logo span { color: #22d3ee; }
+  .cover h1 { font-size: 22pt; font-weight: 600; margin: 10mm 0 2mm; }
+  .cover h2 { font-size: 13pt; font-weight: 400; color: #a5f3fc; }
+  .cover .model { display:inline-block; margin-top:8mm; padding:4mm 10mm;
+                  border:1.5px solid #22d3ee; border-radius:8px;
+                  font-size:14pt; letter-spacing:1px; }
+  .cover footer { margin-bottom: 14mm; font-size: 9pt; color:#94a3b8; }
+
+  /* ---------- inner pages ---------- */
+  h3.sec { font-size: 15pt; color: var(--brand); border-bottom: 2.5px solid var(--brand);
+           padding-bottom: 2mm; margin: 6mm 0 4mm; }
+  h4 { font-size: 12pt; margin: 5mm 0 2mm; }
+  p, li { margin-bottom: 2mm; }
+  ul, ol { padding-left: 6mm; }
+  .toc { list-style:none; padding:0; }
+  .toc li { display:flex; justify-content:space-between; border-bottom:1px dotted var(--line);
+            padding: 1.6mm 0; }
+  .toc b { color: var(--brand); }
+  table { width: 100%; border-collapse: collapse; margin: 3mm 0; }
+  th, td { border: 1px solid var(--line); padding: 2mm 3mm; text-align: left;
+           font-size: 9.5pt; vertical-align: top; }
+  th { background: #f0f9fb; color: var(--brand); }
+  code { font-family: Consolas, monospace; background: #f1f5f9; padding: 0 3px;
+         border-radius: 3px; font-size: 9.5pt; }
+  .note { background:#fefce8; border-left:4px solid #eab308; padding:3mm 4mm;
+          margin:3mm 0; font-size:10pt; }
+  .warn { background:#fef2f2; border-left:4px solid #ef4444; padding:3mm 4mm;
+          margin:3mm 0; font-size:10pt; }
+  .tip  { background:#f0fdf4; border-left:4px solid #22c55e; padding:3mm 4mm;
+          margin:3mm 0; font-size:10pt; }
+  .ledrow td:first-child { width:22mm; text-align:center; }
+  .led { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; }
+  .led.g { background:#22c55e; } .led.y { background:#eab308; } .led.b { background:#3b82f6; }
+  .footer { position:absolute; bottom:8mm; left:14mm; right:14mm; display:flex;
+            justify-content:space-between; font-size:8.5pt; color:var(--muted);
+            border-top:1px solid var(--line); padding-top:2mm; }
+  .box { display:flex; gap:4mm; margin:4mm 0; }
+  .box .card { flex:1; border:1px solid var(--line); border-radius:6px; padding:4mm;
+               text-align:center; font-size:10pt; }
+
+  @media print {
+    body { background:#fff; }
+    .page { margin:0; box-shadow:none; page-break-after: always; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ======================= COVER ======================= -->
+<div class="page cover">
+  <div class="logo">AERO<span>TRACK</span></div>
+  <div>
+    <h1>GPS Vehicle Tracker</h1>
+    <h2>User Manual · Quick Start &amp; SMS Command Reference</h2>
+    <div class="model">MODEL ST-901A</div>
+  </div>
+  <footer>
+    AeroTrack Pro &nbsp;·&nbsp; Version 1.0 &nbsp;·&nbsp; www.aerotrack.example<br>
+    Read this manual carefully before installation and keep it for future reference.
+  </footer>
+</div>
+
+<!-- ======================= CONTENTS ======================= -->
+<div class="page">
+  <h3 class="sec">Contents</h3>
+  <ul class="toc">
+    <li><span><b>1</b> &nbsp; Package Contents</span><span>3</span></li>
+    <li><span><b>2</b> &nbsp; Getting to Know Your Tracker</span><span>3</span></li>
+    <li><span><b>3</b> &nbsp; SIM Card &amp; Wiring Installation</span><span>4</span></li>
+    <li><span><b>4</b> &nbsp; First-Time Setup by SMS</span><span>5</span></li>
+    <li><span><b>5</b> &nbsp; Using AeroTrack (Everyday Operation)</span><span>6</span></li>
+    <li><span><b>6</b> &nbsp; SMS Command Reference</span><span>7</span></li>
+    <li><span><b>7</b> &nbsp; Troubleshooting</span><span>8</span></li>
+    <li><span><b>8</b> &nbsp; Specifications &amp; Safety</span><span>9</span></li>
+  </ul>
+  <div class="note"><b>About this manual:</b> written for the ST-901A configured to
+  report to the AeroTrack platform. Commands shown use the default SMS password
+  <code>0000</code>. If your installer set a different password, replace
+  <code>0000</code> with it wherever it appears.</div>
+</div>
+
+<!-- ======================= 1-2 ======================= -->
+<div class="page">
+  <h3 class="sec">1 &nbsp;Package Contents</h3>
+  <div class="box">
+    <div class="card"><b>ST-901A Tracker</b><br>main unit ×1</div>
+    <div class="card"><b>Power Cable</b><br>4-wire harness ×1</div>
+    <div class="card"><b>Relay</b><br>engine cut-off ×1<br>(optional kit)</div>
+    <div class="card"><b>This Manual</b><br>×1</div>
+  </div>
+  <p>If anything is missing, contact your supplier before installation.</p>
+
+  <h3 class="sec">2 &nbsp;Getting to Know Your Tracker</h3>
+  <h4>What it does</h4>
+  <ul>
+    <li>Reports the vehicle's position to AeroTrack every few seconds while moving.</li>
+    <li>Answers SMS commands — locate, cut engine, restore engine, read settings.</li>
+    <li>Detects ACC ignition, vibration, power-cut and geo-fence events.</li>
+    <li>Built-in battery keeps reporting for a short time if vehicle power is cut.</li>
+  </ul>
+
+  <h4>Indicator lights</h4>
+  <table class="ledrow">
+    <tr><th>Light</th><th>State</th><th>Meaning</th></tr>
+    <tr><td><span class="led b"></span>Blue (power)</td><td>On</td><td>Tracker is powered.</td></tr>
+    <tr><td><span class="led g"></span>Green (GSM)</td><td>Slow flash</td><td>Registered on mobile network — good.</td></tr>
+    <tr><td><span class="led g"></span>Green (GSM)</td><td>Fast flash / off</td><td>No SIM, no signal, or no data credit.</td></tr>
+    <tr><td><span class="led y"></span>Yellow (GPS)</td><td>Slow flash</td><td>GPS locked — has a position fix.</td></tr>
+    <tr><td><span class="led y"></span>Yellow (GPS)</td><td>Off / fast flash</td><td>No GPS fix — move into the open.</td></tr>
+  </table>
+  <div class="tip"><b>Tip:</b> the tracker only gets a GPS fix with a view of the sky.
+  When you first power it up, take it outside or drive for 5–10 minutes.</div>
+  <div class="footer"><span>AeroTrack ST-901A User Manual</span><span>3</span></div>
+</div>
+
+<!-- ======================= 3 ======================= -->
+<div class="page">
+  <h3 class="sec">3 &nbsp;SIM Card &amp; Wiring Installation</h3>
+  <h4>Before you start</h4>
+  <ul>
+    <li>Use a normal SIM (2G-capable) with <b>SMS and data</b> enabled and credit loaded.</li>
+    <li>Insert the SIM in a phone first: disable the PIN code and confirm it can send/receive SMS.</li>
+    <li>Slide the SIM into the tracker, chip facing the board, then fit the cover.</li>
+  </ul>
+
+  <h4>Wiring the 4-wire harness</h4>
+  <table>
+    <tr><th>Wire</th><th>Connect to</th><th>Purpose</th></tr>
+    <tr><td><b>Red</b></td><td>Vehicle battery + (9–90 V DC)</td><td>Main power</td></tr>
+    <tr><td><b>Black</b></td><td>Vehicle chassis ground (−)</td><td>Ground</td></tr>
+    <tr><td><b>Yellow</b></td><td>ACC ignition line</td><td>Detects engine on/off</td></tr>
+    <tr><td><b>Orange</b></td><td>Relay (fuel/pump line)</td><td>Remote engine cut-off (optional)</td></tr>
+  </table>
+  <div class="warn"><b>Warning:</b> installation involves the vehicle electrical
+  system. If you are not confident, use a qualified auto-electrician. Never cut
+  the fuel line relay while the vehicle is moving — send the command only when
+  it is safely stopped.</div>
+
+  <h4>Mounting</h4>
+  <ul>
+    <li>Hide it under the dash or behind panels — but keep the top (antenna side)
+        facing up, away from thick metal, for a good GPS signal.</li>
+    <li>Fix with cable ties or foam tape so it cannot shake loose.</li>
+  </ul>
+  <div class="footer"><span>AeroTrack ST-901A User Manual</span><span>4</span></div>
+</div>
+
+<!-- ======================= 4 ======================= -->
+<div class="page">
+  <h3 class="sec">4 &nbsp;First-Time Setup by SMS</h3>
+  <p>With the tracker powered on, send these SMS messages from any phone to the
+  <b>tracker's SIM number</b>, one at a time. Wait for the "OK" reply after each
+  step before sending the next.</p>
+  <table>
+    <tr><th>#</th><th>Send this SMS</th><th>What it does</th></tr>
+    <tr><td>1</td><td><code>8030000 &lt;apn&gt;</code></td>
+        <td>Sets the mobile data APN.<br>
+            Econet&nbsp;→&nbsp;<code>econet.net</code> ·
+            NetOne&nbsp;→&nbsp;<code>netone</code> ·
+            Telecel&nbsp;→&nbsp;<code>isp.telecel.co.zw</code></td></tr>
+    <tr><td>2</td><td><code>8040000 149.248.215.167 5013</code></td>
+        <td>Points the tracker at the AeroTrack server and port.</td></tr>
+    <tr><td>3</td><td><code>7100000</code></td>
+        <td>Enables GPRS mode — positions go over the internet, not SMS.</td></tr>
+    <tr><td>4</td><td><code>8960000E00</code></td>
+        <td>Sets the clock to UTC (the app converts to local time).</td></tr>
+    <tr><td>5</td><td><code>RCONF</code></td>
+        <td>Reads the settings back — confirm it shows
+            <code>149.248.215.167</code> and <code>5013</code>.</td></tr>
+  </table>
+  <div class="note"><b>Note:</b> on some firmware revisions each command must end
+  with the password, e.g. <code>8040000 149.248.215.167 5013 0000</code>. If a
+  command replies "ERROR" or nothing, try the same command with
+  <code>0000</code> appended.</div>
+  <div class="tip"><b>Go live:</b> after step 5, drive outside for a few minutes.
+  The tracker appears on your AeroTrack map within about 5 minutes.</div>
+  <div class="footer"><span>AeroTrack ST-901A User Manual</span><span>5</span></div>
+</div>
+
+<!-- ======================= 5 ======================= -->
+<div class="page">
+  <h3 class="sec">5 &nbsp;Using AeroTrack (Everyday Operation)</h3>
+  <h4>See your vehicle</h4>
+  <ul>
+    <li>Open the AeroTrack app and sign in — nothing to install, works on phone
+        or computer.</li>
+    <li>Tap a vehicle: the map shows its last position, speed and heading.</li>
+    <li><b>Last seen</b> tells you when it last reported. Old times mean the
+        tracker is off, out of signal, or out of data credit.</li>
+  </ul>
+
+  <h4>Send a command</h4>
+  <ol>
+    <li>Open the <b>Commands</b> page.</li>
+    <li>Choose the vehicle and the command — e.g. <i>engine cut</i>,
+        <i>resume oil</i>, <i>reboot</i>.</li>
+    <li>Press send. Watch the status column:</li>
+  </ol>
+  <table>
+    <tr><th>Status</th><th>Meaning</th></tr>
+    <tr><td><b>pending</b></td><td>Queued — waiting for the tracker to connect or answer.</td></tr>
+    <tr><td><b>sent</b></td><td>Delivered to the tracker — awaiting its confirmation.</td></tr>
+    <tr><td><b>acked</b></td><td>The tracker confirmed it received the command. Done.</td></tr>
+    <tr><td><b>failed</b></td><td>Delivery failed — check the tracker is online and powered.</td></tr>
+  </table>
+  <div class="warn"><b>Engine cut-off is a safety feature.</b> Send it only when
+  the vehicle is stationary. AeroTrack's H02 encoder gates the cut on speed —
+  but always verify the vehicle is stopped first.</div>
+
+  <h4>History &amp; alerts</h4>
+  <ul>
+    <li>The Replay page draws the day's route — click any point for time &amp; speed.</li>
+    <li>Ignition on/off, power-cut and geo-fence events appear in Alerts.</li>
+  </ul>
+  <div class="footer"><span>AeroTrack ST-901A User Manual</span><span>6</span></div>
+</div>
+
+<!-- ======================= 6 ======================= -->
+<div class="page">
+  <h3 class="sec">6 &nbsp;SMS Command Reference</h3>
+  <p>Send these from any phone to the tracker SIM. Add <code>0000</code> at the
+  end if your firmware requires the password.</p>
+  <table>
+    <tr><th>SMS</th><th>Function</th></tr>
+    <tr><td><code>RCONF</code></td><td>Read back all current settings (APN, server, port, interval).</td></tr>
+    <tr><td><code>RESET</code></td><td>Reboot the tracker.</td></tr>
+    <tr><td><code>8030000 &lt;apn&gt;</code></td><td>Set mobile data APN.</td></tr>
+    <tr><td><code>8040000 &lt;ip&gt; &lt;port&gt;</code></td><td>Set reporting server and port.</td></tr>
+    <tr><td><code>7100000</code></td><td>GPRS mode — report over the internet.</td></tr>
+    <tr><td><code>7000000</code></td><td>SMS mode — stop internet reporting.</td></tr>
+    <tr><td><code>8960000E00</code></td><td>Set timezone (E00 = UTC; E02 = UTC+2, etc.).</td></tr>
+    <tr><td><code>8050000 &lt;seconds&gt;</code></td><td>Set the upload interval (e.g. <code>8050000 30</code> = every 30&nbsp;s).</td></tr>
+    <tr><td><code>G1234#</code></td><td>Reply with a Google Maps link to the current position.</td></tr>
+    <tr><td><code>DYD,000000#</code></td><td>Cut engine / fuel (use only when stopped!).</td></tr>
+    <tr><td><code>HFYD,000000#</code></td><td>Restore engine / fuel supply.</td></tr>
+    <tr><td><code>STATUS#</code></td><td>Reply with battery, GPS, GSM and ACC status.</td></tr>
+  </table>
+  <div class="note"><b>Note:</b> commands sent from the AeroTrack Commands page
+  travel down the tracker's live internet connection — no SMS needed and no SMS
+  cost. SMS commands are for initial setup and recovery only.</div>
+  <div class="footer"><span>AeroTrack ST-901A User Manual</span><span>7</span></div>
+</div>
+
+<!-- ======================= 7 ======================= -->
+<div class="page">
+  <h3 class="sec">7 &nbsp;Troubleshooting</h3>
+  <table>
+    <tr><th>Symptom</th><th>Likely cause &amp; fix</th></tr>
+    <tr><td>No reply to SMS at all</td><td>SIM has no airtime / SMS blocked / PIN still on.
+        Test the SIM in a phone first.</td></tr>
+    <tr><td>SMS works but nothing on the map</td><td>Wrong server or APN — send
+        <code>RCONF</code>, compare with step&nbsp;4 of this manual. No data
+        credit — top up the SIM.</td></tr>
+    <tr><td>Position stuck / won't update</td><td>No GPS fix — move the vehicle
+        into the open; check the tracker isn't shielded by metal.</td></tr>
+    <tr><td>Green LED flashing fast</td><td>No GSM signal or SIM not seated —
+        re-seat SIM, check coverage.</td></tr>
+    <tr><td>Everything dead</td><td>Check red/black wiring and inline fuse;
+        confirm 9–90&nbsp;V supply at the connector.</td></tr>
+    <tr><td>Command stays "pending"</td><td>Tracker offline — it delivers the
+        moment the tracker next connects. Check its lights and SIM credit.</td></tr>
+    <tr><td>Map position is in the sea / far away</td><td>Tracker reporting
+        0,0 before first fix — wait for a real GPS lock outside.</td></tr>
+  </table>
+  <div class="tip"><b>Golden rule:</b> almost every problem is one of three
+  things — SIM credit, GPS sky view, or a wrong APN. Check those first.</div>
+  <div class="footer"><span>AeroTrack ST-901A User Manual</span><span>8</span></div>
+</div>
+
+<!-- ======================= 8 ======================= -->
+<div class="page">
+  <h3 class="sec">8 &nbsp;Specifications &amp; Safety</h3>
+  <table>
+    <tr><th>Item</th><th>Specification</th></tr>
+    <tr><td>Model</td><td>ST-901A (H02 protocol)</td></tr>
+    <tr><td>Network</td><td>GSM/GPRS quad-band 850/900/1800/1900&nbsp;MHz</td></tr>
+    <tr><td>Input voltage</td><td>9–90&nbsp;V DC (cars, trucks, bikes)</td></tr>
+    <tr><td>GPS accuracy</td><td>~5–10&nbsp;m in open sky</td></tr>
+    <tr><td>Backup battery</td><td>Built-in Li-ion (reports briefly if main power cut)</td></tr>
+    <tr><td>Reporting server</td><td>AeroTrack ingest — <code>149.248.215.167:5013</code></td></tr>
+    <tr><td>Operating temp.</td><td>−20&nbsp;°C to +70&nbsp;°C</td></tr>
+  </table>
+
+  <h4>Safety notes</h4>
+  <ul>
+    <li>Do not install where the tracker can get wet or overheat.</li>
+    <li>Engine cut-off must only be wired by a qualified auto-electrician and
+        only activated on a stationary vehicle.</li>
+    <li>Tracking people without their knowledge may be illegal — use only on
+        vehicles you own or manage.</li>
+  </ul>
+
+  <h4>Support</h4>
+  <p>Questions or a unit that won't come online? Contact your AeroTrack account
+  manager with the tracker's IMEI (printed on the label) and the SIM number.</p>
+  <div class="footer"><span>AeroTrack ST-901A User Manual</span><span>9</span></div>
+</div>
+
+</body>
+</html>
