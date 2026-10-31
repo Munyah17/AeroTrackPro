@@ -1,7 +1,9 @@
 # AeroTrack ingest — raw TCP listeners + decoders + command dispatcher.
 # Build context: REPO ROOT (workspace deps live outside this folder):
 #   docker build -f apps/ingest/Dockerfile -t aerotrack-ingest .
-FROM node:20-slim
+# Node 22+ required: supabase-js realtime transport needs native WebSocket
+# (Node 20 lacks it and every db() call threw at runtime).
+FROM node:22-slim
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable

@@ -1,87 +1,90 @@
-# Fly.io — apps/ingest raw-TCP gateway.
+# fly.toml app configuration file generated for aerotrack-ingest on 2026-10-31T09:29:41+02:00
 #
-# Deploy:  fly deploy            (from repo root — fly.toml points at the Dockerfile)
-# Secrets: fly secrets set SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=...
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
-# Trackers open persistent TCP connections to <app>.fly.dev:<port>. Fly's
-# anycast IPs accept raw TCP when handlers are left empty (no tls/http).
 
-app = "aerotrack-ingest"
-primary_region = "jnb"          # Johannesburg — nearest to the fleet ops region
+app = 'aerotrack-ingest'
+primary_region = 'jnb'
 
 [build]
-  dockerfile = "apps/ingest/Dockerfile"
+  dockerfile = 'apps/ingest/Dockerfile'
 
 [env]
-  NODE_ENV = "production"
-
-# Keep one machine alive — trackers reconnect on socket drop and queue-drain
-# depends on the process being up to see live connections.
-[[vm]]
-  size = "shared-cpu-1x"
-  memory = "512mb"
-
-# --- One service block per device-listener port -----------------------------
+  NODE_ENV = 'production'
 
 [[services]]
+  protocol = 'tcp'
   internal_port = 5013
-  protocol = "tcp"
-  auto_stop_machines = "off"
+  auto_stop_machines = 'off'
   auto_start_machines = true
   min_machines_running = 1
+
   [[services.ports]]
-    port = 5013                 # h02 (SinoTrack ST-901A)
+    port = 5013
 
 [[services]]
+  protocol = 'tcp'
   internal_port = 5023
-  protocol = "tcp"
+
   [[services.ports]]
-    port = 5023                 # gt06 (Kingwo etc.)
+    port = 5023
 
 [[services]]
+  protocol = 'tcp'
   internal_port = 5001
-  protocol = "tcp"
+
   [[services.ports]]
-    port = 5001                 # gps103
+    port = 5001
 
 [[services]]
+  protocol = 'tcp'
   internal_port = 5027
-  protocol = "tcp"
+
   [[services.ports]]
-    port = 5027                 # teltonika
+    port = 5027
 
 [[services]]
+  protocol = 'tcp'
   internal_port = 5015
-  protocol = "tcp"
+
   [[services.ports]]
-    port = 5015                 # jt808
+    port = 5015
 
 [[services]]
+  protocol = 'tcp'
   internal_port = 5020
-  protocol = "tcp"
+
   [[services.ports]]
-    port = 5020                 # meitrack
+    port = 5020
 
 [[services]]
+  protocol = 'tcp'
   internal_port = 5004
-  protocol = "tcp"
+
   [[services.ports]]
-    port = 5004                 # queclink / gl200
+    port = 5004
 
 [[services]]
+  protocol = 'tcp'
   internal_port = 5049
-  protocol = "tcp"
+
   [[services.ports]]
-    port = 5049                 # topflytech
+    port = 5049
 
 [[services]]
+  protocol = 'tcp'
   internal_port = 5045
-  protocol = "tcp"
+
   [[services.ports]]
-    port = 5045                 # vt200
+    port = 5045
 
 [[services]]
+  protocol = 'tcp'
   internal_port = 5064
-  protocol = "tcp"
+
   [[services.ports]]
-    port = 5064                 # eelink
+    port = 5064
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '512mb'
