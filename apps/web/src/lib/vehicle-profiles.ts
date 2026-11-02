@@ -1,5 +1,5 @@
 import type { Database } from "@aerotrack/shared";
-import { supabase } from "@/lib/supabase";
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/supabase";
 
 export type VehicleProfile = Database["public"]["Tables"]["vehicle_profiles"]["Row"];
 export type VehicleProfileInsert = Database["public"]["Tables"]["vehicle_profiles"]["Insert"];
@@ -43,27 +43,33 @@ export function yearsLabel(p: VehicleProfile): string {
   return `${p.year_from}–${p.year_to ?? "present"}`;
 }
 
+// Public catalogue reads go straight to PostgREST with the anon key — no
+// session cookies, no dependence on NEXT_PUBLIC env being set in the deploy
+// env, and a stale/expired user JWT can't push the page onto the fallback.
+async function restSelect(query: string): Promise<VehicleProfile[] | null> {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/vehicle_profiles?${query}`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+      cache: "no-store",
+    });
+    if (!r.ok) return null;
+    return (await r.json()) as VehicleProfile[];
+  } catch {
+    return null;
+  }
+}
+
 /** All published profiles, ordered by make/model/category. */
 export async function fetchVehicleProfiles(): Promise<VehicleProfile[]> {
-  const { data, error } = await supabase
-    .from("vehicle_profiles")
-    .select("*")
-    .eq("is_published", true)
-    .order("make")
-    .order("category")
-    .order("model");
-  if (error) return FALLBACK_PROFILES;
-  return data ?? [];
+  const data = await restSelect(
+    "select=*&is_published=eq.true&order=make,category,model",
+  );
+  return data ?? FALLBACK_PROFILES;
 }
 
 export async function fetchVehicleProfile(slug: string): Promise<VehicleProfile | null> {
-  const { data, error } = await supabase
-    .from("vehicle_profiles")
-    .select("*")
-    .eq("slug", slug)
-    .maybeSingle();
-  if (error) return FALLBACK_PROFILES.find((p) => p.slug === slug) ?? null;
-  return data;
+  const data = await restSelect(`select=*&slug=eq.${encodeURIComponent(slug)}`);
+  return data?.[0] ?? FALLBACK_PROFILES.find((p) => p.slug === slug) ?? null;
 }
 
 /** Admin view — includes unpublished drafts. */

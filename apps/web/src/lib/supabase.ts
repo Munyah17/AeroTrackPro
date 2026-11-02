@@ -1,10 +1,19 @@
 import { createBrowserClient } from "@supabase/ssr";
 import type { Database } from "@aerotrack/shared";
 
-// Fall back to inert placeholders so prerendering never crashes when env
-// vars are absent (e.g. preview builds); auth calls simply fail gracefully.
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key";
+// NEXT_PUBLIC_* values are public-by-design (shipped to every browser; RLS
+// enforces access), so the real project URL + anon key are safe defaults —
+// keeps public live-data pages (vehicle guides, device catalogue) working
+// even where deployment env vars aren't configured.
+export const SUPABASE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  "https://jmeokeatxqbiblxabvpq.supabase.co";
+export const SUPABASE_ANON_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImptZW9rZWF0eHFiaWJseGFidnBxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMxODY1MzAsImV4cCI6MjEwODc2MjUzMH0.43AsZoOEzt_kDBHF1Lva5fjLAVXasicztpVWVxlUej0";
+
+const supabaseUrl = SUPABASE_URL;
+const supabaseAnonKey = SUPABASE_ANON_KEY;
 
 export const supabase = createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);
 
