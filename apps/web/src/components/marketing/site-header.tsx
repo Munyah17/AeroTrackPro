@@ -7,7 +7,7 @@ import { LocateFixed, Menu, X } from "lucide-react";
 const NAV = [
   { href: "/", label: "Home" },
   { href: "/#corporate", label: "For Businesses" },
-  { href: "/#devices", label: "Devices" },
+  { href: "/supported-devices", label: "Devices" },
   { href: "/supported-vehicles", label: "Installation Guide" },
   { href: "/#pricing", label: "Pricing" },
 ];
