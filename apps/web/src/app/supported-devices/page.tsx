@@ -84,35 +84,48 @@ function DeviceCard({ m }: { m: DeviceModel }) {
   const cat = CATEGORY_META[m.category];
   const chips = capabilityChips(m.capabilities);
   return (
-    <div className="flex flex-col rounded-2xl border border-border bg-card p-5 shadow-card transition-shadow hover:shadow-card-hover">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <span className="text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {m.vendor}
-          </span>
-          <h3 className="font-mono text-[15px] font-bold tracking-tight">{m.model}</h3>
-        </div>
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-[10.5px] font-semibold">
-          <cat.icon className="size-3 text-primary" /> {cat.label}
-        </span>
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-card transition-shadow hover:shadow-card-hover">
+      <div className="relative h-40 bg-slate-100 dark:bg-slate-800">
+        <img
+          src={`https://picsum.photos/seed/device-${m.id}/640/400`}
+          alt={`${m.vendor} ${m.model}`}
+          className="absolute inset-0 size-full object-cover"
+        />
       </div>
-      <p className="mt-2 flex-1 text-[13px] leading-relaxed text-muted-foreground">
-        {m.description}
-      </p>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {m.capabilities.network.map((n) => (
-          <span key={n} className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
-            {n}
+      <div className="flex flex-1 flex-col p-5">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-bold">
+            {m.vendor}{" "}
+            <span className="font-mono text-primary">{m.model}</span>
+          </h3>
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-[10.5px] font-semibold">
+            <cat.icon className="size-3 text-primary" /> {cat.label}
           </span>
-        ))}
-        {chips.map((chip) => (
-          <span
-            key={chip.label}
-            className="inline-flex items-center gap-1 rounded-md border border-border/70 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
-          >
-            <chip.icon className="size-3" /> {chip.label}
-          </span>
-        ))}
+        </div>
+        <p className="mt-2 flex-1 text-[13px] leading-relaxed text-muted-foreground">
+          {m.description}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {m.capabilities.network.map((n) => (
+            <span key={n} className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+              {n}
+            </span>
+          ))}
+          {chips.map((chip) => (
+            <span
+              key={chip.label}
+              className="inline-flex items-center gap-1 rounded-md border border-border/70 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+            >
+              <chip.icon className="size-3" /> {chip.label}
+            </span>
+          ))}
+        </div>
+        <Link
+          href="/register"
+          className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          Onboard this device <ArrowRight className="size-3.5" />
+        </Link>
       </div>
     </div>
   );
