@@ -3,5 +3,3 @@
  * branded card so both networks render an identical large preview.
  */
 export { default, alt, size, contentType } from "./opengraph-image";
-
-export const runtime = "edge";

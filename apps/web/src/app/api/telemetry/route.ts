@@ -48,10 +48,6 @@ function fuelUsedLitres(attrs: Record<string, unknown>): number | null {
   return v != null && v >= 0 ? v : null;
 }
 
-// Vercel Edge: supabase-js runs on fetch, no Node APIs — low-latency
-// ingest next to the devices; execution stays well under the 25s cap.
-export const runtime = "edge";
-
 /**
  * Traccar position forwarding endpoint.
  *

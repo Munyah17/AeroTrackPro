@@ -22,9 +22,6 @@ import { notifyEvent } from "@/lib/notify";
  */
 const HANDLED = new Set(["deviceOnline", "deviceOffline"]);
 
-// Vercel Edge: lightweight status updates belong at the edge.
-export const runtime = "edge";
-
 export async function POST(req: Request): Promise<Response> {
   if (!verifyForwardSecret(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });

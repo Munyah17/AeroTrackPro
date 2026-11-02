@@ -2,6 +2,70 @@ import type { VehicleProfile } from "@/lib/vehicle-profiles";
 
 interface Step { title: string; body: string; warn?: boolean }
 
+export interface PowerTap {
+  /** DIN 72552 terminal designation for the feed. */
+  terminal: "30" | "15" | "31";
+  feed: string;
+  suggestions: string[];
+}
+
+/**
+ * Hedged candidate points for tapping constant power, ignition sense and
+ * ground. These are starting points installers commonly have luck with —
+ * NEVER guaranteed locations; every suggestion must be verified with a
+ * multimeter on the specific vehicle before tapping.
+ */
+export function powerTapSuggestions(p: VehicleProfile): PowerTap[] {
+  const is24 = p.voltage === "24V";
+  const bigTruck = is24 || p.category === "truck" || p.category === "bus";
+
+  const constant: string[] = p.hybrid_or_ev
+    ? [
+        "The 12V auxiliary battery itself — usually under the rear seat or in the boot — through an inline fuse.",
+        "A permanent fuse slot in the interior box, if the layout gives you one.",
+      ]
+    : bigTruck
+      ? [
+          "The battery isolator / master switch input stud — a classic permanent feed on heavies.",
+          "A permanent fuse slot inside the central electrical unit, if one is spare.",
+          "Battery positive direct, through the inline fuse holder.",
+        ]
+      : [
+          "A permanent fuse slot at the interior fusebox — the clock, interior-light or ECU-memory circuit is often constant.",
+          "Battery positive direct, through the inline fuse holder within 30 cm of the terminal.",
+          "The engine-bay fusebox beside the battery on models that have permanent slots there.",
+        ];
+
+  const ignition: string[] = p.hybrid_or_ev
+    ? [
+        "The accessory-socket (cigarette) circuit — it usually follows READY mode on hybrids.",
+        "An ignition-sense line at the under-dash fusebox; probe candidates with the car in READY vs OFF.",
+      ]
+    : bigTruck
+      ? [
+          "The ignition-switch output at the central electrical unit — probe for +V with key ON, 0 V OFF.",
+          "A switched fuse slot labelled IGN/ACC if the panel has one.",
+        ]
+      : [
+          "The CIG / accessory-socket fuse — it switches with the key on most models and is easy to reach.",
+          "An ACC or IGN labelled fuse slot in the interior fusebox.",
+          "The ignition-switch output line under the steering column shroud.",
+        ];
+
+  const ground: string[] = [
+    "A bare-metal chassis bolt near the kick panel or under the dash — scrape paint to metal first.",
+    bigTruck
+      ? "The battery negative post or a chassis-rail ground point."
+      : "The battery negative post, if your run back there is short.",
+  ];
+
+  return [
+    { terminal: "30", feed: `Constant +B (${is24 ? "24V" : "12V"})`, suggestions: constant },
+    { terminal: "15", feed: "Ignition sense (ACC)", suggestions: ignition },
+    { terminal: "31", feed: "Ground", suggestions: ground },
+  ];
+}
+
 /**
  * Build the numbered install sequence for a profile. Vehicle-specific data
  * (fusebox location, cut point, sender access) is spliced into the universal
@@ -67,16 +131,20 @@ export function buildInstallSteps(p: VehicleProfile): Step[] {
 }
 
 /**
- * Monochrome single-line schematic (ISO-sheet style) of the tracker harness +
- * relay engine cut-off. Wire colours are carried as code labels (RD/BK/YL/OR/WH)
- * so the drawing prints like an AutoCAD sheet. Vehicle-side wiring varies —
- * verify every connection with a multimeter.
+ * Colour-coded single-line schematic (ISO-sheet style) of the tracker harness +
+ * relay engine cut-off. Traces carry their actual IEC 60757 wire colour
+ * (RD/BK/YL/OR/WH) and feeds are tagged with DIN 72552 terminal numbers
+ * (T30=+B, T15=ACC, T31=GND). Vehicle-side wiring varies — verify every
+ * connection with a multimeter.
  */
 export function VehicleWiringDiagram({ voltage }: { voltage: VehicleProfile["voltage"] }) {
   const is24 = voltage === "24V";
   const vLabel = is24 ? "24V" : "12V";
   const ink = "#0f172a";
   const note = "#64748b";
+  // Harness wire colours — drawn as their actual IEC 60757 colour so the
+  // single-line sheet is colour-coded to ISO convention. BK=ink already.
+  const WIRE = { rd: "#dc2626", bk: "#0f172a", yl: "#ca8a04", or: "#ea580c", wh: "#9ca3af" };
   return (
     <svg
       viewBox="0 0 460 300"
@@ -126,12 +194,12 @@ export function VehicleWiringDiagram({ voltage }: { voltage: VehicleProfile["vol
       <line x1="54" y1="66" x2="54" y2="82" stroke={ink} strokeWidth="2.5" />
       <line x1="58" y1="70" x2="58" y2="78" stroke={ink} strokeWidth="1" />
       <text x="64" y="72" fontSize="8" fontWeight="700" fill={ink}>+</text>
-      <line x1="58" y1="74" x2="96" y2="74" stroke={ink} strokeWidth="1.5" />
+      <line x1="58" y1="74" x2="96" y2="74" stroke={WIRE.rd} strokeWidth="1.5" />
 
       {/* ============ RD: battery + → pin 1 (fused F1) ============ */}
-      <path d="M96,74 L120,74 L120,140 L180,140" stroke={ink} strokeWidth="1.5" fill="none" />
+      <path d="M96,74 L120,74 L120,140 L180,140" stroke={WIRE.rd} strokeWidth="1.5" fill="none" />
       <circle cx="180" cy="140" r="2" fill={ink} />
-      <text x="104" y="68" fontSize="6" fontWeight="700" fill={ink}>RD +B</text>
+      <text x="104" y="68" fontSize="6" fontWeight="700" fill={WIRE.rd}>RD +B · T30</text>
       <rect x="113" y="96" width="14" height="18" fill="#ffffff" stroke={ink} strokeWidth="1.2" />
       <line x1="120" y1="96" x2="120" y2="114" stroke={ink} strokeWidth="1" />
       <text x="130" y="108" fontSize="6" fill={ink}>F1 2A</text>
@@ -139,16 +207,16 @@ export function VehicleWiringDiagram({ voltage }: { voltage: VehicleProfile["vol
       {/* ============ BK: pin 2 → chassis ground ============ */}
       <path d="M180,160 L150,160 L150,250 L70,250 L70,254" stroke={ink} strokeWidth="1.5" fill="none" />
       <circle cx="180" cy="160" r="2" fill={ink} />
-      <text x="80" y="244" fontSize="6" fontWeight="700" fill={ink}>BK GND</text>
+      <text x="80" y="244" fontSize="6" fontWeight="700" fill={ink}>BK GND · T31</text>
       <line x1="62" y1="254" x2="78" y2="254" stroke={ink} strokeWidth="2" />
       <line x1="65" y1="258" x2="75" y2="258" stroke={ink} strokeWidth="1.4" />
       <line x1="68" y1="262" x2="72" y2="262" stroke={ink} strokeWidth="0.9" />
 
       {/* ============ YL: pin 3 → ignition sense ============ */}
-      <path d="M290,140 L330,140 L330,78 L392,78" stroke={ink} strokeWidth="1.5" fill="none" />
+      <path d="M290,140 L330,140 L330,78 L392,78" stroke={WIRE.yl} strokeWidth="1.5" fill="none" />
       <circle cx="290" cy="140" r="2" fill={ink} />
       <circle cx="392" cy="78" r="2" fill={ink} />
-      <text x="336" y="72" fontSize="6" fontWeight="700" fill={ink}>YL ACC</text>
+      <text x="336" y="72" fontSize="6" fontWeight="700" fill={WIRE.yl}>YL ACC · T15</text>
       <rect x="384" y="56" width="56" height="44" fill="none" stroke={ink} strokeWidth="0.8" strokeDasharray="5 3" />
       <circle cx="394" cy="78" r="2" fill="none" stroke={ink} strokeWidth="1.2" />
       <circle cx="414" cy="78" r="2" fill="none" stroke={ink} strokeWidth="1.2" />
@@ -157,16 +225,16 @@ export function VehicleWiringDiagram({ voltage }: { voltage: VehicleProfile["vol
       <text x="412" y="50" textAnchor="middle" fontSize="6" fontWeight="700" fill={ink}>ACC LINE</text>
 
       {/* ============ OR: pin 4 → K1 coil (hops over feed) ============ */}
-      <path d="M290,160 L305,160 L305,203 A8,8 0 0 0 305,219 L305,235 L310,235" stroke={ink} strokeWidth="1.5" fill="none" />
+      <path d="M290,160 L305,160 L305,203 A8,8 0 0 0 305,219 L305,235 L310,235" stroke={WIRE.or} strokeWidth="1.5" fill="none" />
       <circle cx="290" cy="160" r="2" fill={ink} />
-      <text x="300" y="152" fontSize="6" fontWeight="700" fill={ink} textAnchor="middle">OR CUT-OUT</text>
+      <text x="300" y="152" fontSize="6" fontWeight="700" fill={WIRE.or} textAnchor="middle">OR CUT-OUT</text>
 
       {/* ============ pump feed: fused source → CUT → K1 → M1 ============ */}
       <rect x="24" y="196" width="72" height="30" fill="#ffffff" stroke={ink} strokeWidth="1.5" />
       <text x="60" y="210" textAnchor="middle" fontSize="6.5" fontWeight="700" fill={ink}>FUSED +12V</text>
       <text x="60" y="219" textAnchor="middle" fontSize="5" fill={note}>PUMP FEED</text>
-      <line x1="96" y1="211" x2="160" y2="211" stroke={ink} strokeWidth="1.5" />
-      <text x="102" y="203" fontSize="6" fontWeight="700" fill={ink}>RD PUMP FEED</text>
+      <line x1="96" y1="211" x2="160" y2="211" stroke={WIRE.rd} strokeWidth="1.5" />
+      <text x="102" y="203" fontSize="6" fontWeight="700" fill={WIRE.rd}>RD PUMP FEED</text>
       <line x1="164" y1="205" x2="164" y2="217" stroke={ink} strokeWidth="1.5" />
       <line x1="170" y1="205" x2="170" y2="217" stroke={ink} strokeWidth="1.5" />
       <text x="167" y="200" textAnchor="middle" fontSize="6" fontWeight="700" fill={ink}>CUT</text>
@@ -197,15 +265,15 @@ export function VehicleWiringDiagram({ voltage }: { voltage: VehicleProfile["vol
       {/* coil + pins 85/86 */}
       <rect x="358" y="228" width="34" height="14" fill="none" stroke={ink} strokeWidth="1.1" />
       <text x="375" y="238" textAnchor="middle" fontSize="5.5" fill={ink}>COIL</text>
-      <line x1="310" y1="235" x2="358" y2="235" stroke={ink} strokeWidth="1.5" />
+      <line x1="310" y1="235" x2="358" y2="235" stroke={WIRE.or} strokeWidth="1.5" />
       <text x="330" y="231" fontSize="5" fill={note}>85</text>
-      <line x1="392" y1="235" x2="405" y2="235" stroke={ink} strokeWidth="1.5" />
-      <line x1="405" y1="235" x2="405" y2="188" stroke={ink} strokeWidth="1.5" />
+      <line x1="392" y1="235" x2="405" y2="235" stroke={WIRE.wh} strokeWidth="1.5" />
+      <line x1="405" y1="235" x2="405" y2="188" stroke={WIRE.wh} strokeWidth="1.5" />
       <circle cx="405" cy="188" r="1.8" fill={ink} />
       <text x="398" y="231" fontSize="5" fill={note}>86</text>
       {/* WH: pin 86 → chassis ground */}
-      <line x1="405" y1="188" x2="405" y2="112" stroke={ink} strokeWidth="1.5" />
-      <text x="416" y="115" fontSize="6" fontWeight="700" fill={ink}>WH GND</text>
+      <line x1="405" y1="188" x2="405" y2="112" stroke={WIRE.wh} strokeWidth="1.5" />
+      <text x="416" y="115" fontSize="6" fontWeight="700" fill={note}>WH GND · T31</text>
       <line x1="397" y1="112" x2="413" y2="112" stroke={ink} strokeWidth="2" />
       <line x1="400" y1="116" x2="410" y2="116" stroke={ink} strokeWidth="1.4" />
       <line x1="403" y1="120" x2="407" y2="120" stroke={ink} strokeWidth="0.9" />
@@ -236,7 +304,7 @@ export function VehicleWiringDiagram({ voltage }: { voltage: VehicleProfile["vol
 
       {/* ============ legend + notes ============ */}
       <text x="170" y="66" fontSize="5.5" fill={note}>
-        WIRE CODES: RD=RED · BK=BLACK · YL=YELLOW · OR=ORANGE · WH=WHITE
+        WIRE COLOURS PER IEC 60757 · TERMINALS PER DIN 72552 — T30=+B · T15=ACC · T31=GND
       </text>
       <text x="24" y="270" fontSize="5.5" fill={note}>
         K1 = OPTIONAL CUT-OFF RELAY · CONTACTS SHOWN DE-ENERGISED (NC): PUMP RUNS

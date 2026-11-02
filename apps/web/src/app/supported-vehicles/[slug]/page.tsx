@@ -11,6 +11,7 @@ import {
   Fuel,
   KeyRound,
   MapPin,
+  PlugZap,
   Radio,
   ShieldAlert,
   Wrench,
@@ -23,7 +24,7 @@ import {
   profileTitle,
   type VehicleProfile,
 } from "@/lib/vehicle-profiles";
-import { buildInstallSteps, VehicleWiringDiagram } from "@/components/vehicle/install-guide";
+import { buildInstallSteps, powerTapSuggestions, VehicleWiringDiagram } from "@/components/vehicle/install-guide";
 import { SiteHeader } from "@/components/marketing/site-header";
 
 const CATEGORY_LABEL: Record<VehicleProfile["category"], string> = {
@@ -71,6 +72,7 @@ export default function VehicleProfilePage() {
   }
 
   const steps = buildInstallSteps(profile);
+  const powerTaps = powerTapSuggestions(profile);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -161,6 +163,38 @@ export default function VehicleProfilePage() {
           </p>
           <div className="mt-4 overflow-x-auto">
             <VehicleWiringDiagram voltage={profile.voltage} />
+          </div>
+        </section>
+
+        {/* suggested power tap points — hedged, verify before tapping */}
+        <section className="mt-4 rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="flex items-center gap-2 text-[15px] font-bold">
+            <PlugZap className="size-4.5 text-cyan-700" /> Suggested power tap points
+          </h2>
+          <p className="mt-1 text-[12.5px] text-slate-500">
+            Where installers usually have the most luck on this kind of vehicle —
+            suggestions, not guarantees. Probe every candidate with a multimeter
+            before you tap.
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            {powerTaps.map((t) => (
+              <div key={t.terminal} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center gap-2">
+                  <span className="rounded-md bg-cyan-700 px-1.5 py-0.5 font-mono text-[11px] font-bold text-white">
+                    T{t.terminal}
+                  </span>
+                  <span className="text-[12.5px] font-semibold">{t.feed}</span>
+                </div>
+                <ul className="mt-2.5 space-y-2">
+                  {t.suggestions.map((s) => (
+                    <li key={s} className="flex gap-2 text-[12.5px] leading-relaxed text-slate-600">
+                      <span className="mt-1.5 size-1 shrink-0 rounded-full bg-cyan-600" />
+                      {s}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         </section>
 
