@@ -1,9 +1,5 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight, BadgeCheck } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 const FEATURED_DEVICES = [
   {
@@ -36,8 +32,6 @@ const MORE_PROTOCOLS = [
 ];
 
 export function DevicesSection() {
-  const [expanded, setExpanded] = useState(false);
-
   return (
     <section id="devices" className="mx-auto max-w-6xl px-6 py-16">
       <div className="mx-auto mb-12 max-w-2xl text-center">
@@ -76,23 +70,21 @@ export function DevicesSection() {
       </div>
 
       <div className="mt-7 text-center">
-        <button
-          onClick={() => setExpanded((e) => !e)}
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
+        <ul className="mx-auto grid max-w-3xl gap-2.5 sm:grid-cols-2">
+          {MORE_PROTOCOLS.map((p) => (
+            <li key={p} className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-3 text-left text-[13px]">
+              <BadgeCheck className="size-4 shrink-0 text-success" />
+              {p}
+            </li>
+          ))}
+        </ul>
+        <Link
+          href="/supported-devices"
+          className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
         >
-          {expanded ? "Show less" : "View all supported devices"}
-          <ArrowRight className={cn("size-4 transition-transform", expanded && "rotate-90")} />
-        </button>
-        {expanded && (
-          <ul className="mx-auto mt-5 grid max-w-3xl gap-2.5 sm:grid-cols-2">
-            {MORE_PROTOCOLS.map((p) => (
-              <li key={p} className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-3 text-left text-[13px]">
-                <BadgeCheck className="size-4 shrink-0 text-success" />
-                {p}
-              </li>
-            ))}
-          </ul>
-        )}
+          View all {">"}30 supported devices
+          <ArrowRight className="size-4" />
+        </Link>
       </div>
     </section>
   );

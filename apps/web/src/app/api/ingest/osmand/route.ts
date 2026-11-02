@@ -6,8 +6,6 @@ import { createAdminClient, isServiceRoleConfigured } from "@/lib/supabase/serve
 type PositionInsert = Database["public"]["Tables"]["positions"]["Insert"];
 type DeviceUpdate = Database["public"]["Tables"]["devices"]["Update"];
 
-export const runtime = "edge";
-
 /**
  * OsmAnd-compatible HTTP ingest — Traccar's simplest protocol, implemented
  * natively so HTTP-capable sources (Traccar Client phone app, GPS loggers,
