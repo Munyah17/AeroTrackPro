@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ApplyForm } from "@/components/marketing/apply-form";
 import { HeroSlider } from "@/components/marketing/hero-slider";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { DevicesSection } from "@/components/marketing/devices-section";
@@ -108,12 +107,12 @@ export default function LandingPage() {
           ))}
         </ul>
         <div className="mt-8 text-center">
-          <a
-            href="#apply"
+          <Link
+            href="/apply"
             className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-card transition-colors hover:bg-primary/90"
           >
             Talk to us about your fleet <ArrowRight className="size-4" />
-          </a>
+          </Link>
         </div>
       </section>
 
@@ -179,34 +178,6 @@ export default function LandingPage() {
           <p className="mt-6 text-center text-xs text-muted-foreground">
             Volume and fleet discounts available — add-ons can be fitted during the same visit.
           </p>
-        </div>
-      </section>
-
-      {/* ── Apply ── */}
-      <section id="apply" className="mx-auto max-w-6xl px-6 py-16">
-        <div className="grid items-start gap-10 lg:grid-cols-[0.9fr_1.1fr]">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary">Get fitted</p>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight">Apply for tracking today</h2>
-            <p className="mt-4 max-w-md leading-relaxed text-muted-foreground">
-              Pick your services, pay with EcoCash, OneMoney, InnBucks or bank
-              transfer, and we schedule your installation. Hardware and fitting
-              are always included.
-            </p>
-            <ul className="mt-6 space-y-3 text-sm">
-              {[
-                "Instant mobile-money approval on your phone",
-                "Bank transfer options with clear instructions",
-                "Our team confirms every application the same day",
-              ].map((t) => (
-                <li key={t} className="flex items-start gap-2.5">
-                  <BadgeCheck className="mt-0.5 size-4 shrink-0 text-success" />
-                  <span>{t}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <ApplyForm />
         </div>
       </section>
 
