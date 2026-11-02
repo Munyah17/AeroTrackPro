@@ -157,7 +157,7 @@ export default function VehicleProfilePage() {
             <KeyRound className="size-4.5 text-cyan-700" /> Wiring diagram
           </h2>
           <p className="mt-1 text-[12.5px] text-slate-500">
-            Tracker harness + relay cut-off — colours shown are the harness colours, NOT the vehicle&apos;s.
+            Tracker harness + relay cut-off — wire codes (RD/BK/YL/OR/WH) are the harness colours, NOT the vehicle&apos;s. Verify with a multimeter.
           </p>
           <div className="mt-4 overflow-x-auto">
             <VehicleWiringDiagram voltage={profile.voltage} />
