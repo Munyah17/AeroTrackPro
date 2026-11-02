@@ -178,6 +178,35 @@ export default function LandingPage() {
           <p className="mt-6 text-center text-xs text-muted-foreground">
             Volume and fleet discounts available — add-ons can be fitted during the same visit.
           </p>
+
+          {/* ── Bring-your-own-device: for external installers & resellers ── */}
+          <div className="mt-8 flex flex-col items-center justify-between gap-5 rounded-2xl border border-primary/40 bg-primary/5 p-6 sm:flex-row sm:p-7">
+            <div className="text-center sm:text-left">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-primary">
+                For installers &amp; resellers
+              </p>
+              <h3 className="mt-1.5 text-lg font-bold tracking-tight">
+                Already fit trackers? Put your devices on AeroTrack
+              </h3>
+              <p className="mt-1.5 max-w-xl text-[13px] leading-relaxed text-muted-foreground">
+                Whatever hardware you install — it joins our platform. You keep your
+                supplier and fitting business; we give you the map, alarms,
+                reports and customer-facing app to sell under your own service.
+              </p>
+            </div>
+            <div className="shrink-0 text-center sm:text-right">
+              <div className="flex items-baseline justify-center gap-1 sm:justify-end">
+                <span className="text-4xl font-extrabold tracking-tight">$3.50</span>
+                <span className="text-xs text-muted-foreground">/ device / month</span>
+              </div>
+              <Link
+                href="/register"
+                className="mt-3 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-card transition-colors hover:bg-primary/90"
+              >
+                Onboard your devices <ArrowRight className="size-4" />
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
 
