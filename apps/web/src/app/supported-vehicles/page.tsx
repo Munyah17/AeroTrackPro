@@ -132,49 +132,65 @@ export default function SupportedVehiclesPage() {
             </p>
           </div>
         ) : (
-          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((p) => {
               const Icon = CATEGORY_ICON[p.category] ?? Car;
               return (
-                <Link
+                <div
                   key={p.slug}
-                  href={`/supported-vehicles/${p.slug}`}
-                  className="group rounded-xl border border-slate-200 bg-white p-4 transition hover:border-cyan-500 hover:shadow-md"
+                  className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:border-cyan-500 hover:shadow-md"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <Icon className="mt-0.5 size-5 shrink-0 text-slate-400 group-hover:text-cyan-600" />
-                    <div className="flex items-center gap-1.5">
+                  {/* featured image */}
+                  <div className="relative h-40 bg-slate-100">
+                    <img
+                      src={`https://picsum.photos/seed/vehicle-${p.slug}/640/400`}
+                      alt={`${p.make} ${p.model}`}
+                      className="absolute inset-0 size-full object-cover"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/45 to-transparent" />
+                    <Icon className="absolute bottom-3 left-4 size-6 text-white drop-shadow" />
+                    <div className="absolute right-3 top-3 flex items-center gap-1.5">
                       {p.hybrid_or_ev && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[10.5px] font-semibold text-orange-700">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/95 px-2 py-0.5 text-[10.5px] font-semibold text-white">
                           <Zap className="size-3" /> Hybrid/EV
                         </span>
                       )}
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${
                           p.difficulty === "easy"
-                            ? "bg-emerald-100 text-emerald-700"
+                            ? "bg-emerald-500/95 text-white"
                             : p.difficulty === "advanced"
-                              ? "bg-red-100 text-red-700"
-                              : "bg-sky-100 text-sky-700"
+                              ? "bg-red-500/95 text-white"
+                              : "bg-sky-500/95 text-white"
                         }`}
                       >
                         {DIFFICULTY_LABEL[p.difficulty]}
                       </span>
                     </div>
                   </div>
-                  <div className="mt-2.5 text-[15px] font-bold">
-                    {p.make} {p.model}
+                  {/* title + description + action */}
+                  <div className="flex flex-1 flex-col p-5">
+                    <h3 className="text-[15px] font-bold">
+                      {p.make} {p.model}
+                    </h3>
+                    <p className="mt-0.5 text-[12.5px] text-slate-500">
+                      {[p.variant, yearsLabel(p), p.voltage, p.market]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                    <p className="mt-2 flex-1 text-[13px] leading-relaxed text-slate-600">
+                      {p.install_notes ??
+                        "Step-by-step tracker install guide — power, ignition sense, remote cut-off and a wiring diagram for this model."}
+                    </p>
+                    <Link
+                      href={`/supported-vehicles/${p.slug}`}
+                      className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-lg bg-cyan-700 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-cyan-800"
+                    >
+                      View install guide
+                      <ChevronRight className="size-3.5 transition group-hover:translate-x-0.5" />
+                    </Link>
                   </div>
-                  <div className="mt-0.5 text-[12.5px] text-slate-500">
-                    {[p.variant, yearsLabel(p), p.voltage, p.market]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </div>
-                  <div className="mt-3 flex items-center gap-1 text-[12.5px] font-medium text-cyan-700">
-                    View install profile
-                    <ChevronRight className="size-3.5 transition group-hover:translate-x-0.5" />
-                  </div>
-                </Link>
+                </div>
               );
             })}
           </div>
