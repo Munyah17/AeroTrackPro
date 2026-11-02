@@ -72,6 +72,11 @@ export default function SupportedVehiclesPage() {
             most — power, ignition detection, remote engine cut-off, fuel
             sensing and accessories, with wiring diagrams per model.
           </p>
+          {!loading && (
+            <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-3.5 py-1.5 text-[12px] font-semibold text-cyan-800">
+              {profiles.length} vehicle models covered — growing continuously
+            </p>
+          )}
         </div>
 
         {/* disclaimer */}
