@@ -48,6 +48,7 @@ export function StatCard({
   trendLabel,
   footer,
   delay = 0,
+  compact = false,
 }: {
   label: string;
   value: number;
@@ -59,6 +60,8 @@ export function StatCard({
   trendLabel?: string;
   footer?: React.ReactNode;
   delay?: number;
+  /** Tighter padding + smaller type — use for dense stat rows. */
+  compact?: boolean;
 }) {
   return (
     <motion.div
@@ -66,21 +69,22 @@ export function StatCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay, ease: "easeOut" }}
     >
-      <Panel hover className="h-full p-4 sm:p-5">
-        <div className="flex items-start gap-3 sm:gap-4">
+      <Panel hover className={cn("h-full", compact ? "p-3 sm:p-3.5" : "p-4 sm:p-5")}>
+        <div className={cn("flex items-start", compact ? "gap-2.5" : "gap-3 sm:gap-4")}>
           <div
             className={cn(
-              "flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary",
+              "flex shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary",
+              compact ? "size-9" : "size-11",
               iconClassName,
             )}
           >
-            <Icon className="size-5" />
+            <Icon className={compact ? "size-4.5" : "size-5"} />
           </div>
           <div className="min-w-0">
-            <div className="text-[13px] font-medium text-muted-foreground">{label}</div>
-            <div className="mt-0.5 text-xl font-bold tracking-tight tabular-nums sm:text-[26px]">
+            <div className={cn("font-medium text-muted-foreground", compact ? "text-[12px]" : "text-[13px]")}>{label}</div>
+            <div className={cn("mt-0.5 font-bold tracking-tight tabular-nums", compact ? "text-lg sm:text-xl" : "text-xl sm:text-[26px]")}>
               <AnimatedNumber value={value} decimals={decimals} />
-              {suffix && <span className="ml-1 text-lg font-semibold text-muted-foreground">{suffix}</span>}
+              {suffix && <span className={cn("ml-1 font-semibold text-muted-foreground", compact ? "text-sm" : "text-lg")}>{suffix}</span>}
             </div>
             {trend !== undefined ? (
               <div

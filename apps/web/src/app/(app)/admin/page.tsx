@@ -16,10 +16,21 @@ import { Pill } from "@/components/shared/status";
 import { StatCard } from "@/components/shared/stat-card";
 import { usd, timeAgo } from "@/lib/format";
 
-const MRR_TREND = [
-  { m: "Jan", mrr: 640 }, { m: "Feb", mrr: 720 }, { m: "Mar", mrr: 810 },
-  { m: "Apr", mrr: 905 }, { m: "May", mrr: 1015 }, { m: "Jun", mrr: 1116 }, { m: "Jul", mrr: 1215 },
-];
+/** Last `months` months of billed volume, oldest → newest. */
+function billingTrend(invoices: { issuedAt: string; amountUsd: number }[], months: number) {
+  const out: { m: string; mrr: number }[] = [];
+  const now = new Date();
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    out.push({ m: d.toLocaleString("en-US", { month: "short" }), mrr: 0 });
+  }
+  for (const inv of invoices) {
+    const d = new Date(inv.issuedAt);
+    const idx = months - 1 - ((now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth()));
+    if (idx >= 0 && idx < months) out[idx]!.mrr += inv.amountUsd;
+  }
+  return out;
+}
 
 export default function AdminOverviewPage() {
   const { rows: tenants } = useTenants();
@@ -29,27 +40,35 @@ export default function AdminOverviewPage() {
   const devices = tenants.reduce((n, t) => n + t.vehicleCount, 0);
   const openTickets = tickets.filter((t) => t.status !== "closed").length;
   const overdue = invoices.filter((i) => i.status === "overdue").length;
+  const trend = billingTrend(invoices, 7);
 
   return (
     <PageContainer>
       <PageHeader title="Platform Overview" subtitle="Your white-label tracking business at a glance" />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
-        <StatCard label="Client Organizations" value={tenants.length} icon={Building2} trend={2} trendLabel="this quarter" />
-        <StatCard label="Monthly Recurring Revenue" value={mrr} suffix="USD" icon={CreditCard} trend={9.8} trendLabel="MoM" delay={0.05} />
-        <StatCard label="Devices Online" value={devices} icon={Radio} delay={0.1} />
-        <StatCard label="Open Tickets" value={openTickets} icon={LifeBuoy} iconClassName="bg-warning/15 text-warning-foreground" delay={0.15} />
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <StatCard compact label="Monthly Recurring Revenue" value={mrr} suffix="USD" icon={CreditCard} />
+        <StatCard compact label="Client Organizations" value={tenants.length} icon={Building2} delay={0.05} />
+        <StatCard compact label="Devices Online" value={devices} icon={Radio} delay={0.1} />
+        <StatCard
+          compact
+          label="Open Tickets"
+          value={openTickets}
+          icon={LifeBuoy}
+          iconClassName="bg-warning/15 text-warning-foreground"
+          delay={0.15}
+        />
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Panel className="p-5 xl:col-span-2">
           <div className="flex items-center gap-2">
             <TrendingUp className="size-4.5 text-primary" />
-            <h3 className="text-[15px] font-semibold">MRR Growth (USD)</h3>
+            <h3 className="text-[15px] font-semibold">Billed Volume (USD)</h3>
           </div>
           <div className="mt-4 h-64">
             <ResponsiveContainer>
-              <AreaChart data={MRR_TREND}>
+              <AreaChart data={trend}>
                 <defs>
                   <linearGradient id="mrrFill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.25} />
