@@ -61,6 +61,14 @@ function toDomainVehicle(
 
 const TRAIL_MAX_POINTS = 240;
 
+/* Last loaded fleet — revisiting the tracking page paints instantly while
+   the live query revalidates. Cleared on sign-out via clearFleetCache(). */
+let cachedFleet: Vehicle[] = [];
+
+export function clearFleetCache() {
+  cachedFleet = [];
+}
+
 /**
  * Fleet with live positions.
  *
@@ -76,8 +84,8 @@ export function useFleet(): {
   live: boolean;
   trails: Record<string, [number, number][]>;
 } {
-  const [fleet, setFleet] = useState<Vehicle[]>([]);
-  const [live, setLive] = useState(false);
+  const [fleet, setFleet] = useState<Vehicle[]>(cachedFleet);
+  const [live, setLive] = useState(cachedFleet.length > 0);
   const [trails, setTrails] = useState<Record<string, [number, number][]>>({});
   const rowsRef = useRef<Map<string, VehicleRow>>(new Map());
 
@@ -128,7 +136,9 @@ export function useFleet(): {
         const deviceFor = (r: VehicleRow) =>
           r.device_id ? devicesById.get(r.device_id) : undefined;
         rowsRef.current = new Map(vehicleRows.map((r) => [r.id, r]));
-        setFleet(vehicleRows.map((r) => toDomainVehicle(r, latest.get(r.id), deviceFor(r))));
+        const fresh = vehicleRows.map((r) => toDomainVehicle(r, latest.get(r.id), deviceFor(r)));
+        cachedFleet = fresh;
+        setFleet(fresh);
         setLive(true);
 
         const channel = supabase

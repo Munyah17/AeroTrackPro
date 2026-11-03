@@ -28,6 +28,17 @@ type SupabaseClient = Awaited<typeof import("@/lib/supabase")>["supabase"];
 /* The tenant id is stable for the session — resolve once, share everywhere. */
 let tenantIdPromise: Promise<string | null> | null = null;
 
+/* Raw query results cached for the session — page revisits render instantly
+   from cache while a fresh fetch revalidates in the background. Keys are the
+   raw select (table|order|ascending|limit); callers pass their own mapper. */
+const rawCache = new Map<string, unknown[]>();
+
+/** Drop all cached table data (call on sign-out / tenant switch). */
+export function clearLiveDataCache() {
+  rawCache.clear();
+  tenantIdPromise = null;
+}
+
 /** Current tenant id (or null when unauthenticated). Exported for Storage paths. */
 export async function getLiveTenantId(): Promise<string | null> {
   try {
@@ -90,9 +101,21 @@ export function useTenantTable<T extends TableName, D = Row<T>>(
 ): LiveTable<T, D> {
   const { map, fallback, order, ascending = false, limit = 500, realtime = false } = opts;
   const tenantScoped = opts.tenantScoped !== false;
-  const [rows, setRows] = useState<D[]>((fallback ?? []) as D[]);
-  const [live, setLive] = useState(false);
-  const [loading, setLoading] = useState(true);
+  /* `filter` is a builder callback — can't be cache-keyed reliably. */
+  const cacheKey = opts.filter
+    ? null
+    : `${table}|${order ?? ""}|${ascending}|${limit}`;
+  const [rows, setRows] = useState<D[]>(() => {
+    const raw = cacheKey ? rawCache.get(cacheKey) : undefined;
+    if (raw) {
+      return raw.map((r) =>
+        opts.map ? opts.map(r as unknown as Row<T>) : (r as unknown as D),
+      );
+    }
+    return (fallback ?? []) as D[];
+  });
+  const [live, setLive] = useState(() => !!(cacheKey && rawCache.has(cacheKey)));
+  const [loading, setLoading] = useState(() => !(cacheKey && rawCache.has(cacheKey)));
   const [tick, setTick] = useState(0);
   const optsRef = useRef(opts);
   optsRef.current = opts;
@@ -112,17 +135,21 @@ export function useTenantTable<T extends TableName, D = Row<T>>(
         const { data, error } = await q;
         if (cancelled) return;
         if (error) {
-          setRows((optsRef.current.fallback ?? []) as D[]);
-          setLive(false);
+          if (!cacheKey || !rawCache.has(cacheKey)) {
+            setRows((optsRef.current.fallback ?? []) as D[]);
+          }
+          setLive(!!(cacheKey && rawCache.has(cacheKey)));
         } else {
-          const mapped = (data ?? []).map((r) =>
-            optsRef.current.map ? optsRef.current.map(r as unknown as Row<T>) : (r as unknown as D),
+          const raw = (data ?? []) as unknown[];
+          if (cacheKey) rawCache.set(cacheKey, raw);
+          const mapped = raw.map((r) =>
+            optsRef.current.map ? optsRef.current.map(r as Row<T>) : (r as unknown as D),
           );
           setRows(mapped);
           setLive(true);
         }
       } catch {
-        if (!cancelled) {
+        if (!cancelled && !cacheKey) {
           setRows((optsRef.current.fallback ?? []) as D[]);
           setLive(false);
         }

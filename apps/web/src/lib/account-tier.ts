@@ -15,11 +15,18 @@ export interface AccountTier {
   email: string;
 }
 
+/* Session-scoped cache — the login page resolves the tier, then the
+   RoleProvider reuses it instead of hitting Supabase a second time. */
+let cached: { userId: string; tier: AccountTier } | null = null;
+
+export function clearAccountTierCache() {
+  cached = null;
+}
+
 /**
- * Resolve the signed-in user's portal tier from their users row and their
- * tenant's account_kind. Returns null when there's no session or no profile
- * (demo mode / registration incomplete) — callers fall back to the demo
- * localStorage switcher.
+ * Resolve the signed-in user's portal tier from their users row joined to
+ * their tenant — ONE query. Returns null when there's no session or no
+ * profile. Callers redirect unauthenticated sessions to /login.
  *
  *   users.role = 'super_admin'          → Master Portal
  *   tenant.account_kind = 'reseller'    → Reseller Portal
@@ -27,10 +34,16 @@ export interface AccountTier {
  */
 export async function resolveAccountTier(): Promise<AccountTier | null> {
   try {
+    /* getSession reads the local session — no network round trip. */
     const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return null;
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user;
+    if (!user) {
+      cached = null;
+      return null;
+    }
+    if (cached?.userId === user.id) return cached.tier;
 
     const { data: me } = await supabase
       .from("users")
@@ -53,15 +66,17 @@ export async function resolveAccountTier(): Promise<AccountTier | null> {
           ? "reseller"
           : "user";
 
-    return {
+    const tier: AccountTier = {
       role,
       tenantId: me.tenant_id,
-      fullName: me.full_name ?? "",
-      email: me.email ?? user.email ?? "",
       tenantName: org?.name ?? "",
       accountKind,
       userRole: me.role,
+      fullName: me.full_name ?? "",
+      email: me.email ?? user.email ?? "",
     };
+    cached = { userId: user.id, tier };
+    return tier;
   } catch {
     return null;
   }

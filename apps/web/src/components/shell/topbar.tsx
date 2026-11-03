@@ -160,7 +160,16 @@ export function Topbar() {
   };
 
   const signOut = async () => {
-    const { supabase } = await import("@/lib/supabase");
+    const [{ supabase }, { clearAccountTierCache }, { clearLiveDataCache }, { clearFleetCache }] =
+      await Promise.all([
+        import("@/lib/supabase"),
+        import("@/lib/account-tier"),
+        import("@/hooks/use-live-data"),
+        import("@/hooks/use-fleet"),
+      ]);
+    clearAccountTierCache();
+    clearLiveDataCache();
+    clearFleetCache();
     await supabase.auth.signOut();
     router.replace("/login");
   };
