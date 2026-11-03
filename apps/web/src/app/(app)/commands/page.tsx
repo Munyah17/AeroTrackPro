@@ -38,14 +38,6 @@ const CMD_LABELS: Record<string, string> = {
   custom: "Custom",
 };
 
-const FALLBACK_HISTORY: HistoryRow[] = [
-  { id: "h1", command: { type: "engineResume" }, status: "sent", created_at: new Date(Date.now() - 2 * 3600e3).toISOString(), error: null, requested_by_name: "Munya M.", vehicle: { plate: "AFC 1187", name: "" } },
-  { id: "h2", command: { type: "locate" }, status: "sent", created_at: new Date(Date.now() - 5 * 3600e3).toISOString(), error: null, requested_by_name: "Rudo C.", vehicle: { plate: "AEC 4521", name: "" } },
-  { id: "h3", command: { type: "engineStop" }, status: "sent", created_at: new Date(Date.now() - 6 * 3600e3).toISOString(), error: null, requested_by_name: "Munya M.", vehicle: { plate: "AFC 1187", name: "" } },
-  { id: "h4", command: { type: "setInterval" }, status: "sent", created_at: new Date(Date.now() - 26 * 3600e3).toISOString(), error: null, requested_by_name: "api", vehicle: { plate: "ADQ 9902", name: "" } },
-  { id: "h5", command: { type: "reboot" }, status: "failed", created_at: new Date(Date.now() - 30 * 3600e3).toISOString(), error: "device offline", requested_by_name: "Munya M.", vehicle: { plate: "AEA 1029", name: "" } },
-];
-
 function timeAgo(iso: string): string {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
   if (mins < 1) return "just now";
@@ -67,7 +59,6 @@ export default function CommandsPage() {
   const [vehicleId, setVehicleId] = useState("");
   const [sending, setSending] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryRow[]>([]);
-  const [demoMode, setDemoMode] = useState(false);
   const vehicle = vehicles.find((v) => v.id === vehicleId) ?? vehicles[0];
   const device = vehicle ? getDeviceModel(vehicle.deviceModelId) : undefined;
   const caps = device?.capabilities;
@@ -76,17 +67,10 @@ export default function CommandsPage() {
     try {
       const res = await fetch("/api/commands", { cache: "no-store" });
       if (!res.ok) throw new Error();
-      const body = (await res.json()) as { mode?: string; commands: HistoryRow[] };
-      if (body.mode === "demo") {
-        setDemoMode(true);
-        setHistory(FALLBACK_HISTORY);
-      } else {
-        setDemoMode(false);
-        setHistory(body.commands);
-      }
+      const body = (await res.json()) as { commands: HistoryRow[] };
+      setHistory(body.commands);
     } catch {
-      setDemoMode(true);
-      setHistory(FALLBACK_HISTORY);
+      setHistory([]);
     }
   }, []);
 
@@ -113,16 +97,14 @@ export default function CommandsPage() {
         return;
       }
       const dispatch = body.dispatch as { kind?: string; reason?: string } | undefined;
-      if (body.mode === "demo" || dispatch?.kind === "queued") {
+      if (dispatch?.kind === "queued") {
         toast.info(`${label} queued for ${vehicle.plate}`, {
           description:
             dispatch?.reason === "native_queued"
               ? "Queued for the device socket — delivers when the tracker connects."
               : dispatch?.reason === "device_offline"
                 ? "Device offline — Traccar holds it for the next connection."
-                : dispatch?.reason === "device_not_linked"
-                  ? "Device not yet linked to Traccar — sends when it next reports in."
-                  : "Demo mode — command recorded but no transport is configured.",
+                : "Device not yet linked to Traccar — sends when it next reports in.",
         });
       } else if (dispatch?.kind === "failed") {
         toast.error(`${label} rejected`, { description: "Traccar refused the command — see history for detail." });
@@ -229,9 +211,7 @@ export default function CommandsPage() {
         <Panel className="overflow-hidden">
           <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
             <h3 className="text-[15px] font-semibold">Command History</h3>
-            {(live || demoMode) && (
-              <Pill tone={demoMode ? "warning" : "success"}>{demoMode ? "demo" : "live"}</Pill>
-            )}
+            {live && <Pill tone="success">live</Pill>}
           </div>
           <div className="divide-y divide-border/50">
             {history.length === 0 && (

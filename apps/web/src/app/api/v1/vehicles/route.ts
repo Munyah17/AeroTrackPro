@@ -2,7 +2,6 @@ import { z } from "zod";
 import { withApi } from "../_lib/handler";
 import { requireScope } from "../_lib/auth";
 import { created, ok, parseListParams } from "../_lib/respond";
-import { demoVehicles } from "../_lib/demo";
 
 const createVehicleSchema = z.object({
   plate: z.string().min(1),
@@ -31,14 +30,6 @@ export const GET = withApi(async (req, ctx) => {
     .parse(url.searchParams.get("status"));
   const q = url.searchParams.get("q")?.toLowerCase();
 
-  if (ctx.mode === "demo") {
-    let rows = demoVehicles();
-    if (status) rows = rows.filter((v) => v.status === status);
-    if (q) rows = rows.filter((v) => `${v.plate} ${v.name} ${v.make} ${v.model}`.toLowerCase().includes(q));
-    const total = rows.length;
-    return ok(rows.slice(offset, offset + limit), { meta: { page, limit, total, mode: "demo" } });
-  }
-
   let query = ctx.db
     .from("vehicles")
     .select("*", { count: "exact" })
@@ -56,10 +47,6 @@ export const GET = withApi(async (req, ctx) => {
 export const POST = withApi(async (req, ctx) => {
   requireScope(ctx, "write");
   const body = createVehicleSchema.parse(await req.json());
-
-  if (ctx.mode === "demo") {
-    return created({ id: `veh-demo-${Date.now()}`, tenant_id: "demo", ...body, persisted: false });
-  }
 
   const { data, error } = await ctx.db
     .from("vehicles")

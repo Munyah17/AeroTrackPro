@@ -1,17 +1,9 @@
 import { withApi } from "../../../_lib/handler";
 import { requireScope } from "../../../_lib/auth";
 import { notFound, ok } from "../../../_lib/respond";
-import { demoAlerts } from "../../../_lib/demo";
 
 export const POST = withApi(async (_req, ctx, params) => {
   requireScope(ctx, "write");
-
-  if (ctx.mode === "demo") {
-    const alert = demoAlerts().find((a) => a.id === params.id);
-    return alert
-      ? ok({ ...alert, status: "acknowledged", acknowledged_at: new Date().toISOString(), persisted: false })
-      : notFound("alert");
-  }
 
   const { data, error } = await ctx.db
     .from("alerts")

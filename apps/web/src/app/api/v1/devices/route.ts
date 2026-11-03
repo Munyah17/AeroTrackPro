@@ -2,7 +2,6 @@ import { z } from "zod";
 import { withApi } from "../_lib/handler";
 import { requireScope } from "../_lib/auth";
 import { created, ok, parseListParams } from "../_lib/respond";
-import { demoDevices } from "../_lib/demo";
 
 const createDeviceSchema = z.object({
   imei: z.string().regex(/^\d{14,17}$/, "IMEI must be 14-17 digits"),
@@ -19,13 +18,6 @@ export const GET = withApi(async (req, ctx) => {
   const url = new URL(req.url);
   const { limit, page, offset } = parseListParams(url);
 
-  if (ctx.mode === "demo") {
-    const rows = demoDevices();
-    return ok(rows.slice(offset, offset + limit), {
-      meta: { page, limit, total: rows.length, mode: "demo" },
-    });
-  }
-
   const { data, error, count } = await ctx.db
     .from("devices")
     .select("*", { count: "exact" })
@@ -39,10 +31,6 @@ export const GET = withApi(async (req, ctx) => {
 export const POST = withApi(async (req, ctx) => {
   requireScope(ctx, "write");
   const body = createDeviceSchema.parse(await req.json());
-
-  if (ctx.mode === "demo") {
-    return created({ id: `dev-demo-${Date.now()}`, tenant_id: "demo", status: "active", ...body, persisted: false });
-  }
 
   const { data, error } = await ctx.db
     .from("devices")

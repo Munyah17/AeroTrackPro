@@ -2,7 +2,6 @@ import { z } from "zod";
 import { withApi } from "../_lib/handler";
 import { requireScope } from "../_lib/auth";
 import { badRequest, created, ok } from "../_lib/respond";
-import { demoGeofences } from "../_lib/demo";
 
 const lngLat = z.tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)]);
 
@@ -19,10 +18,6 @@ const createGeofenceSchema = z.object({
 });
 
 export const GET = withApi(async (_req, ctx) => {
-  if (ctx.mode === "demo") {
-    return ok(demoGeofences(), { meta: { mode: "demo" } });
-  }
-
   const { data, error } = await ctx.db
     .from("geofences")
     .select("*")
@@ -41,10 +36,6 @@ export const POST = withApi(async (req, ctx) => {
   }
   if (body.kind === "polygon" && !body.points) {
     return badRequest("polygon geofences require `points`");
-  }
-
-  if (ctx.mode === "demo") {
-    return created({ id: `geo-demo-${Date.now()}`, tenant_id: "demo", ...body, persisted: false });
   }
 
   const { data, error } = await ctx.db

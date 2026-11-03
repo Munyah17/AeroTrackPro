@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { isServiceRoleConfigured } from "@/lib/supabase/server";
 
 /** API index — a live, self-describing endpoint map. */
 export async function GET() {
   return NextResponse.json({
     name: "AeroTrack Pro API",
     version: "v1",
-    mode: isServiceRoleConfigured() ? "live" : "demo",
+    mode: "live",
     authentication: "Authorization: Bearer atk_<key> (manage keys in Settings → API)",
     endpoints: {
       vehicles: {

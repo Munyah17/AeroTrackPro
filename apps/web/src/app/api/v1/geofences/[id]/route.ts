@@ -2,7 +2,6 @@ import { z } from "zod";
 import { withApi } from "../../_lib/handler";
 import { requireScope } from "../../_lib/auth";
 import { notFound, ok } from "../../_lib/respond";
-import { demoGeofences } from "../../_lib/demo";
 
 const lngLat = z.tuple([z.number().min(-180).max(180), z.number().min(-90).max(90)]);
 
@@ -18,11 +17,6 @@ const updateGeofenceSchema = z.object({
 });
 
 export const GET = withApi(async (_req, ctx, params) => {
-  if (ctx.mode === "demo") {
-    const geofence = demoGeofences().find((g) => g.id === params.id);
-    return geofence ? ok(geofence) : notFound("geofence");
-  }
-
   const { data, error } = await ctx.db
     .from("geofences")
     .select("*")
@@ -37,11 +31,6 @@ export const PATCH = withApi(async (req, ctx, params) => {
   requireScope(ctx, "write");
   const body = updateGeofenceSchema.parse(await req.json());
 
-  if (ctx.mode === "demo") {
-    const geofence = demoGeofences().find((g) => g.id === params.id);
-    return geofence ? ok({ ...geofence, ...body, persisted: false }) : notFound("geofence");
-  }
-
   const { data, error } = await ctx.db
     .from("geofences")
     .update(body as never)
@@ -55,10 +44,6 @@ export const PATCH = withApi(async (req, ctx, params) => {
 
 export const DELETE = withApi(async (_req, ctx, params) => {
   requireScope(ctx, "write");
-
-  if (ctx.mode === "demo") {
-    return ok({ id: params.id, deleted: true, persisted: false });
-  }
 
   const { data, error } = await ctx.db
     .from("geofences")

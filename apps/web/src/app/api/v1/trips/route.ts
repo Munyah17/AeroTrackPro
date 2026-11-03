@@ -1,6 +1,5 @@
 import { withApi } from "../_lib/handler";
 import { ok, parseListParams } from "../_lib/respond";
-import { demoTrips } from "../_lib/demo";
 
 export const GET = withApi(async (req, ctx) => {
   const url = new URL(req.url);
@@ -8,15 +7,6 @@ export const GET = withApi(async (req, ctx) => {
   const vehicleId = url.searchParams.get("vehicle_id");
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
-
-  if (ctx.mode === "demo") {
-    let rows = demoTrips();
-    if (vehicleId) rows = rows.filter((t) => t.vehicle_id === vehicleId);
-    if (from) rows = rows.filter((t) => t.start_at >= from);
-    if (to) rows = rows.filter((t) => t.start_at <= to);
-    const total = rows.length;
-    return ok(rows.slice(offset, offset + limit), { meta: { page, limit, total, mode: "demo" } });
-  }
 
   let query = ctx.db
     .from("trips")

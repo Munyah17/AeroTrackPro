@@ -6,7 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@aerotrack/shared";
 import { createAdminClient, isServiceRoleConfigured } from "@/lib/supabase/server";
 
-export type LiveContext = {
+export type ApiContext = {
   mode: "live";
   db: SupabaseClient<Database>;
   tenantId: string;
@@ -14,13 +14,9 @@ export type LiveContext = {
   apiKeyId: string;
 };
 
-export type DemoContext = { mode: "demo" };
-
-export type ApiContext = LiveContext | DemoContext;
-
 export class ApiAuthError extends Error {
   constructor(
-    public status: 401 | 403,
+    public status: 401 | 403 | 503,
     message: string,
   ) {
     super(message);
@@ -33,14 +29,11 @@ export function hashApiKey(rawKey: string): string {
 
 /**
  * Resolves the caller's tenant from a bearer API key (`Authorization: Bearer atk_...`).
- *
- * Without a service-role key configured the API runs in demo mode: read
- * endpoints serve the mock fleet so integrations can be built before the
- * database exists; write endpoints accept and echo without persisting.
+ * Requires the service-role key — the API never fabricates demo responses.
  */
 export async function authenticate(request: NextRequest): Promise<ApiContext> {
   if (!isServiceRoleConfigured()) {
-    return { mode: "demo" };
+    throw new ApiAuthError(503, "API is not configured on this deployment");
   }
 
   const header = request.headers.get("authorization") ?? "";
@@ -77,7 +70,6 @@ export async function authenticate(request: NextRequest): Promise<ApiContext> {
 }
 
 export function requireScope(ctx: ApiContext, scope: "read" | "write") {
-  if (ctx.mode === "demo") return;
   if (ctx.scopes.includes(scope) || ctx.scopes.includes("*")) return;
   throw new ApiAuthError(403, `API key lacks the "${scope}" scope`);
 }

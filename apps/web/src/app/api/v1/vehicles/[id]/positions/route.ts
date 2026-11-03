@@ -1,6 +1,5 @@
 import { withApi } from "../../../_lib/handler";
 import { badRequest, ok, parseListParams } from "../../../_lib/respond";
-import { demoPositionHistory } from "../../../_lib/demo";
 
 export const GET = withApi(async (req, ctx, params) => {
   const url = new URL(req.url);
@@ -9,10 +8,6 @@ export const GET = withApi(async (req, ctx, params) => {
   const to = url.searchParams.get("to");
   if (from && isNaN(Date.parse(from))) return badRequest("`from` must be an ISO timestamp");
   if (to && isNaN(Date.parse(to))) return badRequest("`to` must be an ISO timestamp");
-
-  if (ctx.mode === "demo") {
-    return ok(demoPositionHistory(params.id!, limit), { meta: { limit, mode: "demo" } });
-  }
 
   let query = ctx.db
     .from("positions")

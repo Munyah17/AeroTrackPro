@@ -1,6 +1,5 @@
 import { withApi } from "../../_lib/handler";
 import { ok } from "../../_lib/respond";
-import { demoLatestPositions } from "../../_lib/demo";
 
 /**
  * Latest known position for every vehicle in the tenant.
@@ -12,10 +11,6 @@ import { demoLatestPositions } from "../../_lib/demo";
  * positions so nothing drops off the map mid-migration.
  */
 export const GET = withApi(async (_req, ctx) => {
-  if (ctx.mode === "demo") {
-    return ok(demoLatestPositions(), { meta: { mode: "demo" } });
-  }
-
   const { data: devices, error: devError } = await ctx.db
     .from("devices")
     .select(

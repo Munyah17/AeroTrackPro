@@ -12,32 +12,16 @@ import { NOTIFY_EVENTS, defaultPrefs, type ChannelPrefs } from "@/lib/notify-eve
 /**
  * Notification Settings — persisted per-event channel opt-in.
  *
- * Loads prefs from /api/settings/notification-prefs (Supabase-backed). In
- * demo mode (no session / no Supabase) changes fall back to localStorage so
- * the toggles still behave realistically before auth is enabled.
+ * Loads prefs from /api/settings/notification-prefs (Supabase-backed).
+ * Requires a signed-in session; failed loads show an error, not fake data.
  */
 
-const LS_KEY = "at-notify-prefs";
-const LS_PHONE = "at-notify-phone";
-
 type PrefMap = Record<string, ChannelPrefs>;
-
-function loadLocal(): { prefs: PrefMap; phone: string } {
-  try {
-    return {
-      prefs: JSON.parse(localStorage.getItem(LS_KEY) ?? "{}"),
-      phone: localStorage.getItem(LS_PHONE) ?? "",
-    };
-  } catch {
-    return { prefs: {}, phone: "" };
-  }
-}
 
 export default function NotificationSettingsPage() {
   const [prefs, setPrefs] = useState<PrefMap>({});
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [demo, setDemo] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -50,23 +34,15 @@ export default function NotificationSettingsPage() {
       })
       .then((data) => {
         if (!active) return;
-        if (data.mode === "demo") {
-          const local = loadLocal();
-          setPrefs(local.prefs);
-          setPhone(local.phone);
-          setDemo(true);
-        } else {
-          setPrefs(data.prefs ?? {});
-          setPhone(data.phone ?? "");
-          setEmail(data.email ?? "");
-        }
+        setPrefs(data.prefs ?? {});
+        setPhone(data.phone ?? "");
+        setEmail(data.email ?? "");
       })
       .catch(() => {
         if (!active) return;
-        const local = loadLocal();
-        setPrefs(local.prefs);
-        setPhone(local.phone);
-        setDemo(true);
+        toast.error("Couldn't load your preferences", {
+          description: "Check your connection and refresh.",
+        });
       })
       .finally(() => active && setLoading(false));
     return () => {
@@ -85,13 +61,6 @@ export default function NotificationSettingsPage() {
 
   const save = async () => {
     setSaving(true);
-    if (demo) {
-      localStorage.setItem(LS_KEY, JSON.stringify(prefs));
-      localStorage.setItem(LS_PHONE, phone);
-      toast.success("Notification preferences saved (demo — sign in to sync)");
-      setSaving(false);
-      return;
-    }
     const payload = {
       phone: phone || null,
       prefs: NOTIFY_EVENTS.map((e) => ({ event_type: e.id, ...prefFor(e.id) })),
@@ -145,12 +114,6 @@ export default function NotificationSettingsPage() {
               />
             </div>
           </div>
-          {demo && (
-            <p className="mt-3 rounded-xl border border-warning/40 bg-warning/5 p-3 text-xs text-warning">
-              Demo mode — preferences save to this browser only. Sign in to sync
-              them to your account.
-            </p>
-          )}
         </Panel>
 
         <Panel className="overflow-hidden">

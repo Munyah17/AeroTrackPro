@@ -17,8 +17,7 @@ import { commandSchema, recordAndDispatch } from "@/lib/device-commands";
  * Auth: cookie session. Writes go through the service role because
  * device_commands intentionally grants app users select+insert only —
  * status transitions are system-owned.
- * Demo mode (no Supabase): GET returns an empty list, POST echoes a queued
- * fake so the UI flow can be exercised.
+ * Requires a configured database — the API never fabricates responses.
  */
 
 const postSchema = z
@@ -49,7 +48,7 @@ async function sessionUser() {
 
 export async function GET(req: NextRequest) {
   if (!isSupabaseConfigured() || !isServiceRoleConfigured()) {
-    return NextResponse.json({ mode: "demo", commands: [] });
+    return NextResponse.json({ error: "API is not configured on this deployment" }, { status: 503 });
   }
 
   const me = await sessionUser();
@@ -94,14 +93,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   if (!isSupabaseConfigured() || !isServiceRoleConfigured()) {
-    return NextResponse.json(
-      {
-        mode: "demo",
-        command: { id: `cmd-demo-${Date.now()}`, status: "pending" },
-        dispatch: { kind: "queued", reason: "traccar_unconfigured" },
-      },
-      { status: 201 },
-    );
+    return NextResponse.json({ error: "API is not configured on this deployment" }, { status: 503 });
   }
 
   const me = await sessionUser();

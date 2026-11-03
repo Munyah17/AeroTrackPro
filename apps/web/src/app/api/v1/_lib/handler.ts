@@ -22,7 +22,9 @@ export function withApi(
       return await handler(req, ctx, params);
     } catch (error) {
       if (error instanceof ApiAuthError) {
-        return apiError(error.status, error.status === 401 ? "unauthorized" : "forbidden", error.message);
+        const code =
+          error.status === 401 ? "unauthorized" : error.status === 403 ? "forbidden" : "unavailable";
+        return apiError(error.status, code, error.message);
       }
       if (error instanceof ZodError) {
         return badRequest(error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));

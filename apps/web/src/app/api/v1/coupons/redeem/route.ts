@@ -30,10 +30,7 @@ export async function GET(req: NextRequest) {
   if (!code) return badRequest("code query parameter is required");
 
   if (!isServiceRoleConfigured()) {
-    return ok(
-      { code, amount_usd: 50, litres: null, fuel_type: "diesel", status: "active", expires_at: null },
-      { meta: { mode: "demo" } },
-    );
+    return apiError(503, "unavailable", "API is not configured on this deployment");
   }
 
   const db = createAdminClient();
@@ -52,13 +49,7 @@ export async function POST(req: NextRequest) {
     const body = redeemSchema.parse(await req.json());
 
     if (!isServiceRoleConfigured()) {
-      return ok({
-        code: body.code,
-        status: "redeemed",
-        redeemed_station: body.station,
-        redeemed_at: new Date().toISOString(),
-        persisted: false,
-      });
+      return apiError(503, "unavailable", "API is not configured on this deployment");
     }
 
     const db = createAdminClient();

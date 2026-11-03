@@ -2,7 +2,6 @@ import { z } from "zod";
 import { withApi } from "../../_lib/handler";
 import { requireScope } from "../../_lib/auth";
 import { notFound, ok } from "../../_lib/respond";
-import { demoVehicles } from "../../_lib/demo";
 
 const updateVehicleSchema = z.object({
   plate: z.string().min(1).optional(),
@@ -23,11 +22,6 @@ const updateVehicleSchema = z.object({
 });
 
 export const GET = withApi(async (_req, ctx, params) => {
-  if (ctx.mode === "demo") {
-    const vehicle = demoVehicles().find((v) => v.id === params.id);
-    return vehicle ? ok(vehicle) : notFound("vehicle");
-  }
-
   const { data: vehicle, error } = await ctx.db
     .from("vehicles")
     .select("*")
@@ -52,11 +46,6 @@ export const PATCH = withApi(async (req, ctx, params) => {
   requireScope(ctx, "write");
   const body = updateVehicleSchema.parse(await req.json());
 
-  if (ctx.mode === "demo") {
-    const vehicle = demoVehicles().find((v) => v.id === params.id);
-    return vehicle ? ok({ ...vehicle, ...body, persisted: false }) : notFound("vehicle");
-  }
-
   const { data, error } = await ctx.db
     .from("vehicles")
     .update(body as never)
@@ -70,10 +59,6 @@ export const PATCH = withApi(async (req, ctx, params) => {
 
 export const DELETE = withApi(async (_req, ctx, params) => {
   requireScope(ctx, "write");
-
-  if (ctx.mode === "demo") {
-    return ok({ id: params.id, deleted: true, persisted: false });
-  }
 
   const { data, error } = await ctx.db
     .from("vehicles")

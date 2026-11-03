@@ -4,10 +4,6 @@ import { created, notFound, ok } from "../../../_lib/respond";
 import { commandSchema, recordAndDispatch } from "@/lib/device-commands";
 
 export const GET = withApi(async (_req, ctx, params) => {
-  if (ctx.mode === "demo") {
-    return ok([], { meta: { mode: "demo" } });
-  }
-
   const { data, error } = await ctx.db
     .from("device_commands")
     .select("*")
@@ -22,16 +18,6 @@ export const GET = withApi(async (_req, ctx, params) => {
 export const POST = withApi(async (req, ctx, params) => {
   requireScope(ctx, "write");
   const command = commandSchema.parse(await req.json());
-
-  if (ctx.mode === "demo") {
-    return created({
-      id: `cmd-demo-${Date.now()}`,
-      device_id: params.id,
-      command,
-      status: "pending",
-      persisted: false,
-    });
-  }
 
   // Confirm the device belongs to this tenant before dispatching.
   const { data: device } = await ctx.db

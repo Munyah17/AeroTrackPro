@@ -15,8 +15,7 @@ import { NOTIFY_EVENTS, isNotifyEvent } from "@/lib/notify-events";
  *        stores the SMS destination on users.phone.
  *
  * Session auth via cookies (RLS confines writes to the caller's own rows).
- * Demo mode (no Supabase): GET returns the catalog, PUT returns 503 and the
- * page falls back to localStorage.
+ * Requires a configured database — never fabricates preferences.
  */
 
 const prefSchema = z.object({
@@ -33,7 +32,7 @@ const putSchema = z.object({
 
 export async function GET() {
   if (!isSupabaseConfigured()) {
-    return NextResponse.json({ mode: "demo", events: NOTIFY_EVENTS, prefs: {}, phone: null });
+    return NextResponse.json({ error: "API is not configured on this deployment" }, { status: 503 });
   }
 
   const sb = await createSupabaseServerClient();
@@ -76,7 +75,7 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   if (!isSupabaseConfigured()) {
-    return NextResponse.json({ error: "demo mode — preferences kept locally" }, { status: 503 });
+    return NextResponse.json({ error: "API is not configured on this deployment" }, { status: 503 });
   }
 
   let body: z.infer<typeof putSchema>;
