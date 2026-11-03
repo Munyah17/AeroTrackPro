@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { BrandMark } from "@/components/brand/mark";
 import { useBrand } from "@/components/shell/brand-provider";
 import { signInWithEmail } from "@/lib/supabase";
+import { resolveAccountTier } from "@/lib/account-tier";
+import { defaultPortal, hasFleetAccess, homeFor } from "@/lib/rbac";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -48,7 +50,17 @@ export default function LoginPage() {
       return;
     }
     toast.success(login.welcome, { description: values.email });
-    router.push("/select-tenant");
+    /* Land the user in their tier's portal: master → /admin, reseller →
+       /reseller, client → /tracking. No profile row → org chooser. */
+    const tier = await resolveAccountTier();
+    if (tier) {
+      router.push(
+        homeFor(tier.role, defaultPortal(tier.role), hasFleetAccess(tier.role, false)),
+      );
+    } else {
+      router.push("/select-tenant");
+    }
+    setLoading(false);
   };
 
   return (

@@ -15,6 +15,7 @@ import {
   writeDelegates,
   type FleetDelegate,
 } from "@/lib/fleet-access";
+import { resolveAccountTier } from "@/lib/account-tier";
 
 interface GrantInput {
   name: string;
@@ -71,6 +72,23 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     setRoleState(nextRole);
     setPortalState(nextPortal);
     if (!delegate && storedDelegateId) localStorage.removeItem(ACTIVE_DELEGATE_KEY);
+
+    /* A real signed-in session overrides the demo switcher — the user's
+       DB tier decides which portal they land in. */
+    void resolveAccountTier().then((tier) => {
+      if (!tier) return;
+      localStorage.setItem(ROLE_KEY, tier.role);
+      setRoleState(tier.role);
+      setPortalState((current) =>
+        tier.role === "user" && (current === "reseller" || current === "master")
+          ? "tracking"
+          : tier.role === "reseller" && (current === "master" || current === "tracking")
+            ? "reseller"
+            : tier.role === "super_admin" && current === "tracking"
+              ? "master"
+              : current,
+      );
+    });
     setReady(true);
   }, []);
 
