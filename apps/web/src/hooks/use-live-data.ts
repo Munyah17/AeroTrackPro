@@ -2,15 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  alerts as mockAlerts,
-  deviceHealth as mockDeviceHealth,
-  drivers as mockDrivers,
-  fuelRecords as mockFuelRecords,
-  geofences as mockGeofences,
-  groups as mockGroups,
-  maintenance as mockMaintenance,
-  trips as mockTrips,
-  vehicles as mockVehicles,
   type Database,
   type DeviceHealth,
   type Driver,
@@ -60,7 +51,7 @@ function tenantId(supabase: SupabaseClient): Promise<string | null> {
 }
 
 export interface LiveTable<T extends TableName, D> {
-  /** Rows in UI/domain shape — live rows when Supabase answers, mock fallback otherwise. */
+  /** Rows in UI/domain shape — live rows when Supabase answers, [] otherwise. */
   rows: D[];
   /** True when data actually came from Supabase. */
   live: boolean;
@@ -89,9 +80,9 @@ interface Options<T extends TableName, D> {
 }
 
 /**
- * Generic tenant-scoped table reader with mock fallback.
+ * Generic tenant-scoped table reader.
  * RLS scopes every query to the caller's tenant, so no manual tenant filter
- * is needed — a query error (no session) flips the page to mock mode.
+ * is needed — a query error leaves the table empty.
  */
 export function useTenantTable<T extends TableName, D = Row<T>>(
   table: T,
@@ -408,7 +399,7 @@ export const toNotification = (r: Row<"notifications">): AppNotification => ({
 /* ------------------------------------------------------------------ */
 
 export const useDrivers = () =>
-  useTenantTable("drivers", { map: toDriver, fallback: mockDrivers, order: "name", ascending: true });
+  useTenantTable("drivers", { map: toDriver, order: "name", ascending: true });
 
 export const useDriverEvents = () =>
   useTenantTable("driver_events", {
@@ -419,34 +410,22 @@ export const useDriverEvents = () =>
   });
 
 export const useFuelRecords = () =>
-  useTenantTable("fuel_records", { map: toFuelRecord, fallback: mockFuelRecords, order: "recorded_at" });
+  useTenantTable("fuel_records", { map: toFuelRecord, order: "recorded_at" });
 
 export const useGeofences = () =>
-  useTenantTable("geofences", { map: toGeofence, fallback: mockGeofences, order: "created_at" });
+  useTenantTable("geofences", { map: toGeofence, order: "created_at" });
 
 export const useAlerts = () =>
-  useTenantTable("alerts", { map: toAlert, fallback: mockAlerts, order: "created_at", realtime: true });
+  useTenantTable("alerts", { map: toAlert, order: "created_at", realtime: true });
 
 export const useTrips = () =>
-  useTenantTable("trips", { map: toTrip, fallback: mockTrips, order: "start_at", limit: 200 });
+  useTenantTable("trips", { map: toTrip, order: "start_at", limit: 200 });
 
 export const useMaintenanceItems = () =>
-  useTenantTable("maintenance_items", { map: toMaintenanceItem, fallback: mockMaintenance, order: "due_date" });
-
-/** Demo policies derived from mock vehicle insurance expiry dates. */
-const mockPolicies: InsurancePolicy[] = mockVehicles
-  .filter((v) => v.insuranceExpiry)
-  .map((v, i) => ({
-    id: `pol-${i + 1}`,
-    vehicleId: v.id,
-    policyNumber: `FLEET-2026-${v.id.replace("veh-", "").padStart(3, "0")}`,
-    provider: "Fleet Underwriters",
-    expiryDate: v.insuranceExpiry!,
-    status: "active",
-  }));
+  useTenantTable("maintenance_items", { map: toMaintenanceItem, order: "due_date" });
 
 export const useInsurancePolicies = () =>
-  useTenantTable("insurance_policies", { map: toPolicy, fallback: mockPolicies, order: "expiry_date" });
+  useTenantTable("insurance_policies", { map: toPolicy, order: "expiry_date" });
 
 export const useNotifications = () =>
   useTenantTable("notifications", {
@@ -466,14 +445,14 @@ export const toGroup = (r: Row<"vehicle_groups">): VehicleGroup => ({
 });
 
 export const useVehicleGroups = () =>
-  useTenantTable("vehicle_groups", { map: toGroup, fallback: mockGroups, order: "name", ascending: true });
+  useTenantTable("vehicle_groups", { map: toGroup, order: "name", ascending: true });
 
 /**
  * Device health joins devices → vehicles (via vehicles.device_id).
  * Not a plain table read, so it runs its own two-query effect.
  */
 export function useDeviceHealth(): { rows: DeviceHealth[]; live: boolean } {
-  const [rows, setRows] = useState<DeviceHealth[]>(mockDeviceHealth);
+  const [rows, setRows] = useState<DeviceHealth[]>([]);
   const [live, setLive] = useState(false);
 
   useEffect(() => {
@@ -515,7 +494,7 @@ export function useDeviceHealth(): { rows: DeviceHealth[]; live: boolean } {
         );
         setLive(true);
       } catch {
-        /* mock fallback stays */
+        /* leave rows empty */
       }
     })();
     return () => {

@@ -1,21 +1,9 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import {
-  defaultPortal,
-  hasFleetAccess,
-  isPortal,
-  normalizeRole,
-  type Portal,
-  type Role,
-} from "@/lib/rbac";
-import {
-  ACTIVE_DELEGATE_KEY,
-  readDelegates,
-  writeDelegates,
-  type FleetDelegate,
-} from "@/lib/fleet-access";
-import { resolveAccountTier } from "@/lib/account-tier";
+import { defaultPortal, hasFleetAccess, isPortal, type Portal, type Role } from "@/lib/rbac";
+import { readDelegates, writeDelegates, type FleetDelegate } from "@/lib/fleet-access";
+import { resolveAccountTier, type AccountTier } from "@/lib/account-tier";
 
 interface GrantInput {
   name: string;
@@ -25,106 +13,57 @@ interface GrantInput {
 }
 
 interface RoleState {
+  /** The signed-in account's role — always from the DB profile, never a switcher. */
   role: Role;
+  /** Surface being shown. Super admins move between surfaces; everyone else is fixed. */
   portal: Portal;
-  /** The grant currently being previewed. Null for the founder's own login. */
-  delegateId: string | null;
-  delegate: FleetDelegate | null;
+  /** Fleet grants issued by Master Admin — the /admin/fleet-partnerships ledger. */
   delegates: FleetDelegate[];
-  /** True for Master Admin, and for a session previewing a fleet grant. */
   fleetAccess: boolean;
+  /** True once the session's tier has been resolved (or confirmed absent). */
   ready: boolean;
-  setRole: (role: Role) => void;
+  /** True when a signed-in account with a users profile resolved. */
+  authed: boolean;
+  /** The resolved account for identity display. Null when unauthenticated. */
+  session: AccountTier | null;
   setPortal: (portal: Portal) => void;
   grantFleet: (input: GrantInput) => FleetDelegate;
   revokeFleet: (id: string) => void;
-  previewDelegate: (id: string) => void;
 }
 
 const RoleContext = createContext<RoleState | null>(null);
 
-const ROLE_KEY = "at-role";
-const PORTAL_KEY = "at-portal";
-
 export function RoleProvider({ children }: { children: React.ReactNode }) {
-  const [role, setRoleState] = useState<Role>("super_admin");
+  const [session, setSession] = useState<AccountTier | null>(null);
   const [portal, setPortalState] = useState<Portal>("master");
-  const [delegateId, setDelegateId] = useState<string | null>(null);
   const [delegates, setDelegates] = useState<FleetDelegate[]>([]);
   const [ready, setReady] = useState(false);
+  const [authed, setAuthed] = useState(false);
 
   useEffect(() => {
-    const storedDelegates = readDelegates();
-    const storedDelegateId = localStorage.getItem(ACTIVE_DELEGATE_KEY);
-    const delegate = storedDelegates.find((d) => d.id === storedDelegateId) ?? null;
-    const nextRole = delegate ? delegate.role : normalizeRole(localStorage.getItem(ROLE_KEY));
-    const storedPortal = localStorage.getItem(PORTAL_KEY);
-    let nextPortal = isPortal(storedPortal) ? storedPortal : defaultPortal(nextRole);
-    const access = hasFleetAccess(nextRole, !!delegate);
-    if (nextPortal === "fleet" && !access) nextPortal = defaultPortal(nextRole);
-    if (nextRole === "user" && nextPortal === "reseller") nextPortal = "tracking";
-    if (nextRole === "reseller" && (nextPortal === "master" || nextPortal === "tracking")) {
-      nextPortal = "reseller";
-    }
-    if (nextRole === "super_admin" && nextPortal === "tracking") nextPortal = "master";
-    setDelegates(storedDelegates);
-    setDelegateId(delegate?.id ?? null);
-    setRoleState(nextRole);
-    setPortalState(nextPortal);
-    if (!delegate && storedDelegateId) localStorage.removeItem(ACTIVE_DELEGATE_KEY);
+    setDelegates(readDelegates());
 
-    /* A real signed-in session overrides the demo switcher — the user's
-       DB tier decides which portal they land in. */
     void resolveAccountTier().then((tier) => {
-      if (!tier) return;
-      localStorage.setItem(ROLE_KEY, tier.role);
-      setRoleState(tier.role);
-      setPortalState((current) =>
-        tier.role === "user" && (current === "reseller" || current === "master")
-          ? "tracking"
-          : tier.role === "reseller" && (current === "master" || current === "tracking")
-            ? "reseller"
-            : tier.role === "super_admin" && current === "tracking"
-              ? "master"
-              : current,
-      );
+      if (tier) {
+        setSession(tier);
+        setPortalState(defaultPortal(tier.role));
+        setAuthed(true);
+      }
+      setReady(true);
     });
-    setReady(true);
   }, []);
 
-  const persistPortal = useCallback((next: Portal) => {
-    setPortalState(next);
-    localStorage.setItem(PORTAL_KEY, next);
-  }, []);
-
-  const clearDelegate = useCallback(() => {
-    setDelegateId(null);
-    localStorage.removeItem(ACTIVE_DELEGATE_KEY);
-  }, []);
-
-  const delegate = delegates.find((d) => d.id === delegateId) ?? null;
-  const fleetAccess = hasFleetAccess(role, !!delegate);
-
-  const setRole = useCallback(
-    (next: Role) => {
-      setRoleState(next);
-      clearDelegate();
-      localStorage.setItem(ROLE_KEY, next);
-      persistPortal(defaultPortal(next));
-    },
-    [clearDelegate, persistPortal],
-  );
+  const role: Role = session?.role ?? "user";
+  const fleetAccess = hasFleetAccess(role, false);
 
   const setPortal = useCallback(
     (next: Portal) => {
-      if (next === "fleet" && !hasFleetAccess(role, !!delegate)) return;
-      if (role === "user" && next === "reseller") return;
-      if (role === "user" && next === "master") return;
-      if (role === "reseller" && (next === "master" || next === "tracking")) return;
-      if (role === "super_admin" && next === "tracking") return;
-      persistPortal(next);
+      if (!isPortal(next)) return;
+      /* Only the master account moves between surfaces. */
+      if (session?.role !== "super_admin") return;
+      setPortalState(next);
     },
-    [delegate, persistPortal, role],
+    [session],
   );
 
   const grantFleet = useCallback((input: GrantInput) => {
@@ -141,65 +80,28 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     return created;
   }, []);
 
-  const revokeFleet = useCallback(
-    (id: string) => {
-      setDelegates((current) => {
-        const next = current.filter((d) => d.id !== id);
-        writeDelegates(next);
-        return next;
-      });
-      if (delegateId === id) {
-        clearDelegate();
-        setRoleState("super_admin");
-        localStorage.setItem(ROLE_KEY, "super_admin");
-        persistPortal("master");
-      }
-    },
-    [clearDelegate, delegateId, persistPortal],
-  );
-
-  const previewDelegate = useCallback(
-    (id: string) => {
-      const target = delegates.find((d) => d.id === id);
-      if (!target) return;
-      setRoleState(target.role);
-      setDelegateId(target.id);
-      localStorage.setItem(ROLE_KEY, target.role);
-      localStorage.setItem(ACTIVE_DELEGATE_KEY, target.id);
-      persistPortal("fleet");
-    },
-    [delegates, persistPortal],
-  );
+  const revokeFleet = useCallback((id: string) => {
+    setDelegates((current) => {
+      const next = current.filter((d) => d.id !== id);
+      writeDelegates(next);
+      return next;
+    });
+  }, []);
 
   const value = useMemo<RoleState>(
     () => ({
       role,
       portal,
-      delegateId,
-      delegate,
       delegates,
       fleetAccess,
       ready,
-      setRole,
+      authed,
+      session,
       setPortal,
       grantFleet,
       revokeFleet,
-      previewDelegate,
     }),
-    [
-      role,
-      portal,
-      delegateId,
-      delegate,
-      delegates,
-      fleetAccess,
-      ready,
-      setRole,
-      setPortal,
-      grantFleet,
-      revokeFleet,
-      previewDelegate,
-    ],
+    [role, portal, delegates, fleetAccess, ready, authed, session, setPortal, grantFleet, revokeFleet],
   );
 
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;

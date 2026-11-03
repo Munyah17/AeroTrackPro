@@ -13,11 +13,15 @@ import { useRole } from "./role-provider";
 export function AccessGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { role, portal, fleetAccess, ready, setPortal } = useRole();
+  const { role, portal, fleetAccess, ready, authed, setPortal } = useRole();
   const allowed = canVisit(pathname, role, fleetAccess);
 
   useEffect(() => {
     if (!ready) return;
+    if (!authed) {
+      router.replace("/login");
+      return;
+    }
     if (!allowed) {
       router.replace(homeFor(role, portal, fleetAccess));
       return;
@@ -26,9 +30,9 @@ export function AccessGuard({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith("/admin") && portal !== "master") setPortal("master");
     else if (pathname.startsWith("/reseller") && portal !== "reseller") setPortal("reseller");
     else if (isFleetPath(pathname) && portal !== "fleet") setPortal("fleet");
-  }, [allowed, fleetAccess, pathname, portal, ready, role, router, setPortal]);
+  }, [allowed, authed, fleetAccess, pathname, portal, ready, role, router, setPortal]);
 
-  if (!ready || !allowed) {
+  if (!ready || !authed || !allowed) {
     return <div className="h-full min-h-[40vh]" />;
   }
   return children;

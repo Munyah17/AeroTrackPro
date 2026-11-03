@@ -1,11 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  vehicles as mockVehicles,
-  type Database,
-  type Vehicle,
-} from "@aerotrack/shared";
+import { type Database, type Vehicle } from "@aerotrack/shared";
 
 type VehicleRow = Database["public"]["Tables"]["vehicles"]["Row"];
 type PositionRow = Database["public"]["Tables"]["positions"]["Row"];
@@ -63,36 +59,14 @@ function toDomainVehicle(
   };
 }
 
-/** Nudges mock vehicles along their course so demo mode feels live. */
-function simulateTick(fleet: Vehicle[]): Vehicle[] {
-  return fleet.map((v) => {
-    if (v.status !== "moving") return v;
-    const meters = (v.position.speedKmh / 3.6) * 3;
-    const rad = (v.position.course * Math.PI) / 180;
-    const dLat = (meters * Math.cos(rad)) / 111_320;
-    const dLng = (meters * Math.sin(rad)) / (111_320 * Math.cos((v.position.lat * Math.PI) / 180));
-    const course = (v.position.course + (Math.random() - 0.5) * 8 + 360) % 360;
-    return {
-      ...v,
-      position: {
-        ...v.position,
-        lat: v.position.lat + dLat,
-        lng: v.position.lng + dLng,
-        course,
-        updatedAt: new Date().toISOString(),
-      },
-    };
-  });
-}
-
 const TRAIL_MAX_POINTS = 240;
 
 /**
  * Fleet with live positions.
  *
- * With Supabase configured and reachable: loads vehicles + latest positions
- * through RLS, then applies realtime position INSERTs as they stream in.
- * Otherwise: serves the mock fleet with simulated movement.
+ * Loads vehicles + latest positions through RLS, then applies realtime
+ * position INSERTs as they stream in. An unreachable Supabase (or an
+ * unsigned session) yields an empty fleet — never simulated rows.
  *
  * `trails` keeps the recent [lng,lat] breadcrumb per vehicle while the page
  * is open, so the map can draw a live motion trail for a monitored vehicle.
@@ -102,7 +76,7 @@ export function useFleet(): {
   live: boolean;
   trails: Record<string, [number, number][]>;
 } {
-  const [fleet, setFleet] = useState<Vehicle[]>(mockVehicles);
+  const [fleet, setFleet] = useState<Vehicle[]>([]);
   const [live, setLive] = useState(false);
   const [trails, setTrails] = useState<Record<string, [number, number][]>>({});
   const rowsRef = useRef<Map<string, VehicleRow>>(new Map());
@@ -119,21 +93,6 @@ export function useFleet(): {
   useEffect(() => {
     let cancelled = false;
     let cleanup: (() => void) | undefined;
-    let simTimer: ReturnType<typeof setInterval> | undefined;
-
-    const startSimulation = () => {
-      simTimer = setInterval(
-        () =>
-          setFleet((f) => {
-            const next = simulateTick(f);
-            for (const v of next) {
-              if (v.status === "moving") appendTrail(v.id, v.position.lng, v.position.lat);
-            }
-            return next;
-          }),
-        3000,
-      );
-    };
 
     const startLive = async () => {
       try {
@@ -151,8 +110,13 @@ export function useFleet(): {
           ]);
 
         if (cancelled) return;
-        if (vErr || pErr || !vehicleRows?.length) {
-          startSimulation();
+        if (vErr || pErr) {
+          setFleet([]);
+          return;
+        }
+        if (!vehicleRows?.length) {
+          setFleet([]);
+          setLive(true);
           return;
         }
 
@@ -191,20 +155,15 @@ export function useFleet(): {
           void supabase.removeChannel(channel);
         };
       } catch {
-        if (!cancelled) startSimulation();
+        /* leave the fleet empty — never simulate */
       }
     };
 
-    if (isConfigured) {
-      void startLive();
-    } else {
-      startSimulation();
-    }
+    if (isConfigured) void startLive();
 
     return () => {
       cancelled = true;
       cleanup?.();
-      if (simTimer) clearInterval(simTimer);
     };
   }, []);
 

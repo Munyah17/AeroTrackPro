@@ -32,7 +32,7 @@ interface ProvisionedLogin {
 }
 
 export default function ResellerClientsPage() {
-  const { rows: liveClients, live, refresh } = useResellerClients();
+  const { rows: liveClients, refresh } = useResellerClients();
   const [added, setAdded] = useState<ResellerClient[]>([]);
   const clients: ResellerClient[] = [...added, ...liveClients];
   const [query, setQuery] = useState("");
@@ -86,24 +86,9 @@ export default function ResellerClientsPage() {
             description: "A reseller session is required to provision client accounts.",
           });
         } else if (data.error === "provisioning_unavailable") {
-          /* demo mode — service role absent: still show the row locally */
-          setAdded((prev) => [
-            {
-              id: `cl-${Date.now()}`,
-              name,
-              contact: adminEmail,
-              devices: 0,
-              activeDevices: 0,
-              joinedAt: new Date().toISOString(),
-              status: "trial",
-            },
-            ...prev,
-          ]);
-          toast.info("Demo mode", {
-            description: "Service role isn't configured — client shown locally only.",
+          toast.error("Provisioning unavailable", {
+            description: "The service role key isn't configured on the server.",
           });
-          setOpen(false);
-          resetDialog();
         } else {
           toast.error("Couldn't create the client", { description: data.message ?? `HTTP ${r.status}` });
         }
@@ -225,11 +210,6 @@ export default function ResellerClientsPage() {
         }
       />
 
-      {!live && (
-        <p className="mb-3 text-[12px] text-muted-foreground">
-          Demo data — sign in as a reseller to see your real downline.
-        </p>
-      )}
       <Panel>
         <div className="border-b border-border/60 p-3">
           <div className="relative max-w-sm">

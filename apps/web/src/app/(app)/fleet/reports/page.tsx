@@ -13,7 +13,6 @@ import {
   Search,
 } from "lucide-react";
 import { toast } from "sonner";
-import { vehicles as mockVehicles } from "@aerotrack/shared";
 import {
   useAlerts,
   useDeviceHealth,
@@ -81,7 +80,6 @@ export default function FleetReportsPage() {
   /* ------------------------------- data ------------------------------- */
   const { rows: vehicles } = useTenantTable("vehicles", {
     map: (r) => ({ id: r.id, name: r.name, plate: r.plate, driverId: r.driver_id ?? null, groupId: r.group_id ?? null, groupName: r.group_name ?? null }),
-    fallback: mockVehicles.map((v) => ({ id: v.id, name: v.name, plate: v.plate, driverId: v.driverId ?? null, groupId: v.groupId ?? null, groupName: null })),
     order: "name",
     ascending: true,
   });

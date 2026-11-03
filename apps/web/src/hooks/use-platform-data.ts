@@ -1,14 +1,6 @@
 "use client";
 
 import {
-  activityLogs as mockActivity,
-  announcements as mockAnnouncements,
-  apiKeys as mockApiKeys,
-  invoices as mockInvoices,
-  plans as mockPlans,
-  tenants as mockTenants,
-  tickets as mockTickets,
-  users as mockUsers,
   type ActivityLog,
   type Announcement,
   type ApiKey,
@@ -19,7 +11,7 @@ import {
   type SupportTicket,
   type Tenant,
 } from "@aerotrack/shared";
-import { RESELLER_CLIENTS, type ResellerClient } from "@/lib/reseller";
+import { type ResellerClient } from "@/lib/reseller";
 import { useTenantTable } from "./use-live-data";
 
 type Tables = Database["public"]["Tables"];
@@ -150,30 +142,30 @@ const toAddon = (r: Row<"tenant_addons">): TenantAddon => ({
 
 /** Tenants visible under RLS (own tenant; all tenants for super admins). */
 export const useTenants = () =>
-  useTenantTable("tenants", { map: toTenant, fallback: mockTenants, order: "created_at" });
+  useTenantTable("tenants", { map: toTenant, order: "created_at" });
 
 export const usePlatformUsers = () =>
-  useTenantTable("users", { map: toPlatformUser, fallback: mockUsers, order: "created_at" });
+  useTenantTable("users", { map: toPlatformUser, order: "created_at" });
 
 export const usePlans = () =>
-  useTenantTable("plans", { map: toPlan, fallback: mockPlans, order: "sort", ascending: true, tenantScoped: false });
+  useTenantTable("plans", { map: toPlan, order: "sort", ascending: true, tenantScoped: false });
 
 export const useInvoices = () =>
-  useTenantTable("invoices", { map: toInvoice, fallback: mockInvoices, order: "issued_at" });
+  useTenantTable("invoices", { map: toInvoice, order: "issued_at" });
 
 export const useSupportTickets = () =>
-  useTenantTable("support_tickets", { map: toTicket, fallback: mockTickets, order: "created_at" });
+  useTenantTable("support_tickets", { map: toTicket, order: "created_at" });
 
 export const useApiKeys = () =>
-  useTenantTable("api_keys", { map: toApiKey, fallback: mockApiKeys, order: "created_at" });
+  useTenantTable("api_keys", { map: toApiKey, order: "created_at" });
 
 export const useActivityLogs = () =>
-  useTenantTable("activity_logs", { map: toActivity, fallback: mockActivity, order: "created_at" });
+  useTenantTable("activity_logs", { map: toActivity, order: "created_at" });
 
 export const useAnnouncements = () =>
   useTenantTable("announcements", {
     map: toAnnouncement,
-    fallback: mockAnnouncements,
+    fallback: [],
     order: "created_at",
     tenantScoped: false,
   });
@@ -184,8 +176,8 @@ export const useTenantAddons = () =>
 /**
  * Reseller downline: child `client` tenants under the signed-in reseller.
  * Under tenant RLS only what the session can read is returned, so for a
- * normal reseller login this may be empty — the demo clients remain the
- * fallback; for platform/super-admin the full client list is visible.
+ * normal reseller login this may be empty; for platform/super-admin the
+ * full client list is visible.
  */
 export const useResellerClients = () => {
   const table = useTenantTable<"tenants", ResellerClient & { accountKind?: string }>("tenants", {
@@ -202,7 +194,6 @@ export const useResellerClients = () => {
         | "suspended",
       accountKind: r.account_kind,
     }),
-    fallback: RESELLER_CLIENTS,
     order: "created_at",
   });
   /* In live mode keep only actual client tenants. */

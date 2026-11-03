@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { Building2, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useTenantTable, useVehicleGroups } from "@/hooks/use-live-data";
-import { vehicles as mockVehicles } from "@aerotrack/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
@@ -21,7 +20,6 @@ export default function FleetDepartmentsPage() {
 
   const { rows: vehicles } = useTenantTable("vehicles", {
     map: (r) => ({ id: r.id, name: r.name, plate: r.plate, groupId: r.group_id ?? null, groupName: r.group_name ?? null, driverId: r.driver_id ?? null }),
-    fallback: mockVehicles.map((v) => ({ id: v.id, name: v.name, plate: v.plate, groupId: v.groupId ?? null, groupName: null, driverId: v.driverId ?? null })),
     order: "name",
     ascending: true,
   });

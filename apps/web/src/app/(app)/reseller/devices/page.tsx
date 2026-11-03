@@ -13,29 +13,45 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { RESELLER_CLIENTS } from "@/lib/reseller";
+import { useTenantTable } from "@/hooks/use-live-data";
+import { useResellerClients } from "@/hooks/use-platform-data";
 
-const PROTOCOLS = ["GT06", "GPS103", "H02", "Queclink"];
+const ONLINE_WINDOW_MS = 15 * 60_000;
 
-/** Flatten the downline into a device roster (demo). */
-function buildRoster() {
-  const rows: { imei: string; client: string; protocol: string; online: boolean }[] = [];
-  RESELLER_CLIENTS.forEach((c, ci) => {
-    for (let i = 0; i < Math.min(c.devices, 12); i++) {
-      rows.push({
-        imei: `8${(ci + 1)}${String(100000000000 + i * 37).slice(0, 12)}`,
-        client: c.name,
-        protocol: PROTOCOLS[(ci + i) % PROTOCOLS.length]!,
-        online: i < c.activeDevices,
-      });
-    }
-  });
-  return rows;
+interface RosterRow {
+  imei: string;
+  client: string;
+  protocol: string;
+  online: boolean;
 }
 
 export default function ResellerDevicesPage() {
   const [query, setQuery] = useState("");
-  const roster = useMemo(buildRoster, []);
+
+  const { rows: devices } = useTenantTable("devices", {
+    map: (r): Omit<RosterRow, "client"> & { tenantId: string } => ({
+      imei: r.imei,
+      tenantId: r.tenant_id,
+      protocol: (r.protocol ?? "").toUpperCase(),
+      online: r.last_seen_at
+        ? Date.now() - new Date(r.last_seen_at).getTime() < ONLINE_WINDOW_MS
+        : r.status === "active",
+    }),
+    order: "imei",
+    ascending: true,
+  });
+  const { rows: clients } = useResellerClients();
+
+  const roster = useMemo<RosterRow[]>(() => {
+    const nameByTenant = new Map(clients.map((c) => [c.id, c.name]));
+    return devices.map((d) => ({
+      imei: d.imei,
+      client: nameByTenant.get(d.tenantId) ?? "—",
+      protocol: d.protocol,
+      online: d.online,
+    }));
+  }, [devices, clients]);
+
   const filtered = roster.filter(
     (r) => r.imei.includes(query) || r.client.toLowerCase().includes(query.toLowerCase()),
   );
@@ -81,6 +97,7 @@ export default function ResellerDevicesPage() {
         </div>
         <div className="border-t border-border/60 px-5 py-2.5 text-[11.5px] text-muted-foreground">
           Showing {Math.min(filtered.length, 60)} of {roster.length} devices
+          {roster.length === 0 && " — no devices registered under your clients yet"}
         </div>
       </Panel>
     </PageContainer>

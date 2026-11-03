@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { ChevronsLeft, LayoutGrid, ArrowLeftRight } from "lucide-react";
+import { ChevronsLeft, LayoutGrid } from "lucide-react";
 import { BrandMark } from "@/components/brand/mark";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type NavSection } from "@/lib/nav";
-import { isNavActive, navFor, portalLinks, ROLE_LABELS, surfaceLabel } from "@/lib/rbac";
+import { isNavActive, navFor, ROLE_LABELS, surfaceLabel } from "@/lib/rbac";
 import { useBrand } from "./brand-provider";
 import { useRole } from "./role-provider";
 
@@ -75,11 +75,8 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const { brand } = useBrand();
-  const { role, portal, fleetAccess, ready, setPortal } = useRole();
+  const { role, portal, fleetAccess, ready } = useRole();
   const sections = ready ? navFor(role, portal, fleetAccess) : [];
-  const links = ready ? portalLinks(role, fleetAccess) : [];
-  const showSwitcher = links.length > 1;
-  const next = links.find((link) => link.portal !== portal) ?? links[0];
 
   return (
     <aside
@@ -124,41 +121,6 @@ export function Sidebar({
       </ScrollArea>
 
       <div className={cn("flex flex-col gap-1 p-3", collapsed && "items-center")}>
-        {showSwitcher && !collapsed && (
-          <div className="mb-1 flex flex-col gap-0.5 rounded-xl bg-white/5 p-1">
-            {links.map((link) => (
-              <Link
-                key={link.portal}
-                href={link.href}
-                onClick={() => setPortal(link.portal)}
-                className={cn(
-                  "rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-colors",
-                  portal === link.portal
-                    ? "bg-white text-sidebar"
-                    : "text-sidebar-foreground/80 hover:bg-white/10 hover:text-white",
-                )}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
-        )}
-        {showSwitcher && collapsed && next && (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Link
-                  href={next.href}
-                  onClick={() => setPortal(next.portal)}
-                  className="flex size-9 items-center justify-center rounded-xl text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-white"
-                >
-                  <ArrowLeftRight className="size-[18px]" />
-                </Link>
-              }
-            />
-            <TooltipContent side="right">Switch to {next.label}</TooltipContent>
-          </Tooltip>
-        )}
         {!collapsed && ready && (
           <div className="flex items-center gap-2 px-3 py-1.5 text-[10.5px] text-sidebar-foreground/45">
             <LayoutGrid className="size-3.5" />

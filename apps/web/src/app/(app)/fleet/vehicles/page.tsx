@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { Car, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { vehicles as mockVehicles } from "@aerotrack/shared";
 import { useDrivers, useTenantTable } from "@/hooks/use-live-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,17 +53,6 @@ export default function FleetVehiclesPage() {
       driverId: r.driver_id ?? undefined,
       odometerKm: r.odometer_km != null ? Number(r.odometer_km) : undefined,
     }),
-    fallback: mockVehicles.map((v) => ({
-      id: v.id,
-      name: v.name,
-      plate: v.plate,
-      model: `${v.make} ${v.model}`,
-      kind: v.kind,
-      group: v.groupId ? "Assigned" : "Ungrouped",
-      status: v.status === "moving" || v.status === "idle" ? "active" : v.status,
-      driverId: v.driverId,
-      odometerKm: v.odometerKm,
-    })),
     order: "name",
     ascending: true,
   });

@@ -10,6 +10,9 @@ export interface AccountTier {
   accountKind: string;
   /** users.role for this person inside their tenant. */
   userRole: string;
+  /** Display name + login for header identity. */
+  fullName: string;
+  email: string;
 }
 
 /**
@@ -31,7 +34,7 @@ export async function resolveAccountTier(): Promise<AccountTier | null> {
 
     const { data: me } = await supabase
       .from("users")
-      .select("tenant_id, role")
+      .select("tenant_id, role, full_name, email")
       .eq("auth_id", user.id)
       .maybeSingle();
     if (!me) return null;
@@ -53,6 +56,8 @@ export async function resolveAccountTier(): Promise<AccountTier | null> {
     return {
       role,
       tenantId: me.tenant_id,
+      fullName: me.full_name ?? "",
+      email: me.email ?? user.email ?? "",
       tenantName: org?.name ?? "",
       accountKind,
       userRole: me.role,

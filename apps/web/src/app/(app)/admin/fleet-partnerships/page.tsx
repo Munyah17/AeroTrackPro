@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Handshake, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,8 +20,7 @@ import { useRole } from "@/components/shell/role-provider";
 import { ROLE_LABELS } from "@/lib/rbac";
 
 export default function FleetPartnershipsPage() {
-  const router = useRouter();
-  const { delegates, grantFleet, revokeFleet, previewDelegate } = useRole();
+  const { delegates, grantFleet, revokeFleet } = useRole();
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -145,17 +143,6 @@ export default function FleetPartnershipsPage() {
                 </div>
               </div>
               <div className="flex shrink-0 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1 rounded-xl sm:flex-none"
-                  onClick={() => {
-                    previewDelegate(d.id);
-                    router.push("/dashboard");
-                  }}
-                >
-                  Open as them
-                </Button>
                 <Button
                   variant="outline"
                   size="sm"

@@ -5,14 +5,24 @@ import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import {
   ADDON_MODULES,
   ENABLED_ADDONS,
-  RESELLER_CLIENTS,
   RESELLER_PRICING,
   computeResellerBill,
 } from "@/lib/reseller";
 import { usd } from "@/lib/format";
+import { useTenantTable } from "@/hooks/use-live-data";
+import { useResellerClients } from "@/hooks/use-platform-data";
 
 export default function ResellerBillingPage() {
-  const bill = computeResellerBill();
+  const { rows: devices } = useTenantTable("devices", {
+    map: (r) => ({ active: r.status === "active" }),
+  });
+  const { rows: clients } = useResellerClients();
+
+  const total = devices.length;
+  const active = devices.filter((d) => d.active).length;
+  const bill = computeResellerBill([
+    { id: "live", name: "downline", contact: "", joinedAt: "", status: "active", devices: total, activeDevices: active },
+  ]);
 
   return (
     <PageContainer className="max-w-[1000px]">
@@ -102,7 +112,7 @@ export default function ResellerBillingPage() {
 
           <Panel className="p-5">
             <div className="text-[12px] text-muted-foreground">Clients billed under you</div>
-            <div className="mt-1 text-2xl font-bold tabular-nums">{RESELLER_CLIENTS.length}</div>
+            <div className="mt-1 text-2xl font-bold tabular-nums">{clients.length}</div>
             <div className="text-[11.5px] text-muted-foreground">{bill.totalDevices} devices total</div>
           </Panel>
         </div>
