@@ -21,3 +21,6 @@ build/
 *.log
 .vercel
 .turbo
+
+# mobile UX screenshots
+apps/web/screenshots/
