@@ -17,20 +17,45 @@ const supabaseAnonKey = SUPABASE_ANON_KEY;
 
 export const supabase = createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);
 
+/** Fetch threw at network level (DNS/adblock/offline) — not an auth error. */
+function isNetworkFailure(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    (err.message === "Failed to fetch" || err.name === "TypeError" || err.name === "AuthRetryableFetchError")
+  );
+}
+
+const NETWORK_ERROR = {
+  message:
+    "Can't reach the auth server — check your internet connection, VPN, or an adblocker/privacy extension blocking supabase.co, then reload.",
+} as const;
+
 export async function signUpWithEmail(email: string, password: string, fullName: string) {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { full_name: fullName },
-    },
-  });
-  return { data, error };
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { full_name: fullName },
+      },
+    });
+    if (error && isNetworkFailure(error)) return { data, error: { ...error, message: NETWORK_ERROR.message } };
+    return { data, error };
+  } catch (err) {
+    if (isNetworkFailure(err)) return { data: { user: null, session: null }, error: NETWORK_ERROR };
+    throw err;
+  }
 }
 
 export async function signInWithEmail(email: string, password: string) {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  return { data, error };
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error && isNetworkFailure(error)) return { data, error: { ...error, message: NETWORK_ERROR.message } };
+    return { data, error };
+  } catch (err) {
+    if (isNetworkFailure(err)) return { data: { user: null, session: null }, error: NETWORK_ERROR };
+    throw err;
+  }
 }
 
 export async function signOut() {
