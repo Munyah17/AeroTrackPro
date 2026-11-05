@@ -11,10 +11,22 @@ const PAGES = [
   ["landing", "/"],
   ["login", "/login"],
   ["register", "/register"],
+  // end-user portal
   ["tracking", "/tracking"],
   ["vehicles", "/vehicles"],
   ["trips", "/trips"],
   ["settings", "/settings"],
+  // master portal (demo mode — AUTH_REQUIRED is off)
+  ["admin-overview", "/admin"],
+  ["admin-organizations", "/admin/organizations"],
+  ["admin-users", "/admin/users"],
+  ["admin-billing", "/admin/billing"],
+  ["admin-announcements", "/admin/announcements"],
+  // reseller portal
+  ["reseller-overview", "/reseller"],
+  ["reseller-clients", "/reseller/clients"],
+  ["reseller-devices", "/reseller/devices"],
+  ["reseller-domains", "/reseller/domains"],
 ];
 
 const TARGETS = [
@@ -31,7 +43,7 @@ for (const t of TARGETS) {
   for (const [name, path] of PAGES) {
     const page = await ctx.newPage();
     try {
-      await page.goto(BASE + path, { waitUntil: "domcontentloaded", timeout: 30000 });
+      await page.goto(BASE + path, { waitUntil: "domcontentloaded", timeout: 60000 });
       await page.waitForTimeout(3500); // dev compile + client hydration + map tiles
       await page.screenshot({ path: `${dir}${name}.png`, fullPage: true });
       console.log(`${t.name}/${name}.png`);
