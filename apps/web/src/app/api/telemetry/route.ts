@@ -72,10 +72,16 @@ export async function POST(req: Request): Promise<Response> {
 
   let body: unknown;
   const contentType = req.headers.get("content-type") ?? "";
-  if (contentType.includes("application/x-www-form-urlencoded")) {
-    /* forward.type=url: Traccar sends position fields as form params instead
-       of JSON (its default when forward.type can't be set on managed hosts). */
+  if (!contentType.includes("json")) {
+    /* forward.type=url: Traccar appends position fields to the URL query
+       string (and/or posts them form-encoded) — merge both sources. Its
+       default when forward.type can't be set on managed hosts. */
     const params = new URLSearchParams(await req.text());
+    new URL(req.url).searchParams.forEach((v, k) => {
+      if (!params.has(k)) params.set(k, v);
+    });
+    params.delete("key"); // our auth params — don't persist into attributes
+    params.delete("token");
     const num = (k: string) => {
       const v = params.get(k);
       const n = v == null ? NaN : Number(v);
