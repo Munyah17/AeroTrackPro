@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Globe2, Map, Ruler, Save } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Building2, Globe2, Loader2, Map, Ruler, Save } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -43,6 +44,45 @@ export default function GeneralSettingsPage() {
   const set = (key: keyof typeof prefs) => (v: string | null) =>
     v !== null && setPrefs((p) => ({ ...p, [key]: v }));
 
+  /* Orgs the signed-in admin may rename — hidden in demo/unauthenticated. */
+  const [orgs, setOrgs] = useState<{ tenantId: string; name: string }[] | null>(null);
+  const [orgNames, setOrgNames] = useState<Record<string, string>>({});
+  const [savingOrg, setSavingOrg] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/portal/tenant")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { orgs?: { tenantId: string; name: string }[] } | null) => {
+        if (d?.orgs?.length) {
+          setOrgs(d.orgs);
+          setOrgNames(Object.fromEntries(d.orgs.map((o) => [o.tenantId, o.name])));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveOrg = async (tenantId: string) => {
+    const name = (orgNames[tenantId] ?? "").trim();
+    if (name.length < 2) {
+      toast.error("Enter an organisation name");
+      return;
+    }
+    setSavingOrg(tenantId);
+    const res = await fetch("/api/portal/tenant", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantId, name }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { message?: string };
+    setSavingOrg(null);
+    if (!res.ok) {
+      toast.error("Rename failed", { description: data.message ?? "Try again." });
+      return;
+    }
+    setOrgs((o) => o?.map((x) => (x.tenantId === tenantId ? { ...x, name } : x)) ?? o);
+    toast.success("Organisation renamed", { description: name });
+  };
+
   return (
     <PageContainer className="max-w-[900px]">
       <PageHeader
@@ -51,6 +91,41 @@ export default function GeneralSettingsPage() {
       />
 
       <div className="space-y-4">
+        {orgs && orgs.length > 0 && (
+          <Panel className="p-6">
+            <div className="flex items-center gap-2.5 pb-4">
+              <Building2 className="size-4.5 text-primary" />
+              <h3 className="text-[15px] font-semibold">Organisation</h3>
+            </div>
+            <div className="space-y-4">
+              {orgs.map((o) => (
+                <div key={o.tenantId} className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <div className="flex-1 space-y-1.5">
+                    <Label className="text-xs">Organisation name</Label>
+                    <Input
+                      value={orgNames[o.tenantId] ?? ""}
+                      onChange={(e) =>
+                        setOrgNames((n) => ({ ...n, [o.tenantId]: e.target.value }))
+                      }
+                      onKeyDown={(e) => e.key === "Enter" && saveOrg(o.tenantId)}
+                      className="h-11 rounded-xl"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => saveOrg(o.tenantId)}
+                    disabled={savingOrg === o.tenantId}
+                    className="gap-2 rounded-xl"
+                  >
+                    {savingOrg === o.tenantId && <Loader2 className="size-4 animate-spin" />}
+                    Rename
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        )}
+
         <Panel className="p-6">
           <div className="flex items-center gap-2.5 pb-4">
             <Ruler className="size-4.5 text-primary" />
