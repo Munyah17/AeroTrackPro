@@ -71,10 +71,45 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
+  const contentType = req.headers.get("content-type") ?? "";
+  if (contentType.includes("application/x-www-form-urlencoded")) {
+    /* forward.type=url: Traccar sends position fields as form params instead
+       of JSON (its default when forward.type can't be set on managed hosts). */
+    const params = new URLSearchParams(await req.text());
+    const num = (k: string) => {
+      const v = params.get(k);
+      const n = v == null ? NaN : Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    };
+    const attrs: Record<string, unknown> = {};
+    for (const [k, v] of params) {
+      if (!["id", "deviceId", "uniqueid", "latitude", "longitude", "altitude", "speed", "course", "accuracy", "valid", "fixtime", "devicetime", "servertime", "protocol"].includes(k)) {
+        attrs[k] = v;
+      }
+    }
+    if (params.get("uniqueid")) attrs.uniqueId = params.get("uniqueid");
+    body = {
+      position: {
+        deviceId: num("deviceId") ?? 0,
+        protocol: params.get("protocol") ?? undefined,
+        fixTime: params.get("fixtime") ?? undefined,
+        deviceTime: params.get("devicetime") ?? undefined,
+        serverTime: params.get("servertime") ?? undefined,
+        latitude: num("latitude"),
+        longitude: num("longitude"),
+        altitude: num("altitude"),
+        speed: num("speed"),
+        course: num("course"),
+        accuracy: num("accuracy"),
+        attributes: attrs,
+      },
+    };
+  } else {
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
+    }
   }
 
   const fixes = normalizeForwardBody(body);
