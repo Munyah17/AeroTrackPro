@@ -30,13 +30,18 @@ const NETWORK_ERROR = {
     "Can't reach the auth server — check your internet connection, VPN, or an adblocker/privacy extension blocking supabase.co, then reload.",
 } as const;
 
-export async function signUpWithEmail(email: string, password: string, fullName: string) {
+export async function signUpWithEmail(
+  email: string,
+  password: string,
+  fullName: string,
+  orgName?: string,
+) {
   try {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { full_name: fullName },
+        data: { full_name: fullName, org_name: orgName },
       },
     });
     if (error && isNetworkFailure(error)) return { data, error: { ...error, message: NETWORK_ERROR.message } };

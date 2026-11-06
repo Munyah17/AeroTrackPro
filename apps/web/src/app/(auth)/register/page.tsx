@@ -51,7 +51,12 @@ export default function RegisterPage() {
 
   const onSubmit = async (values: FormValues) => {
     setLoading(true);
-    const { data, error } = await signUpWithEmail(values.email, values.password, values.name);
+    const { data, error } = await signUpWithEmail(
+      values.email,
+      values.password,
+      values.name,
+      values.company,
+    );
     if (error) {
       toast.error("Sign up failed", { description: error.message });
       void reportOps("signup_failed", `${values.name} <${values.email}> — ${error.message}`);

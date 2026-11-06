@@ -7,10 +7,11 @@ import {
 
 /**
  * POST /api/portal/onboard
- * Self-serve org creation. A signed-in user with NO users profile yet creates
- * their own organisation and becomes its admin. This is the missing step in
- * the signup flow — register() creates auth.users only, so without this every
- * new account lands on /select-tenant with nothing to select.
+ * Self-serve org creation. Two paths:
+ *   - new accounts whose signup-trigger profile failed → first org
+ *   - existing members clicking "Create new organisation" → another org
+ * Each call creates a fresh tenant and a users membership row for the
+ * caller as that org's admin; retrying the same name is idempotent.
  *
  * Creates:
  *   tenants row  (account_kind 'owner' — direct customer, not a reseller)
@@ -45,19 +46,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "unauthenticated", message: "Sign in first." }, { status: 401 });
     }
 
-    /* Already onboarded? Return their existing tenant instead of duplicating. */
-    const { data: existing } = await session
+    /* Idempotent retry: if this user already belongs to an org with the
+       submitted name, return it. Otherwise ALWAYS create a new tenant —
+       "Create new organisation" is a real second-org path for members of
+       existing orgs (the signup trigger's first org is not the only one). */
+    const { data: dupe } = await session
       .from("users")
-      .select("tenant_id")
+      .select("tenant_id, tenants!inner(id)")
       .eq("auth_id", user.id)
+      .eq("tenants.name", name)
       .maybeSingle();
-    if (existing) {
-      /* The 0001 signup trigger already creates a placeholder
-         "<name>'s Fleet" tenant — honour the chosen org name by
-         renaming it rather than silently ignoring the form input. */
-      const admin0 = createAdminClient();
-      await admin0.from("tenants").update({ name }).eq("id", existing.tenant_id);
-      return NextResponse.json({ ok: true, tenantId: existing.tenant_id, already: true });
+    if (dupe) {
+      return NextResponse.json({ ok: true, tenantId: dupe.tenant_id, already: true });
     }
 
     const admin = createAdminClient();
