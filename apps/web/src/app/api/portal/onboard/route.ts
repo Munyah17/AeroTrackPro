@@ -52,6 +52,11 @@ export async function POST(req: Request) {
       .eq("auth_id", user.id)
       .maybeSingle();
     if (existing) {
+      /* The 0001 signup trigger already creates a placeholder
+         "<name>'s Fleet" tenant — honour the chosen org name by
+         renaming it rather than silently ignoring the form input. */
+      const admin0 = createAdminClient();
+      await admin0.from("tenants").update({ name }).eq("id", existing.tenant_id);
       return NextResponse.json({ ok: true, tenantId: existing.tenant_id, already: true });
     }
 
