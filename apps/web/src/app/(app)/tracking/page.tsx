@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion, useDragControls } from "framer-motion";
-import { ChevronRight, MapPin, Navigation, Search, Star, X } from "lucide-react";
+import { ChevronRight, ChevronsLeft, ChevronsRight, MapPin, Minus, Navigation, Plus, Search, Star, X } from "lucide-react";
 import type { Vehicle } from "@aerotrack/shared";
 import { useGeofences } from "@/hooks/use-live-data";
 import { useFleet } from "@/hooks/use-fleet";
@@ -73,7 +73,15 @@ function VehicleRow({
  * dispatcher needs at a glance; full telemetry, driver, device, map links and
  * commands live on the vehicle detail page (opened via "Details").
  */
-function VehicleSummary({ vehicle, onClose }: { vehicle: Vehicle; onClose: () => void }) {
+function VehicleSummary({
+  vehicle,
+  onClose,
+  onMinimize,
+}: {
+  vehicle: Vehicle;
+  onClose: () => void;
+  onMinimize?: () => void;
+}) {
   return (
     <div className="p-3.5">
       <div className="flex items-start justify-between gap-2">
@@ -86,9 +94,23 @@ function VehicleSummary({ vehicle, onClose }: { vehicle: Vehicle; onClose: () =>
             {vehicle.make} {vehicle.model} · {vehicle.name}
           </p>
         </div>
-        <Button variant="ghost" size="icon" className="-mr-1 -mt-1 size-9 shrink-0 rounded-lg" onClick={onClose}>
-          <X className="size-4" />
-        </Button>
+        <div className="flex shrink-0 items-center gap-0.5">
+          {onMinimize && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-9 rounded-lg text-muted-foreground hover:text-foreground"
+              onClick={onMinimize}
+              aria-label="Minimize vehicle details"
+              title="Minimize"
+            >
+              <Minus className="size-4" />
+            </Button>
+          )}
+          <Button variant="ghost" size="icon" className="-mr-1 -mt-1 size-9 rounded-lg" onClick={onClose} aria-label="Close vehicle details">
+            <X className="size-4" />
+          </Button>
+        </div>
       </div>
 
       <div className="mt-2.5 flex items-center gap-2 rounded-xl bg-accent/60 px-2.5 py-2">
@@ -140,6 +162,9 @@ export default function TrackingPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [isDesktop, setIsDesktop] = useState(false);
+  const [listCollapsed, setListCollapsed] = useState(false);
+  const [detailCollapsed, setDetailCollapsed] = useState(false);
+  const [sheetMinimized, setSheetMinimized] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
@@ -194,7 +219,11 @@ export default function TrackingPage() {
     return () => observer.disconnect();
   }, [selectedId, isDesktop]);
 
-  const selectVehicle = (id: string) => setSelectedId(id);
+  const selectVehicle = (id: string) => {
+    setSelectedId(id);
+    setSheetMinimized(false);
+    setDetailCollapsed(false);
+  };
 
   const filters = (
     <Tabs value={filter} onValueChange={(v) => setFilter(v as StatusFilter)}>
@@ -222,22 +251,60 @@ export default function TrackingPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col lg:flex-row">
-      <aside className="hidden min-h-0 w-[280px] shrink-0 flex-col border-r border-border/60 bg-card lg:flex xl:w-[300px]">
-        <div className="space-y-2.5 border-b border-border/60 p-3">
-          {search}
-          {filters}
-        </div>
-        <div className="scrollbar-thin min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
-          {filtered.map((v) => (
-            <VehicleRow key={v.id} vehicle={v} selected={v.id === selectedId} onClick={() => selectVehicle(v.id)} />
-          ))}
-          {filtered.length === 0 && (
-            <div className="p-6 text-center text-[13px] text-muted-foreground">No vehicles match.</div>
-          )}
-        </div>
-        <div className="border-t border-border/60 px-4 py-2.5 text-[11.5px] text-muted-foreground">
-          {filtered.length} of {vehicles.length} vehicles
-        </div>
+      <aside
+        className={cn(
+          "hidden min-h-0 shrink-0 flex-col border-r border-border/60 bg-card transition-[width] duration-300 lg:flex",
+          listCollapsed ? "w-14" : "w-[280px] xl:w-[300px]",
+        )}
+      >
+        {listCollapsed ? (
+          <div className="flex flex-1 flex-col items-center gap-3 py-3">
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-9 rounded-xl"
+              onClick={() => setListCollapsed(false)}
+              aria-label="Expand vehicle list"
+              title="Show vehicle list"
+            >
+              <ChevronsRight className="size-4" />
+            </Button>
+            <div className="flex flex-col items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <span className="tabular-nums text-[13px] font-bold text-foreground">{filtered.length}</span>
+              <span className="[writing-mode:vertical-rl]">vehicles</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-2.5 border-b border-border/60 p-3">
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">{search}</div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-9 shrink-0 rounded-xl"
+                  onClick={() => setListCollapsed(true)}
+                  aria-label="Collapse vehicle list"
+                  title="Hide vehicle list"
+                >
+                  <ChevronsLeft className="size-4" />
+                </Button>
+              </div>
+              {filters}
+            </div>
+            <div className="scrollbar-thin min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
+              {filtered.map((v) => (
+                <VehicleRow key={v.id} vehicle={v} selected={v.id === selectedId} onClick={() => selectVehicle(v.id)} />
+              ))}
+              {filtered.length === 0 && (
+                <div className="p-6 text-center text-[13px] text-muted-foreground">No vehicles match.</div>
+              )}
+            </div>
+            <div className="border-t border-border/60 px-4 py-2.5 text-[11.5px] text-muted-foreground">
+              {filtered.length} of {vehicles.length} vehicles
+            </div>
+          </>
+        )}
       </aside>
 
       <div
@@ -310,9 +377,35 @@ export default function TrackingPage() {
               >
                 <span className="h-1.5 w-10 rounded-full bg-muted-foreground/30" />
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <VehicleSummary vehicle={selected} onClose={() => setSelectedId(undefined)} />
-              </div>
+              {sheetMinimized ? (
+                <div className="flex shrink-0 items-center gap-2.5 px-3.5 pb-3">
+                  <span className={cn("size-2.5 shrink-0 rounded-full", LIVE_STATUS[liveStatusOf(selected.status)].dot)} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13.5px] font-bold leading-tight">{selected.plate}</div>
+                    <div className="truncate text-[11px] text-muted-foreground">
+                      {kmh(selected.position.speedKmh)} · {timeAgo(selected.position.updatedAt)}
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-9 shrink-0 rounded-xl"
+                    onClick={() => setSheetMinimized(false)}
+                    aria-label="Expand vehicle details"
+                    title="Show details"
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  <VehicleSummary
+                    vehicle={selected}
+                    onClose={() => setSelectedId(undefined)}
+                    onMinimize={() => setSheetMinimized(true)}
+                  />
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -326,10 +419,41 @@ export default function TrackingPage() {
         </div>
       </div>
 
-      <aside className="hidden min-h-0 w-[250px] shrink-0 flex-col border-l border-border/60 bg-card lg:flex xl:w-[300px]">
-        {selected ? (
+      <aside
+        className={cn(
+          "hidden min-h-0 shrink-0 flex-col border-l border-border/60 bg-card transition-[width] duration-300 lg:flex",
+          detailCollapsed ? "w-14" : "w-[250px] xl:w-[300px]",
+        )}
+      >
+        {detailCollapsed && selected ? (
+          <div className="flex flex-1 flex-col items-center gap-3 py-3">
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-9 rounded-xl"
+              onClick={() => setDetailCollapsed(false)}
+              aria-label="Expand vehicle details"
+              title="Show vehicle details"
+            >
+              <ChevronsLeft className="size-4" />
+            </Button>
+            <button
+              onClick={() => setDetailCollapsed(false)}
+              className="flex flex-col items-center gap-1.5 rounded-xl px-1 py-2 text-center transition-colors hover:bg-accent/70"
+              title={`${selected.plate} — show details`}
+            >
+              <span className={cn("size-2.5 rounded-full", LIVE_STATUS[liveStatusOf(selected.status)].dot)} />
+              <span className="max-w-full truncate text-[10px] font-bold leading-tight">{selected.plate}</span>
+              <span className="text-[9.5px] text-muted-foreground tabular-nums">{kmh(selected.position.speedKmh)}</span>
+            </button>
+          </div>
+        ) : selected ? (
           <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
-            <VehicleSummary vehicle={selected} onClose={() => setSelectedId(undefined)} />
+            <VehicleSummary
+              vehicle={selected}
+              onClose={() => setSelectedId(undefined)}
+              onMinimize={() => setDetailCollapsed(true)}
+            />
           </div>
         ) : (
           <div className="flex flex-1 items-center justify-center p-6 text-center text-[13px] text-muted-foreground">
