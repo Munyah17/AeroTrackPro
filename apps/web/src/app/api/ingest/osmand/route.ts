@@ -274,10 +274,18 @@ async function handle(req: NextRequest): Promise<NextResponse> {
 
   const db = createAdminClient();
 
+  // Resolve the vehicle bound to this device so the position carries
+  // vehicle_id — the fleet UI joins positions to vehicles on that column.
+  const { data: vehicle } = await db
+    .from("vehicles")
+    .select("id")
+    .eq("device_id", device.id)
+    .maybeSingle();
+
   const row = {
     tenant_id: device.tenant_id,
     device_id: device.id,
-    vehicle_id: null as string | null,
+    vehicle_id: (vehicle?.id as string | undefined) ?? null,
     lat,
     lng: lon,
     speed_kmh: speedKnots != null ? Math.round(speedKnots * 1.852 * 10) / 10 : null,
