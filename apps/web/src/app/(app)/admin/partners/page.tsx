@@ -81,8 +81,8 @@ export default function AdminPartnersPage() {
         title="Partners & Installers"
         subtitle="Onboard retailers and hardware installers, review applications, and manage the partner network"
         actions={
-          <Button className="gap-2 rounded-xl shadow-card" onClick={() => toast.info("Partner invite: email, kind (installer/reseller), region, commission terms")}>
-            <Plus className="size-4" /> Invite Partner
+          <Button className="gap-2 rounded-xl shadow-card" onClick={() => toast.info("Add user: name, email, organization, role")}>
+            <Plus className="size-4" /> Add User
           </Button>
         }
       />
