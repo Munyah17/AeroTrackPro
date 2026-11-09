@@ -25,7 +25,7 @@ export default function OrganizationsPage() {
         title="Organizations"
         subtitle="Client tracking companies (sub-accounts) on your platform"
         actions={
-          <Button className="gap-2 rounded-xl shadow-card" onClick={() => toast.info("New organization wizard: company → plan → branding → invite admin")}>
+          <Button className="gap-2 rounded-xl shadow-card" onClick={() => toast.info("New organization wizard: company → plan → branding → add admin")}>
             <Plus className="size-4" /> Add Organization
           </Button>
         }
