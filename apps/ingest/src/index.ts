@@ -14,7 +14,7 @@ import {
   createDecoders,
   createSession,
   type Position,
-  type ProtocolKey,
+  type TcpProtocolKey,
   type Session,
 } from "@aerotrack/protocols";
 import { db, findDeviceByImei, persistenceEnabled, type DeviceRecord } from "./db";
@@ -27,7 +27,7 @@ const decoders = createDecoders();
 
 interface ProtocolListener {
   port: number;
-  protocol: ProtocolKey;
+  protocol: TcpProtocolKey;
 }
 
 // Protocol-to-port mapping (ports follow Traccar conventions)
@@ -42,6 +42,7 @@ const LISTENERS: ProtocolListener[] = [
   { port: 5045, protocol: "vt200" },
   { port: 5027, protocol: "teltonika" },
   { port: 5015, protocol: "jt808" },
+  { port: 5093, protocol: "watch" },
 ];
 
 function reply(socket: net.Socket, response: Uint8Array | string | undefined) {
@@ -87,7 +88,12 @@ async function savePositions(protocol: ProtocolKey, socket: net.Socket, session:
       speed_kmh: position.speedKmh,
       course: Math.round(position.course),
       altitude: position.altitudeM != null ? Math.round(position.altitudeM) : null,
-      accuracy: position.hdop != null ? Math.round(position.hdop * 5) : null,
+      accuracy:
+        typeof position.attributes.accuracy === "number"
+          ? Math.round(position.attributes.accuracy)
+          : position.hdop != null
+            ? Math.round(position.hdop * 5)
+            : null,
       event_type: position.attributes.alarm ?? "position",
       raw_data: { attributes: position.attributes, valid: position.valid },
       recorded_at: position.timestamp.toISOString(),

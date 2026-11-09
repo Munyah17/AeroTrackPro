@@ -24,7 +24,7 @@ import {
   type DeviceCapabilities,
   type DeviceCategory,
   type DeviceModel,
-  type ProtocolKey,
+  type TcpProtocolKey,
 } from "@aerotrack/protocols";
 import { SiteHeader } from "@/components/marketing/site-header";
 
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
 };
 
 /** Traccar listener ports — where each wire protocol's devices report. */
-const PROTOCOL_INFO: Record<ProtocolKey, { label: string; port: number; blurb: string }> = {
+const PROTOCOL_INFO: Record<TcpProtocolKey, { label: string; port: number; blurb: string }> = {
   h02:        { label: "H02",        port: 5013, blurb: "ASCII *HQ frames — SinoTrack, TKStar and Cantrack dialects." },
   gt06:       { label: "GT06",       port: 5023, blurb: "The most-cloned tracker architecture — Jimi, Concox, WanWay, Seeworld and dozens of re-badges." },
   gps103:     { label: "GPS103",     port: 5001, blurb: "The original Coban/Xexun SMS-era protocol and its clone family." },
@@ -46,6 +46,7 @@ const PROTOCOL_INFO: Record<ProtocolKey, { label: string; port: number; blurb: s
   meitrack:   { label: "Meitrack",   port: 5020, blurb: "Meitrack binary + ASCII — T-series rugged and fleet terminals." },
   topflytech: { label: "Topflytech", port: 5049, blurb: "TLW/T-family asset and solar tracker protocol." },
   vt200:      { label: "VT200",      port: 5045, blurb: "ThinkRace VT-series — OBD and 4G vehicle terminals." },
+  watch:      { label: "Watch",      port: 5093, blurb: "Kids/pet GPS watches — TKStar, Wonlex and similar wearables." },
 };
 
 const CATEGORY_META: Record<DeviceCategory, { label: string; icon: LucideIcon }> = {
@@ -75,8 +76,8 @@ function capabilityChips(c: DeviceCapabilities): { icon: LucideIcon; label: stri
   return out;
 }
 
-const PROTOCOL_ORDER: ProtocolKey[] = [
-  "h02", "gt06", "teltonika", "gps103", "jt808",
+const PROTOCOL_ORDER: TcpProtocolKey[] = [
+  "h02", "gt06", "teltonika", "gps103", "jt808", "watch",
   "queclink", "eelink", "meitrack", "topflytech", "vt200",
 ];
 

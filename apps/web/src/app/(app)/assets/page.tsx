@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { Backpack, Baby, BatteryLow, Dog, MapPin, Package, PawPrint, Wrench } from "lucide-react";
+import { Backpack, Baby, BatteryLow, Dog, Laptop, MapPin, Package, PawPrint, Smartphone, Wrench } from "lucide-react";
 import type { Vehicle } from "@aerotrack/shared";
 import { useFleet } from "@/hooks/use-fleet";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,7 +17,7 @@ const FleetMap = dynamic(() => import("@/components/map/fleet-map").then((m) => 
   loading: () => <Skeleton className="h-full w-full rounded-2xl" />,
 });
 
-const ASSET_KINDS: Vehicle["kind"][] = ["pet", "child", "parcel", "livestock", "bag", "equipment", "container", "generator"];
+const ASSET_KINDS: Vehicle["kind"][] = ["pet", "child", "parcel", "livestock", "bag", "equipment", "container", "generator", "phone", "laptop"];
 const KIND_ICON: Partial<Record<Vehicle["kind"], typeof Dog>> = {
   pet: Dog,
   child: Baby,
@@ -27,6 +27,8 @@ const KIND_ICON: Partial<Record<Vehicle["kind"], typeof Dog>> = {
   equipment: Wrench,
   container: Package,
   generator: Wrench,
+  phone: Smartphone,
+  laptop: Laptop,
 };
 
 export default function AssetsPage() {

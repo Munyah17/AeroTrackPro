@@ -5,7 +5,8 @@
  * route TCP listeners.
  */
 
-export type ProtocolKey =
+/** Binary/ASCII wire protocols decoded by the TCP ingest listeners. */
+export type TcpProtocolKey =
   | "gt06"
   | "h02"
   | "gps103"
@@ -15,7 +16,15 @@ export type ProtocolKey =
   | "topflytech"
   | "vt200"
   | "teltonika"
-  | "jt808";
+  | "jt808"
+  | "watch";
+
+/**
+ * Every ingest path a device can report through. Software trackers (phones
+ * via the Traccar Client app, laptops via the desktop agent) use HTTP
+ * endpoints instead of TCP listeners, so they have no decoder.
+ */
+export type ProtocolKey = TcpProtocolKey | "osmand" | "laptop-agent";
 
 export type DeviceCategory = "vehicle" | "asset" | "personal" | "obd";
 
@@ -157,10 +166,12 @@ export const DEVICE_MODELS: DeviceModel[] = [
     id: "gf07",
     vendor: "Generic",
     model: "GF-07",
-    protocol: "gt06",
+    protocol: "watch",
     variant: "gf07",
     category: "personal",
-    description: "Ultra-cheap micro LBS/GPS locator for keys, bags and valuables.",
+    // Many GF-07 units are LBS-only hardware - no GPS chip; expect
+    // cell-tower accuracy (~500m-2km), surfaced via fixSource="lbs".
+    description: "Ultra-cheap micro LBS/GPS locator for keys, bags and valuables. Watch/365GPS protocol - point at port 5093.",
     smsPasswordDefault: "123456",
     capabilities: { gps: false, lbs: true, sos: true, voiceMonitor: true, magneticMount: true, network: ["2G"] },
   },
@@ -168,10 +179,12 @@ export const DEVICE_MODELS: DeviceModel[] = [
     id: "gf09",
     vendor: "Generic",
     model: "GF-09",
-    protocol: "gt06",
+    protocol: "watch",
     variant: "gf09",
     category: "personal",
-    description: "Voice-activated recording tracker using Wi-Fi + LBS alongside GPS.",
+    // GF-09 carries a real GPS chip; V-flagged fixes are LBS fallback
+    // (indoors / no sky view) and get flagged approximate, not trusted.
+    description: "Voice-activated recording tracker using Wi-Fi + LBS alongside GPS. Watch/365GPS protocol - point at port 5093.",
     smsPasswordDefault: "123456",
     capabilities: { gps: true, lbs: true, wifi: true, sos: true, voiceMonitor: true, network: ["2G"] },
   },
@@ -364,6 +377,26 @@ export const DEVICE_MODELS: DeviceModel[] = [
     description: "The original GPS103-protocol unit — TK103/TK306 family and clones.",
     smsPasswordDefault: "123456",
     capabilities: { gps: true, lbs: true, engineCut: true, sos: true, voiceMonitor: true, fuelSensor: true, network: ["2G"] },
+  },
+  {
+    id: "traccar-client-phone",
+    vendor: "Traccar",
+    model: "Client App (Android / iOS)",
+    protocol: "osmand",
+    category: "personal",
+    description:
+      "Turn any Android or iOS phone into a GPS tracker. Reports over HTTPS to AeroTrack — no SIM, no hardware. Uses the phone's GPS, Wi-Fi and cell positioning.",
+    capabilities: { gps: true, lbs: true, network: [] },
+  },
+  {
+    id: "aerotrack-laptop-agent",
+    vendor: "AeroTrack",
+    model: "Laptop Agent (Windows / macOS / Linux)",
+    protocol: "laptop-agent",
+    category: "asset",
+    description:
+      "Lightweight desktop agent that reports a laptop's location (IP/Wi-Fi geolocation) and battery status to AeroTrack on a schedule.",
+    capabilities: { gps: true, lbs: false, network: [] },
   },
 ];
 

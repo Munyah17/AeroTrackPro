@@ -78,6 +78,7 @@ export type Database = {
           last_fuel_level: number | null;
           last_fuel_at: string | null;
           last_fuel_used_l: number | null;
+          ingest_token: string | null;
           firmware_version: string | null;
           notes: string | null;
           created_at: string;
@@ -108,6 +109,7 @@ export type Database = {
           fuel_type: string | null;
           fuel_capacity_liters: number | null;
           odometer_km: number | null;
+          kind: string;
           speed_limit_kmh: number | null;
           notes: string | null;
           created_at: string;

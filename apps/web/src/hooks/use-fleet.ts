@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { type Database, type Vehicle } from "@aerotrack/shared";
+import { type AssetKind, type Database, type Vehicle } from "@aerotrack/shared";
 
 type VehicleRow = Database["public"]["Tables"]["vehicles"]["Row"];
 type PositionRow = Database["public"]["Tables"]["positions"]["Row"];
@@ -27,7 +27,7 @@ function toDomainVehicle(
     tenantId: row.tenant_id,
     name: row.name,
     plate: row.plate,
-    kind: "car",
+    kind: (row.kind as AssetKind | null) ?? "car",
     make: row.make ?? "",
     model: row.model ?? "",
     year: row.year ?? 0,

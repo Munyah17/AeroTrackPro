@@ -2,7 +2,21 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Cpu, Radio, Smartphone } from "lucide-react";
+import {
+  ArrowLeft,
+  BatteryCharging,
+  Check,
+  CheckCircle2,
+  Copy,
+  Cpu,
+  Download,
+  Laptop,
+  Play,
+  Radio,
+  Smartphone,
+} from "lucide-react";
+import { toast } from "sonner";
+import type { Database } from "@aerotrack/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,18 +34,47 @@ const PROTOCOLS = [
   { value: "VT200", label: "VT200 (ThinkRace)" },
 ];
 
+type TrackerKind = "phone" | "laptop";
+
+const ID_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+function generateDeviceId(): string {
+  let s = "";
+  for (let i = 0; i < 8; i++) s += ID_ALPHABET[Math.floor(Math.random() * ID_ALPHABET.length)];
+  return `AT-${s}`;
+}
+
+function generateToken(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+interface CreatedTracker {
+  kind: TrackerKind;
+  deviceId: string;
+  token: string;
+  name: string;
+}
+
 export default function OnboardDevicePage() {
+  const [type, setType] = useState<TrackerKind | "hardware" | null>(null);
+
+  // Hardware wizard state
   const [step, setStep] = useState<"info" | "config" | "verify">("info");
   const [protocol, setProtocol] = useState("GT06");
   const [imei, setImei] = useState("");
   const [deviceName, setDeviceName] = useState("");
 
+  // Software tracker state
+  const [softName, setSoftName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [created, setCreated] = useState<CreatedTracker | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+
   const handleNext = () => {
-    if (step === "info" && imei && deviceName) {
-      setStep("config");
-    } else if (step === "config") {
-      setStep("verify");
-    }
+    if (step === "info" && imei && deviceName) setStep("config");
+    else if (step === "config") setStep("verify");
   };
 
   const handleBack = () => {
@@ -39,21 +82,252 @@ export default function OnboardDevicePage() {
     else if (step === "verify") setStep("config");
   };
 
-  return (
-    <PageContainer className="max-w-[700px]">
-      <PageHeader
-        title="Add Device"
-        subtitle="Bind a GPS tracker to your fleet"
-        actions={
-          step === "info" ? undefined : (
+  const copy = async (key: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(key);
+      setTimeout(() => setCopied(null), 1500);
+      toast.success("Copied to clipboard");
+    } catch {
+      toast.error("Copy failed — select and copy manually");
+    }
+  };
+
+  const createSoftwareTracker = async (kind: TrackerKind) => {
+    if (!softName.trim()) return toast.error("Enter a name for this tracker");
+    setCreating(true);
+    try {
+      const { supabase } = await import("@/lib/supabase");
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("You must be signed in to add a tracker");
+
+      const { data: me, error: meErr } = await supabase
+        .from("users")
+        .select("tenant_id")
+        .eq("auth_id", user.id)
+        .maybeSingle();
+      if (meErr || !me) throw new Error("Could not resolve your organization");
+
+      const deviceId = generateDeviceId();
+      const token = generateToken();
+
+      const { data: device, error: deviceErr } = await supabase
+        .from("devices")
+        .insert({
+          tenant_id: me.tenant_id,
+          imei: deviceId,
+          protocol: kind === "phone" ? "osmand" : "laptop-agent",
+          device_model: kind === "phone" ? "traccar-client-phone" : "aerotrack-laptop-agent",
+          name: softName.trim(),
+          ingest_token: token,
+          status: "active",
+          connection_status: "unknown",
+        } as Database["public"]["Tables"]["devices"]["Insert"])
+        .select("id")
+        .single();
+      if (deviceErr || !device) throw new Error(deviceErr?.message ?? "Failed to create device");
+
+      const { error: vehicleErr } = await supabase.from("vehicles").insert({
+        tenant_id: me.tenant_id,
+        device_id: device.id,
+        plate: deviceId,
+        name: softName.trim(),
+        kind: kind === "phone" ? "phone" : "laptop",
+        make: kind === "phone" ? "Traccar" : "AeroTrack",
+        model: kind === "phone" ? "Client App" : "Laptop Agent",
+        color: "#1E40FF",
+        status: "active",
+      } as Database["public"]["Tables"]["vehicles"]["Insert"]);
+      if (vehicleErr) throw new Error(vehicleErr.message);
+
+      setCreated({ kind, deviceId, token, name: softName.trim() });
+      toast.success(`${kind === "phone" ? "Phone" : "Laptop"} tracker created`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create tracker");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const serverUrl = created
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/api/ingest/osmand?key=${created.token}`
+    : "";
+
+  /* ---------------- Type picker ---------------- */
+  if (!type) {
+    return (
+      <PageContainer className="max-w-[760px]">
+        <PageHeader title="Add Tracker" subtitle="Choose what you want to track" />
+        <div className="grid gap-4 sm:grid-cols-3">
+          {(
+            [
+              {
+                kind: "phone" as const,
+                icon: Smartphone,
+                title: "Phone",
+                desc: "Turn any Android or iOS phone into a GPS tracker with the free Traccar Client app. No SIM, no hardware.",
+                tag: "Free · 2 min setup",
+              },
+              {
+                kind: "laptop" as const,
+                icon: Laptop,
+                title: "Laptop",
+                desc: "Track company laptops with the AeroTrack desktop agent — location and battery on a schedule.",
+                tag: "Free · agent",
+              },
+              {
+                kind: "hardware" as const,
+                icon: Radio,
+                title: "Hardware tracker",
+                desc: "Bind a physical GPS tracker (GT06, H02, GPS103 and more) to a vehicle or asset.",
+                tag: "SIM required",
+              },
+            ]
+          ).map((opt) => (
+            <button
+              key={opt.kind}
+              onClick={() => setType(opt.kind)}
+              className="group flex flex-col gap-3 rounded-2xl border border-border/60 bg-card p-5 text-left shadow-card transition-all hover:border-primary/40 hover:shadow-card-hover"
+            >
+              <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-white">
+                <opt.icon className="size-5" />
+              </div>
+              <div>
+                <div className="text-[15px] font-semibold">{opt.title}</div>
+                <div className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{opt.desc}</div>
+              </div>
+              <div className="mt-auto text-[11px] font-semibold uppercase tracking-wide text-primary">{opt.tag}</div>
+            </button>
+          ))}
+        </div>
+      </PageContainer>
+    );
+  }
+
+  /* ---------------- Phone / laptop flows ---------------- */
+  if (type === "phone" || type === "laptop") {
+    const isPhone = type === "phone";
+    return (
+      <PageContainer className="max-w-[700px]">
+        <PageHeader
+          title={isPhone ? "Add Phone Tracker" : "Add Laptop Tracker"}
+          subtitle={
+            isPhone
+              ? "Track a phone with the Traccar Client app"
+              : "Track a laptop with the AeroTrack desktop agent"
+          }
+          actions={
             <Button render={<Link href="/devices" />} variant="outline" className="gap-2 rounded-xl">
               <ArrowLeft className="size-4" /> Back to Devices
             </Button>
-          )
+          }
+        />
+
+        {!created ? (
+          <Panel className="p-6">
+            <h3 className="mb-5 flex items-center gap-2 text-[16px] font-semibold">
+              {isPhone ? (
+                <Smartphone className="size-5 text-primary" />
+              ) : (
+                <Laptop className="size-5 text-primary" />
+              )}
+              Tracker Details
+            </h3>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="soft-name" className="text-[13px] font-medium">
+                  {isPhone ? "Phone / person name" : "Laptop / asset name"}
+                </Label>
+                <Input
+                  id="soft-name"
+                  placeholder={isPhone ? "e.g. Tendai's Phone" : "e.g. Sales Laptop 03"}
+                  value={softName}
+                  onChange={(e) => setSoftName(e.target.value)}
+                  className="h-11 rounded-xl"
+                />
+                <p className="text-[11.5px] text-muted-foreground">
+                  {isPhone
+                    ? "Shown on the map and in alerts so you know whose phone this is."
+                    : "Shown on the map and in alerts so you know which laptop this is."}
+                </p>
+              </div>
+
+              <Button
+                onClick={() => createSoftwareTracker(type)}
+                disabled={creating || !softName.trim()}
+                className="mt-6 h-11 w-full rounded-xl shadow-card"
+              >
+                {creating ? "Creating…" : `Create ${isPhone ? "Phone" : "Laptop"} Tracker`}
+              </Button>
+            </div>
+          </Panel>
+        ) : (
+          <div className="space-y-4">
+            <Panel className="p-6">
+              <h3 className="mb-1 flex items-center gap-2 text-[16px] font-semibold">
+                <CheckCircle2 className="size-5 text-success" /> Tracker created
+              </h3>
+              <p className="mb-5 text-[13px] text-muted-foreground">
+                {created.name} is registered. Finish setup on the device below — positions appear on{" "}
+                <Link href="/tracking" className="font-medium text-primary underline-offset-2 hover:underline">
+                  Live Tracking
+                </Link>{" "}
+                within a minute of the first report.
+              </p>
+
+              <div className="space-y-3">
+                <SetupRow
+                  label="Device ID"
+                  value={created.deviceId}
+                  copied={copied === "id"}
+                  onCopy={() => copy("id", created.deviceId)}
+                />
+                <SetupRow
+                  label="Server URL"
+                  value={serverUrl}
+                  copied={copied === "url"}
+                  onCopy={() => copy("url", serverUrl)}
+                  mono
+                />
+                {isPhone && (
+                  <SetupRow
+                    label="Ingest token"
+                    value={created.token}
+                    copied={copied === "token"}
+                    onCopy={() => copy("token", created.token)}
+                    mono
+                    hint="Already embedded in the Server URL — keep it private."
+                  />
+                )}
+              </div>
+            </Panel>
+
+            {isPhone ? <PhoneSetupGuide deviceId={created.deviceId} serverUrl={serverUrl} /> : <LaptopSetupGuide deviceId={created.deviceId} serverUrl={serverUrl} />}
+
+            <Button render={<Link href="/tracking" />} className="h-11 w-full rounded-xl shadow-card">
+              Go to Live Tracking
+            </Button>
+          </div>
+        )}
+      </PageContainer>
+    );
+  }
+
+  /* ---------------- Hardware wizard (existing flow) ---------------- */
+  return (
+    <PageContainer className="max-w-[700px]">
+      <PageHeader
+        title="Add Hardware Tracker"
+        subtitle="Bind a GPS tracker to your fleet"
+        actions={
+          <Button render={<Link href="/devices" />} variant="outline" className="gap-2 rounded-xl">
+            <ArrowLeft className="size-4" /> Back to Devices
+          </Button>
         }
       />
 
-      {/* Step indicator */}
       <div className="mb-6 flex gap-2">
         {(["info", "config", "verify"] as const).map((s, i) => (
           <div key={s} className="flex items-center gap-2">
@@ -73,7 +347,6 @@ export default function OnboardDevicePage() {
         ))}
       </div>
 
-      {/* Step 1: Device Info */}
       {step === "info" && (
         <Panel className="p-6">
           <h3 className="mb-5 flex items-center gap-2 text-[16px] font-semibold">
@@ -137,7 +410,6 @@ export default function OnboardDevicePage() {
         </Panel>
       )}
 
-      {/* Step 2: Device Configuration */}
       {step === "config" && (
         <Panel className="p-6">
           <h3 className="mb-5 flex items-center gap-2 text-[16px] font-semibold">
@@ -190,7 +462,6 @@ export default function OnboardDevicePage() {
         </Panel>
       )}
 
-      {/* Step 3: Verification */}
       {step === "verify" && (
         <Panel className="p-6">
           <h3 className="mb-5 flex items-center gap-2 text-[16px] font-semibold">
@@ -232,5 +503,157 @@ export default function OnboardDevicePage() {
         </Panel>
       )}
     </PageContainer>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Setup guides                                                        */
+/* ------------------------------------------------------------------ */
+
+function SetupRow({
+  label,
+  value,
+  copied,
+  onCopy,
+  mono,
+  hint,
+}: {
+  label: string;
+  value: string;
+  copied: boolean;
+  onCopy: () => void;
+  mono?: boolean;
+  hint?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="text-[12px] font-semibold text-muted-foreground">{label}</div>
+      <div className="flex items-center gap-2">
+        <code
+          className={`flex-1 truncate rounded-lg border bg-muted/50 px-3 py-2 text-[12px] ${
+            mono ? "font-mono" : "font-semibold"
+          }`}
+        >
+          {value}
+        </code>
+        <Button variant="outline" size="sm" onClick={onCopy} className="h-9 shrink-0 gap-1.5 rounded-lg">
+          {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+          {copied ? "Copied" : "Copy"}
+        </Button>
+      </div>
+      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+function PhoneSetupGuide({ deviceId, serverUrl }: { deviceId: string; serverUrl: string }) {
+  const steps = [
+    {
+      icon: Download,
+      title: "Install Traccar Client",
+      body: "Get the free app from the Play Store (Android) or App Store (iOS). It is open source and works offline-first.",
+    },
+    {
+      icon: Play,
+      title: "Enter server settings",
+      body: `Open the app → Settings (gear icon) → set Server URL to the URL above and Device identifier to ${deviceId}. Leave other fields as-is.`,
+    },
+    {
+      icon: CheckCircle2,
+      title: "Start tracking",
+      body: "Toggle the service ON in the app. Positions upload every few minutes and appear on Live Tracking.",
+    },
+    {
+      icon: BatteryCharging,
+      title: "Keep it running (Android)",
+      body: "Disable battery optimization for Traccar Client (Settings → Apps → Traccar Client → Battery → Unrestricted) so Android doesn't pause it in the background.",
+    },
+  ];
+
+  return (
+    <Panel className="p-6">
+      <h3 className="mb-4 flex items-center gap-2 text-[16px] font-semibold">
+        <Smartphone className="size-5 text-primary" /> Set up the phone
+      </h3>
+      <ol className="space-y-4">
+        {steps.map((s, i) => (
+          <li key={i} className="flex gap-3">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <s.icon className="size-4" />
+            </div>
+            <div>
+              <div className="text-[13.5px] font-semibold">
+                {i + 1}. {s.title}
+              </div>
+              <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted-foreground">{s.body}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-3.5 text-[12px] leading-relaxed text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
+        <span className="font-semibold">Recommended app settings:</span> Location accuracy = High, Distance filter = 50 m,
+        Interval = 300 s, Stationary heartbeat = 900 s. The Server URL already contains your private ingest token — do not
+        share it.
+      </div>
+    </Panel>
+  );
+}
+
+function LaptopSetupGuide({ deviceId, serverUrl }: { deviceId: string; serverUrl: string }) {
+  return (
+    <Panel className="p-6">
+      <h3 className="mb-4 flex items-center gap-2 text-[16px] font-semibold">
+        <Laptop className="size-5 text-primary" /> Set up the laptop
+      </h3>
+      <ol className="space-y-4">
+        <li className="flex gap-3">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Download className="size-4" />
+          </div>
+          <div>
+            <div className="text-[13.5px] font-semibold">1. Get the agent script</div>
+            <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted-foreground">
+              Download <code className="rounded bg-muted px-1 py-0.5 font-mono text-[11px]">laptop-agent.py</code> from the{" "}
+              <Link href="/docs" className="font-medium text-primary underline-offset-2 hover:underline">
+                docs
+              </Link>{" "}
+              page (or ask your AeroTrack contact). It uses only the Python standard library — no install needed beyond
+              Python 3.8+.
+            </p>
+          </div>
+        </li>
+        <li className="flex gap-3">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Play className="size-4" />
+          </div>
+          <div>
+            <div className="text-[13.5px] font-semibold">2. Run it once to test</div>
+            <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted-foreground">
+              Open a terminal on the laptop and run:
+            </p>
+            <code className="mt-2 block truncate rounded-lg border bg-muted/50 px-3 py-2 font-mono text-[11.5px]">
+              {`python laptop-agent.py --url "${serverUrl}" --id ${deviceId}`}
+            </code>
+          </div>
+        </li>
+        <li className="flex gap-3">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <CheckCircle2 className="size-4" />
+          </div>
+          <div>
+            <div className="text-[13.5px] font-semibold">3. Run at login</div>
+            <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted-foreground">
+              Add the same command to Task Scheduler (Windows), launchd (macOS) or cron (Linux) so it reports every 10
+              minutes while the laptop is on.
+            </p>
+          </div>
+        </li>
+      </ol>
+      <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-[12px] leading-relaxed text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100">
+        <span className="font-semibold">Accuracy note:</span> laptops have no GPS, so the agent reports IP/Wi-Fi
+        geolocation — accurate to city level (~10 km), not street level. Use it for theft recovery and &quot;is this
+        laptop online / where roughly&quot; rather than precise routing.
+      </div>
+    </Panel>
   );
 }

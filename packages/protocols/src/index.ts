@@ -12,9 +12,10 @@ export { TopflytechDecoder } from "./protocols/topflytech/decoder";
 export { Vt200Decoder } from "./protocols/vt200/decoder";
 export { TeltonikaDecoder } from "./protocols/teltonika/decoder";
 export { Jt808Decoder } from "./protocols/jt808/decoder";
+export { WatchDecoder, GF_SMS_COMMANDS } from "./protocols/watch/decoder";
 
 import type { ProtocolDecoder } from "./core/types";
-import type { ProtocolKey } from "./devices/registry";
+import type { TcpProtocolKey } from "./devices/registry";
 import { Gt06Decoder } from "./protocols/gt06/decoder";
 import { H02Decoder } from "./protocols/h02/decoder";
 import { Gps103Decoder } from "./protocols/gps103/decoder";
@@ -24,10 +25,11 @@ import { MeitrackDecoder } from "./protocols/meitrack/decoder";
 import { TopflytechDecoder } from "./protocols/topflytech/decoder";
 import { Vt200Decoder } from "./protocols/vt200/decoder";
 import { TeltonikaDecoder } from "./protocols/teltonika/decoder";
+import { WatchDecoder } from "./protocols/watch/decoder";
 import { Jt808Decoder } from "./protocols/jt808/decoder";
 
 /** All decoders keyed by protocol, for the ingest server's listener map. */
-export function createDecoders(): Record<ProtocolKey, ProtocolDecoder> {
+export function createDecoders(): Record<TcpProtocolKey, ProtocolDecoder> {
   return {
     gt06: new Gt06Decoder(),
     h02: new H02Decoder(),
@@ -39,5 +41,6 @@ export function createDecoders(): Record<ProtocolKey, ProtocolDecoder> {
     vt200: new Vt200Decoder(),
     teltonika: new TeltonikaDecoder(),
     jt808: new Jt808Decoder(),
+    watch: new WatchDecoder(),
   };
 }

@@ -19,7 +19,9 @@ export type AssetKind =
   | "senior"
   | "livestock"
   | "bag"
-  | "equipment";
+  | "equipment"
+  | "phone"
+  | "laptop";
 
 export interface Vehicle {
   id: string;

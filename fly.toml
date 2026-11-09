@@ -85,6 +85,13 @@ primary_region = 'jnb'
   [[services.ports]]
     port = 5064
 
+[[services]]
+  protocol = 'tcp'
+  internal_port = 5093
+
+  [[services.ports]]
+    port = 5093
+
 [[vm]]
   size = 'shared-cpu-1x'
   memory = '512mb'

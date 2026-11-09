@@ -120,6 +120,50 @@ Deliveries are `POST` JSON:
 Verify the `X-AeroTrack-Signature: sha256=<hex>` header by computing
 HMAC-SHA256 of the raw body with your webhook `secret`.
 
+## Phone & laptop tracking (OsmAnd ingest)
+
+Phones and laptops report over HTTP to `/api/ingest/osmand` using the
+OsmAnd protocol — the same format Traccar Client uses.
+
+### Authentication
+
+Each software tracker gets a per-device ingest token at onboarding
+(`devices.ingest_token`). Embed it in the Server URL:
+
+```
+GET|POST /api/ingest/osmand?key=<ingest_token>&id=<device_id>&lat=...&lon=...&timestamp=...
+```
+
+The global `TRACCAR_FORWARD_SECRET` (via `?key=`/`?token=`/`Authorization:
+Bearer`/`x-forward-key`) also works for Traccar bridges.
+
+### Phone (Traccar Client)
+
+1. Devices → Add Tracker → Phone.
+2. Install Traccar Client (Play Store / App Store).
+3. Settings → Server URL = the URL shown at onboarding (token embedded),
+   Device identifier = the device ID shown.
+4. Start the service. Positions appear on Live Tracking within a minute.
+
+### Laptop (AeroTrack agent)
+
+1. Devices → Add Tracker → Laptop.
+2. Download `scripts/laptop-agent.py` (Python 3.8+, stdlib only).
+3. Run: `python laptop-agent.py --url "<server-url-with-key>" --id <device-id>`
+4. Schedule at login (Task Scheduler / launchd / cron).
+
+Laptops have no GPS — the agent sends the public IP and the server resolves
+city-level location via ip-api.com. Accuracy ~10 km.
+
+### Accepted parameters
+
+`id`/`deviceid`, `timestamp` (unix s/ms or ISO), `lat`, `lon` (or `location=lat,lon`),
+`speed` (knots), `bearing`/`heading`/`course`, `altitude`, `accuracy`, `batt`,
+`sat`/`satellites`, `ip` (triggers server-side geolocation), plus any extra
+params are stored in `positions.raw_data.attributes`.
+
+Response: `{ "received": 1, "stored": 1 }`.
+
 ## cURL quickstart
 
 ```bash
