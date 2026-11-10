@@ -3,8 +3,18 @@
 import { useMemo, useState } from "react";
 import { Building2, Handshake, Plus, UserCheck, UserX } from "lucide-react";
 import { toast } from "sonner";
-import { useResellerClients } from "@/hooks/use-platform-data";
+import { usePartners } from "@/hooks/use-platform-data";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
 import { StatCard } from "@/components/shared/stat-card";
@@ -13,18 +23,6 @@ import { cn } from "@/lib/utils";
 
 type PartnerKind = "installer" | "reseller";
 type PartnerStatus = "application" | "approved" | "active" | "suspended";
-
-interface Partner {
-  id: string;
-  name: string;
-  kind: PartnerKind;
-  contact: string;
-  country: string;
-  devices: number;
-  status: PartnerStatus;
-  appliedAt: string;
-  approvedAt?: string;
-}
 
 const STATUS_META: Record<PartnerStatus, { label: string; tone: "muted" | "info" | "success" | "danger" }> = {
   application: { label: "Application", tone: "info" },
@@ -35,34 +33,13 @@ const STATUS_META: Record<PartnerStatus, { label: string; tone: "muted" | "info"
 
 const PIPELINE: PartnerStatus[] = ["application", "approved", "active", "suspended"];
 
-const DEMO_PARTNERS: Partner[] = [
-  { id: "pt-1", name: "TrackRight Installers", kind: "installer", contact: "sales@trackright.co.zw", country: "Zimbabwe", devices: 0, status: "application", appliedAt: "2026-11-02" },
-  { id: "pt-2", name: "GPS Masters SA", kind: "installer", contact: "hello@gpsmasters.co.za", country: "South Africa", devices: 0, status: "application", appliedAt: "2026-10-28" },
-  { id: "pt-3", name: "FleetLink Resellers", kind: "reseller", contact: "partners@fleetlink.com", country: "Kenya", devices: 0, status: "approved", appliedAt: "2026-10-15", approvedAt: "2026-10-20" },
-  { id: "pt-4", name: "AutoGuard Distributors", kind: "reseller", contact: "trade@autoguard.io", country: "Nigeria", devices: 0, status: "active", appliedAt: "2026-08-01", approvedAt: "2026-08-05" },
-  { id: "pt-5", name: "MoveTrack Solutions", kind: "installer", contact: "info@movetrack.co.zw", country: "Zimbabwe", devices: 0, status: "active", appliedAt: "2026-06-12", approvedAt: "2026-06-15" },
-  { id: "pt-6", name: "QuickTrack Ghana", kind: "reseller", contact: "support@quicktrack.gh", country: "Ghana", devices: 0, status: "suspended", appliedAt: "2026-05-20", approvedAt: "2026-05-25" },
-];
-
 export default function AdminPartnersPage() {
-  const { rows: liveClients, live } = useResellerClients();
+  const { rows: partners, live, loading, insert, update } = usePartners();
   const [kindFilter, setKindFilter] = useState<"all" | PartnerKind>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | PartnerStatus>("all");
-
-  const partners = useMemo<Partner[]>(() => {
-    if (!live) return DEMO_PARTNERS;
-    /* Live mode: reseller/client tenants become the partner list. */
-    return liveClients.map((c) => ({
-      id: c.id,
-      name: c.name,
-      kind: "reseller" as PartnerKind,
-      contact: c.contact,
-      country: "—",
-      devices: c.activeDevices,
-      status: c.status === "suspended" ? "suspended" : c.status === "trial" ? "approved" : "active",
-      appliedAt: c.joinedAt,
-    }));
-  }, [live, liveClients]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: "", kind: "installer" as PartnerKind, contact: "", country: "" });
 
   const filtered = partners.filter(
     (p) =>
@@ -75,14 +52,40 @@ export default function AdminPartnersPage() {
     return { applications: by("application"), approved: by("approved"), active: by("active"), suspended: by("suspended") };
   }, [partners]);
 
+  const addPartner = async () => {
+    if (!form.name.trim()) return toast.error("Partner name is required");
+    setSaving(true);
+    const ok = await insert({
+      name: form.name.trim(),
+      kind: form.kind,
+      contact_email: form.contact.trim() || null,
+      country: form.country.trim() || null,
+      status: "application",
+    });
+    setSaving(false);
+    if (!ok) return toast.error("Could not save partner — check your connection");
+    toast.success(`${form.name.trim()} added to the pipeline`);
+    setForm({ name: "", kind: "installer", contact: "", country: "" });
+    setAddOpen(false);
+  };
+
+  const setStatus = async (id: string, status: PartnerStatus, name: string) => {
+    const ok = await update(id, {
+      status,
+      ...(status === "approved" || status === "active" ? { approved_at: new Date().toISOString() } : {}),
+    });
+    if (ok) toast.success(`${name} → ${STATUS_META[status].label}`);
+    else toast.error(`Could not update ${name}`);
+  };
+
   return (
     <PageContainer>
       <PageHeader
         title="Partners & Installers"
         subtitle="Onboard retailers and hardware installers, review applications, and manage the partner network"
         actions={
-          <Button className="gap-2 rounded-xl shadow-card" onClick={() => toast.info("Add user: name, email, organization, role")}>
-            <Plus className="size-4" /> Add User
+          <Button className="gap-2 rounded-xl shadow-card" onClick={() => setAddOpen(true)}>
+            <Plus className="size-4" /> Add Partner
           </Button>
         }
       />
@@ -134,7 +137,6 @@ export default function AdminPartnersPage() {
                 <th className="px-3 py-3 font-medium">Kind</th>
                 <th className="px-3 py-3 font-medium">Contact</th>
                 <th className="px-3 py-3 font-medium">Country</th>
-                <th className="px-3 py-3 font-medium">Devices</th>
                 <th className="px-3 py-3 font-medium">Applied</th>
                 <th className="px-3 py-3 font-medium">Status</th>
                 <th className="px-5 py-3 font-medium text-right">Actions</th>
@@ -147,9 +149,8 @@ export default function AdminPartnersPage() {
                   <td className="px-3 py-3">
                     <Pill tone={p.kind === "installer" ? "info" : "muted"}>{p.kind}</Pill>
                   </td>
-                  <td className="px-3 py-3 text-muted-foreground">{p.contact}</td>
-                  <td className="px-3 py-3 text-muted-foreground">{p.country}</td>
-                  <td className="px-3 py-3 tabular-nums">{p.devices}</td>
+                  <td className="px-3 py-3 text-muted-foreground">{p.contactEmail ?? "—"}</td>
+                  <td className="px-3 py-3 text-muted-foreground">{p.country ?? "—"}</td>
                   <td className="px-3 py-3 text-muted-foreground">{shortDate(p.appliedAt)}</td>
                   <td className="px-3 py-3">
                     <Pill tone={STATUS_META[p.status].tone}>{STATUS_META[p.status].label}</Pill>
@@ -157,17 +158,22 @@ export default function AdminPartnersPage() {
                   <td className="px-5 py-3 text-right">
                     <div className="flex justify-end gap-1.5">
                       {p.status === "application" && (
-                        <Button size="sm" variant="outline" className="rounded-lg" onClick={() => toast.success(`Approved ${p.name} — welcome email queued`)}>
+                        <Button size="sm" variant="outline" className="rounded-lg" onClick={() => setStatus(p.id, "approved", p.name)}>
                           Approve
                         </Button>
                       )}
+                      {p.status === "approved" && (
+                        <Button size="sm" variant="outline" className="rounded-lg" onClick={() => setStatus(p.id, "active", p.name)}>
+                          Activate
+                        </Button>
+                      )}
                       {p.status === "active" && (
-                        <Button size="sm" variant="outline" className="rounded-lg" onClick={() => toast.info(`Suspending ${p.name}`)}>
+                        <Button size="sm" variant="outline" className="rounded-lg" onClick={() => setStatus(p.id, "suspended", p.name)}>
                           Suspend
                         </Button>
                       )}
                       {p.status === "suspended" && (
-                        <Button size="sm" variant="outline" className="rounded-lg" onClick={() => toast.success(`Reactivated ${p.name}`)}>
+                        <Button size="sm" variant="outline" className="rounded-lg" onClick={() => setStatus(p.id, "active", p.name)}>
                           Reactivate
                         </Button>
                       )}
@@ -177,8 +183,12 @@ export default function AdminPartnersPage() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-muted-foreground">
-                    No partners match the current filters.
+                  <td colSpan={7} className="px-5 py-10 text-center text-muted-foreground">
+                    {loading
+                      ? "Loading partners…"
+                      : live
+                        ? "No partners match the current filters."
+                        : "Partner pipeline unavailable — sign in as a platform admin."}
                   </td>
                 </tr>
               )}
@@ -189,8 +199,71 @@ export default function AdminPartnersPage() {
 
       <p className="mt-3 text-[12px] text-muted-foreground">
         Installers fit hardware and manage their own client fleets; resellers sell platform access and bill their clients privately.
-        Both onboard through the same pipeline with different permission sets.
+        Approved resellers can then be provisioned as organizations.
       </p>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Partner</DialogTitle>
+            <DialogDescription>
+              Register a new installer or reseller into the onboarding pipeline.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="p-name">Company name</Label>
+              <Input
+                id="p-name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="e.g. TrackRight Installers"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label htmlFor="p-kind">Kind</Label>
+                <select
+                  id="p-kind"
+                  value={form.kind}
+                  onChange={(e) => setForm({ ...form, kind: e.target.value as PartnerKind })}
+                  className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                >
+                  <option value="installer">Installer</option>
+                  <option value="reseller">Reseller</option>
+                </select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="p-country">Country</Label>
+                <Input
+                  id="p-country"
+                  value={form.country}
+                  onChange={(e) => setForm({ ...form, country: e.target.value })}
+                  placeholder="Zimbabwe"
+                />
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="p-contact">Contact email</Label>
+              <Input
+                id="p-contact"
+                type="email"
+                value={form.contact}
+                onChange={(e) => setForm({ ...form, contact: e.target.value })}
+                placeholder="sales@company.com"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={addPartner} disabled={saving} className="gap-2">
+              <Plus className="size-4" /> {saving ? "Saving…" : "Add to Pipeline"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   );
 }

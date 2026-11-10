@@ -166,6 +166,94 @@ const toAddon = (r: Row<"tenant_addons">): TenantAddon => ({
   active: r.active,
 });
 
+export interface Partner {
+  id: string;
+  name: string;
+  kind: "installer" | "reseller";
+  contactEmail: string | null;
+  country: string | null;
+  status: "application" | "approved" | "active" | "suspended";
+  notes: string | null;
+  appliedAt: string;
+  approvedAt: string | null;
+}
+
+const toPartner = (r: Row<"partners">): Partner => ({
+  id: r.id,
+  name: r.name,
+  kind: r.kind,
+  contactEmail: r.contact_email,
+  country: r.country,
+  status: r.status,
+  notes: r.notes,
+  appliedAt: r.applied_at,
+  approvedAt: r.approved_at,
+});
+
+export interface FeedbackItem {
+  id: string;
+  tenantId: string | null;
+  authorName: string;
+  authorEmail: string | null;
+  category: "bug" | "feature" | "praise" | "complaint";
+  message: string;
+  rating: number | null;
+  status: "new" | "reviewed" | "actioned" | "closed";
+  createdAt: string;
+}
+
+const toFeedback = (r: Row<"feedback">): FeedbackItem => ({
+  id: r.id,
+  tenantId: r.tenant_id,
+  authorName: r.author_name,
+  authorEmail: r.author_email,
+  category: r.category,
+  message: r.message,
+  rating: r.rating,
+  status: r.status,
+  createdAt: r.created_at,
+});
+
+export interface LegalDocument {
+  id: string;
+  title: string;
+  version: string;
+  status: "draft" | "published" | "archived";
+  content: string | null;
+  effectiveAt: string | null;
+  createdBy: string | null;
+  updatedAt: string;
+}
+
+const toLegalDocument = (r: Row<"legal_documents">): LegalDocument => ({
+  id: r.id,
+  title: r.title,
+  version: r.version,
+  status: r.status,
+  content: r.content,
+  effectiveAt: r.effective_at,
+  createdBy: r.created_by,
+  updatedAt: r.updated_at,
+});
+
+export interface FleetDelegate {
+  id: string;
+  name: string;
+  email: string;
+  organization: string;
+  role: "user" | "reseller";
+  createdAt: string;
+}
+
+const toFleetDelegate = (r: Row<"fleet_delegates">): FleetDelegate => ({
+  id: r.id,
+  name: r.name,
+  email: r.email,
+  organization: r.organization,
+  role: r.role,
+  createdAt: r.created_at,
+});
+
 /* ------------------------------------------------------------------ */
 /* Domain hooks                                                        */
 /* ------------------------------------------------------------------ */
@@ -207,6 +295,42 @@ export const useTenantAddons = () =>
 export const useQuotations = () =>
   useTenantTable("quotations", {
     map: toQuotation,
+    fallback: [],
+    order: "created_at",
+    tenantScoped: false,
+  });
+
+/** Installer/reseller onboarding pipeline (super-admin RLS). */
+export const usePartners = () =>
+  useTenantTable("partners", {
+    map: toPartner,
+    fallback: [],
+    order: "applied_at",
+    tenantScoped: false,
+  });
+
+/** Client & partner feedback inbox (authors see own tenant; admins see all). */
+export const useFeedback = () =>
+  useTenantTable("feedback", {
+    map: toFeedback,
+    fallback: [],
+    order: "created_at",
+    tenantScoped: false,
+  });
+
+/** Versioned terms/policies managed by the platform owner. */
+export const useLegalDocuments = () =>
+  useTenantTable("legal_documents", {
+    map: toLegalDocument,
+    fallback: [],
+    order: "created_at",
+    tenantScoped: false,
+  });
+
+/** Corporate fleet-access grants issued by Master Admin. */
+export const useFleetDelegates = () =>
+  useTenantTable("fleet_delegates", {
+    map: toFleetDelegate,
     fallback: [],
     order: "created_at",
     tenantScoped: false,

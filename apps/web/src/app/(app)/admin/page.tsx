@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Building2, CreditCard, LifeBuoy, Radio, TrendingUp, Users } from "lucide-react";
+import { Building2, CreditCard, FileText, Handshake, LifeBuoy, Radio, TrendingUp, Users } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useInvoices, useSupportTickets, useTenants } from "@/hooks/use-platform-data";
+import { useInvoices, usePartners, useQuotations, useSupportTickets, useTenants } from "@/hooks/use-platform-data";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
 import { StatCard } from "@/components/shared/stat-card";
@@ -36,10 +36,15 @@ export default function AdminOverviewPage() {
   const { rows: tenants } = useTenants();
   const { rows: tickets } = useSupportTickets();
   const { rows: invoices } = useInvoices();
+  const { rows: partners } = usePartners();
+  const { rows: quotations } = useQuotations();
   const mrr = tenants.reduce((n, t) => n + t.mrrUsd, 0);
   const devices = tenants.reduce((n, t) => n + t.vehicleCount, 0);
   const openTickets = tickets.filter((t) => t.status !== "closed").length;
   const overdue = invoices.filter((i) => i.status === "overdue").length;
+  const applications = partners.filter((p) => p.status === "application");
+  const openQuotes = quotations.filter((q) => q.status === "sent" || q.status === "draft");
+  const openQuoteValue = openQuotes.reduce((n, q) => n + q.amountUsd, 0);
   const trend = billingTrend(invoices, 7);
 
   return (
@@ -109,7 +114,7 @@ export default function AdminOverviewPage() {
         </Panel>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Panel className="overflow-hidden">
           <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
             <h3 className="text-[15px] font-semibold">Latest Tickets</h3>
@@ -151,6 +156,36 @@ export default function AdminOverviewPage() {
           <div className="border-t border-border/60 px-5 py-3 text-[12px] text-muted-foreground">
             <Users className="mr-1.5 inline size-3.5" />
             {tenants.reduce((n, t) => n + t.userCount, 0)} users across all client portals
+          </div>
+        </Panel>
+
+        <Panel className="overflow-hidden">
+          <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+            <h3 className="text-[15px] font-semibold">Pipeline</h3>
+            <Link href="/admin/partners" className="text-[12.5px] font-medium text-primary hover:underline">Partners</Link>
+          </div>
+          <div className="divide-y divide-border/50">
+            <div className="flex items-center gap-3 px-5 py-4">
+              <Handshake className="size-4 shrink-0 text-info" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px] font-medium">Partner applications</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {applications.slice(0, 3).map((p) => p.name).join(", ") || "None waiting"}
+                </div>
+              </div>
+              <span className="text-lg font-bold tabular-nums">{applications.length}</span>
+            </div>
+            <Link href="/admin/quotations" className="flex items-center gap-3 px-5 py-4 transition-colors hover:bg-accent/40">
+              <FileText className="size-4 shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px] font-medium">Open quotations</div>
+                <div className="text-[11px] text-muted-foreground">Drafts + sent, awaiting response</div>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold tabular-nums">{openQuotes.length}</div>
+                <div className="text-[11px] text-muted-foreground">{usd(openQuoteValue)}</div>
+              </div>
+            </Link>
           </div>
         </Panel>
       </div>

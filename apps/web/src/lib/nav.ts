@@ -30,6 +30,7 @@ import {
   Navigation,
   Package,
   Palette,
+  PanelsTopLeft,
   PawPrint,
   Radio,
   Route,
@@ -101,12 +102,11 @@ export const ADMIN_NAV: NavSection[] = [
     items: [{ label: "Overview", href: "/admin", icon: LayoutDashboard }],
   },
   {
-    label: "Partners & Clients",
+    label: "Network",
     items: [
-      { label: "Partners & Installers", href: "/admin/partners", icon: Handshake },
       { label: "Organizations", href: "/admin/organizations", icon: Building2 },
-      { label: "Fleet Partnerships", href: "/admin/fleet-partnerships", icon: Handshake },
-      { label: "Sub-Accounts", href: "/admin/sub-accounts", icon: Users },
+      { label: "Partners & Installers", href: "/admin/partners", icon: Handshake },
+      { label: "Fleet Access", href: "/admin/fleet-partnerships", icon: ShieldCheck },
     ],
   },
   {
@@ -120,17 +120,11 @@ export const ADMIN_NAV: NavSection[] = [
     ],
   },
   {
-    label: "Sales & Marketing",
-    items: [
-      { label: "Announcements", href: "/admin/announcements", icon: Megaphone },
-      { label: "Site Content", href: "/admin/site-content", icon: Palette },
-      { label: "Feedback", href: "/admin/feedback", icon: MessageSquareHeart },
-    ],
-  },
-  {
-    label: "Support",
+    label: "Comms & Support",
     items: [
       { label: "Support Tickets", href: "/admin/tickets", icon: LifeBuoy },
+      { label: "Announcements", href: "/admin/announcements", icon: Megaphone },
+      { label: "Feedback", href: "/admin/feedback", icon: MessageSquareHeart },
       { label: "Terms & Conditions", href: "/admin/terms", icon: Scale },
     ],
   },
@@ -149,10 +143,20 @@ export const ADMIN_NAV: NavSection[] = [
       { label: "Device Groups", href: "/admin/device-groups", icon: Package },
       { label: "Vehicle Database", href: "/admin/vehicle-database", icon: Car },
       { label: "API & Integration", href: "/admin/api", icon: Database },
-      { label: "Email Templates", href: "/admin/email-templates", icon: Mail },
       { label: "Activity Logs", href: "/admin/activity", icon: History },
       { label: "Backup & Restore", href: "/admin/backup", icon: HardDrive },
       { label: "System Settings", href: "/admin/system", icon: Settings },
+    ],
+  },
+  {
+    label: "White Label & Content",
+    items: [
+      { label: "Branding", href: "/admin/branding", icon: Palette },
+      { label: "Login Page", href: "/admin/login-page", icon: Smartphone },
+      { label: "Domains", href: "/admin/domains", icon: Globe },
+      { label: "Site Content", href: "/admin/site-content", icon: PanelsTopLeft },
+      { label: "Email Templates", href: "/admin/email-templates", icon: Mail },
+      { label: "SMS Gateway", href: "/admin/sms-gateway", icon: MessageSquare },
     ],
   },
 ];
@@ -192,10 +196,9 @@ export const NAV_META: Record<string, { title: string; subtitle?: string }> = {
   "/admin/partners": { title: "Partners & Installers", subtitle: "Onboard retailers and hardware installers" },
   "/admin/organizations": { title: "Organizations", subtitle: "Manage client organizations on the platform" },
   "/admin/fleet-partnerships": {
-    title: "Fleet Partnerships",
+    title: "Fleet Access",
     subtitle: "Corporate fleet management is limited to Master Admin and people you delegate",
   },
-  "/admin/sub-accounts": { title: "Sub-Accounts" },
   "/admin/branding": { title: "White Label Branding" },
   "/admin/login-page": { title: "Login Page Customization" },
   "/admin/domains": { title: "Domain Management" },

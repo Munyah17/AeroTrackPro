@@ -31,6 +31,7 @@ export async function POST(req: Request) {
       adminEmail?: string;
       contactEmail?: string;
       parentTenantId?: string;
+      accountKind?: string;
     } | null;
 
     const name = body?.name?.trim();
@@ -61,10 +62,16 @@ export async function POST(req: Request) {
     }
 
     const isMaster = me.role === "super_admin";
+    /* Master Admin may provision reseller/owner orgs too; everyone else
+       is restricted to downline clients. */
+    const accountKind = isMaster && ["client", "reseller", "owner"].includes(body?.accountKind ?? "")
+      ? (body!.accountKind as "client" | "reseller" | "owner")
+      : "client";
     let parentTenantId: string;
     if (isMaster) {
-      /* Master Admin may create a client under any reseller (or standalone). */
-      parentTenantId = body?.parentTenantId ?? me.tenant_id;
+      /* Master Admin may create a client under any reseller (or standalone).
+         Reseller/owner orgs are top-level — no parent. */
+      parentTenantId = accountKind === "client" ? (body?.parentTenantId ?? me.tenant_id) : me.tenant_id;
     } else {
       const { data: org } = await session
         .from("tenants")
@@ -95,7 +102,7 @@ export async function POST(req: Request) {
       slug = `${base}-${i + 1}`;
     }
 
-    /* --- client tenant ------------------------------------------------ */
+    /* --- org tenant --------------------------------------------------- */
     const { data: tenant, error: tenantErr } = await admin
       .from("tenants")
       .insert({
@@ -106,8 +113,8 @@ export async function POST(req: Request) {
         domain_status: "pending",
         logo_url: null,
         trial_ends_at: null,
-        account_kind: "client",
-        parent_tenant_id: parentTenantId,
+        account_kind: accountKind,
+        parent_tenant_id: accountKind === "client" ? parentTenantId : null,
         contact_email: body?.contactEmail?.trim() || adminEmail,
         plan: "basic",
         status: "trial",

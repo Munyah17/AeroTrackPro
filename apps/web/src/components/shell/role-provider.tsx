@@ -2,7 +2,13 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { defaultPortal, hasFleetAccess, isPortal, type Portal, type Role } from "@/lib/rbac";
-import { readDelegates, writeDelegates, type FleetDelegate } from "@/lib/fleet-access";
+import {
+  deleteDelegate,
+  fetchDelegates,
+  insertDelegate,
+  readDelegates,
+  type FleetDelegate,
+} from "@/lib/fleet-access";
 import { resolveAccountTier, type AccountTier } from "@/lib/account-tier";
 
 interface GrantInput {
@@ -41,7 +47,12 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState(false);
 
   useEffect(() => {
-    setDelegates(readDelegates());
+    /* Delegates live in the fleet_delegates table; non-admins can only
+       read their own grant row, super admins see the whole ledger.
+       localStorage remains for signed-out/demo sessions. */
+    void fetchDelegates().then((rows) => {
+      setDelegates(rows ?? readDelegates());
+    });
 
     void resolveAccountTier().then((tier) => {
       if (tier) {
@@ -54,7 +65,9 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const role: Role = session?.role ?? "user";
-  const fleetAccess = hasFleetAccess(role, false);
+  /* A grant row matching the signed-in email confers fleet access. */
+  const delegated = !!session?.email && delegates.some((d) => d.email.toLowerCase() === session.email.toLowerCase());
+  const fleetAccess = hasFleetAccess(role, delegated);
 
   const setPortal = useCallback(
     (next: Portal) => {
@@ -67,25 +80,28 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   );
 
   const grantFleet = useCallback((input: GrantInput) => {
-    const created: FleetDelegate = {
+    /* Optimistic row so the UI updates instantly; swapped for the real
+       row when the insert answers. */
+    const optimistic: FleetDelegate = {
       ...input,
       id: crypto.randomUUID(),
       grantedAt: new Date().toISOString(),
     };
-    setDelegates((current) => {
-      const next = [created, ...current];
-      writeDelegates(next);
-      return next;
+    setDelegates((current) => [optimistic, ...current]);
+    void insertDelegate(input).then((row) => {
+      if (!row) {
+        /* Insert failed (offline/unauthorized) — roll the row back. */
+        setDelegates((current) => current.filter((d) => d.id !== optimistic.id));
+        return;
+      }
+      setDelegates((current) => current.map((d) => (d.id === optimistic.id ? row : d)));
     });
-    return created;
+    return optimistic;
   }, []);
 
   const revokeFleet = useCallback((id: string) => {
-    setDelegates((current) => {
-      const next = current.filter((d) => d.id !== id);
-      writeDelegates(next);
-      return next;
-    });
+    setDelegates((current) => current.filter((d) => d.id !== id));
+    void deleteDelegate(id);
   }, []);
 
   const value = useMemo<RoleState>(

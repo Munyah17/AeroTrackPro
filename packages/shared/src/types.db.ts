@@ -835,6 +835,105 @@ export type Database = {
         Update: Partial<Omit<Database["public"]["Tables"]["quotations"]["Row"], "id" | "created_at">>;
         Relationships: [];
       };
+      partners: {
+        Row: {
+          id: string;
+          name: string;
+          kind: "installer" | "reseller";
+          contact_email: string | null;
+          country: string | null;
+          status: "application" | "approved" | "active" | "suspended";
+          notes: string | null;
+          applied_at: string;
+          approved_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["partners"]["Row"],
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "applied_at"
+          | "approved_at"
+          | "status"
+          | "contact_email"
+          | "country"
+          | "notes"
+        > &
+          Partial<
+            Pick<
+              Database["public"]["Tables"]["partners"]["Row"],
+              "status" | "applied_at" | "approved_at" | "contact_email" | "country" | "notes"
+            >
+          >;
+        Update: Partial<Omit<Database["public"]["Tables"]["partners"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
+      feedback: {
+        Row: {
+          id: string;
+          tenant_id: string | null;
+          user_id: string | null;
+          author_name: string;
+          author_email: string | null;
+          category: "bug" | "feature" | "praise" | "complaint";
+          message: string;
+          rating: number | null;
+          status: "new" | "reviewed" | "actioned" | "closed";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["feedback"]["Row"],
+          "id" | "created_at" | "updated_at" | "status" | "category" | "tenant_id" | "user_id" | "author_email" | "rating"
+        > &
+          Partial<
+            Pick<
+              Database["public"]["Tables"]["feedback"]["Row"],
+              "status" | "category" | "tenant_id" | "user_id" | "author_email" | "rating"
+            >
+          >;
+        Update: Partial<Omit<Database["public"]["Tables"]["feedback"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
+      legal_documents: {
+        Row: {
+          id: string;
+          title: string;
+          version: string;
+          status: "draft" | "published" | "archived";
+          content: string | null;
+          effective_at: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["legal_documents"]["Row"],
+          "id" | "created_at" | "updated_at" | "status" | "content" | "effective_at" | "created_by"
+        > &
+          Partial<
+            Pick<Database["public"]["Tables"]["legal_documents"]["Row"], "status" | "content" | "effective_at" | "created_by">
+          >;
+        Update: Partial<Omit<Database["public"]["Tables"]["legal_documents"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
+      fleet_delegates: {
+        Row: {
+          id: string;
+          name: string;
+          email: string;
+          organization: string;
+          role: "user" | "reseller";
+          granted_by: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["fleet_delegates"]["Row"], "id" | "created_at" | "granted_by"> &
+          Partial<Pick<Database["public"]["Tables"]["fleet_delegates"]["Row"], "granted_by">>;
+        Update: Partial<Omit<Database["public"]["Tables"]["fleet_delegates"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
