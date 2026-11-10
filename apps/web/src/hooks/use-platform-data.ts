@@ -130,6 +130,36 @@ export interface TenantAddon {
   active: boolean;
 }
 
+export interface Quotation {
+  id: string;
+  number: string;
+  clientName: string;
+  clientEmail: string | null;
+  kind: "client" | "partner";
+  amountUsd: number;
+  currency: string;
+  status: "draft" | "sent" | "accepted" | "declined" | "expired";
+  notes: string | null;
+  validUntil: string | null;
+  sentAt: string | null;
+  createdAt: string;
+}
+
+const toQuotation = (r: Row<"quotations">): Quotation => ({
+  id: r.id,
+  number: r.number,
+  clientName: r.client_name,
+  clientEmail: r.client_email,
+  kind: r.kind,
+  amountUsd: r.amount_usd,
+  currency: r.currency,
+  status: r.status,
+  notes: r.notes,
+  validUntil: r.valid_until,
+  sentAt: r.sent_at,
+  createdAt: r.created_at,
+});
+
 const toAddon = (r: Row<"tenant_addons">): TenantAddon => ({
   id: r.id,
   module: r.module,
@@ -172,6 +202,15 @@ export const useAnnouncements = () =>
 
 export const useTenantAddons = () =>
   useTenantTable("tenant_addons", { map: toAddon, fallback: [], order: "created_at" });
+
+/** Platform-owner quotations (super-admin RLS; not tenant-scoped). */
+export const useQuotations = () =>
+  useTenantTable("quotations", {
+    map: toQuotation,
+    fallback: [],
+    order: "created_at",
+    tenantScoped: false,
+  });
 
 /**
  * Reseller downline: child `client` tenants under the signed-in reseller.

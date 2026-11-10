@@ -795,6 +795,46 @@ export type Database = {
         Update: Partial<Omit<Database["public"]["Tables"]["notification_deliveries"]["Row"], "id" | "created_at">>;
         Relationships: [];
       };
+      quotations: {
+        Row: {
+          id: string;
+          number: string;
+          client_name: string;
+          client_email: string | null;
+          kind: "client" | "partner";
+          amount_usd: number;
+          currency: string;
+          status: "draft" | "sent" | "accepted" | "declined" | "expired";
+          notes: string | null;
+          valid_until: string | null;
+          sent_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["quotations"]["Row"],
+          | "id"
+          | "number"
+          | "created_at"
+          | "updated_at"
+          | "status"
+          | "currency"
+          | "amount_usd"
+          | "kind"
+          | "client_email"
+          | "notes"
+          | "valid_until"
+          | "sent_at"
+        > &
+          Partial<
+            Pick<
+              Database["public"]["Tables"]["quotations"]["Row"],
+              "status" | "currency" | "amount_usd" | "kind" | "client_email" | "notes" | "valid_until" | "sent_at"
+            >
+          >;
+        Update: Partial<Omit<Database["public"]["Tables"]["quotations"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
