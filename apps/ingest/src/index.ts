@@ -65,6 +65,22 @@ async function identify(
   return device;
 }
 
+/* Devices in sleep/replay mode re-send the same frozen fix (identical
+   timestamp + coords) on every wake. Dedupe those so positions isn't
+   flooded with duplicates; last_seen still updates so the device stays
+   "online". Entries expire after 30 min. */
+const seenFixes = new Map<string, number>();
+const FIX_DEDUPE_MS = 30 * 60_000;
+
+function isDuplicateFix(deviceId: string, recordedAt: string, lat: number, lng: number): boolean {
+  const now = Date.now();
+  for (const [k, t] of seenFixes) if (now - t > FIX_DEDUPE_MS) seenFixes.delete(k);
+  const key = `${deviceId}:${recordedAt}:${lat.toFixed(6)},${lng.toFixed(6)}`;
+  if (seenFixes.has(key)) return true;
+  seenFixes.set(key, now);
+  return false;
+}
+
 async function savePositions(protocol: ProtocolKey, socket: net.Socket, session: Session, positions: Position[]) {
   for (const position of positions) {
     if (!persistenceEnabled) {
@@ -77,6 +93,16 @@ async function savePositions(protocol: ProtocolKey, socket: net.Socket, session:
     const device = await identify(socket, protocol, session, position.deviceId);
     if (!device) {
       console.warn(`[${protocol}] Device IMEI ${position.deviceId} not registered, dropping fix`);
+      continue;
+    }
+
+    const duplicate = isDuplicateFix(device.id, position.timestamp.toISOString(), position.latitude, position.longitude);
+    if (duplicate) {
+      void db()
+        .from("devices")
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq("id", device.id)
+        .then();
       continue;
     }
 
