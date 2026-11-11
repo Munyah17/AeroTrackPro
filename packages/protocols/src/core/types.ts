@@ -115,6 +115,7 @@ export type DeviceCommand =
   | { type: "disarm" }
   | { type: "sosNumber"; slot: 1 | 2 | 3; phone: string }
   | { type: "listen"; callbackPhone: string } // voice monitor (ST-906, GF-07/09)
+  | { type: "sleepMode"; enabled: boolean; minutes?: number } // power-saving sleep (SinoTrack SLEEP)
   | { type: "custom"; payload: string };
 
 export interface EncodedCommand {

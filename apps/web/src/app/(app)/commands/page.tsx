@@ -35,6 +35,7 @@ const CMD_LABELS: Record<string, string> = {
   disarm: "Disarm Alarm",
   sosNumber: "SOS Number",
   listen: "Voice Monitor",
+  sleepMode: "Sleep Mode",
   custom: "Custom",
 };
 
@@ -138,6 +139,17 @@ export default function CommandsPage() {
     void send("Voice monitor", { type: "listen", callbackPhone: phone.trim() });
   };
 
+  const askSleep = () => {
+    const input = window.prompt("Sleep after how many minutes stationary? (1–720, 0 disables)", "30");
+    if (input === null) return;
+    const minutes = parseInt(input, 10);
+    if (!Number.isFinite(minutes) || minutes < 0 || minutes > 720) {
+      toast.error("Invalid value", { description: "Enter minutes between 0 and 720." });
+      return;
+    }
+    void send(minutes === 0 ? "Sleep off" : `Sleep ${minutes}m`, { type: "sleepMode", enabled: minutes > 0, minutes });
+  };
+
   const commands = [
     { label: "Locate Now", icon: MapPin, show: true, action: () => void send("Locate", { type: "locate" }) },
     { label: "Immobilize Engine", icon: Lock, show: !!caps?.engineCut, warn: true, action: () => void send("Engine stop", { type: "engineStop" }, true) },
@@ -148,6 +160,7 @@ export default function CommandsPage() {
     { label: "Set Upload Interval", icon: Timer, show: true, action: askInterval },
     { label: "Reboot Device", icon: RefreshCw, show: true, action: () => void send("Reboot", { type: "reboot" }) },
     { label: "Power Saving Mode", icon: Power, show: !!caps?.internalBatteryDays, action: () => void send("Power saving", { type: "custom", payload: "powerSaving on" }) },
+    { label: "Sleep Mode", icon: Power, show: device?.protocol === "h02", action: askSleep },
   ].filter((c) => c.show);
 
   const smsCatalog =

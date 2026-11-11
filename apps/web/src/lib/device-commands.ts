@@ -37,6 +37,11 @@ export const commandSchema = z.discriminatedUnion("type", [
     phone: z.string().min(5),
   }),
   z.object({ type: z.literal("listen"), callbackPhone: z.string().min(5) }),
+  z.object({
+    type: z.literal("sleepMode"),
+    enabled: z.boolean(),
+    minutes: z.number().int().min(0).max(720).optional(),
+  }),
   z.object({ type: z.literal("custom"), payload: z.string().min(1) }),
 ]);
 

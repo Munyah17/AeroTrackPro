@@ -171,6 +171,11 @@ export class H02Decoder implements ProtocolDecoder {
       case "setServer":
         // S23 expects a dotted IP; most ST-901A firmware rejects domain names.
         return wrap("S23", command.host, command.port);
+      case "sleepMode":
+        // SinoTrack SLEEP: minutes until sleep when stationary; 0 disables.
+        // GPRS form unverified on ST-901A — SMS `SLEEP<pwd> <min>` is the
+        // documented path (see SINOTRACK_SMS_COMMANDS.setSleep).
+        return wrap("SLEEP", command.enabled ? (command.minutes ?? 5) : 0);
       case "custom":
         return wrap(command.payload);
       default:
@@ -211,6 +216,8 @@ export const SINOTRACK_SMS_COMMANDS = {
   locate: (pwd: string) => `669${pwd}`,
   /** Read back full configuration (APN/IP/intervals/status). */
   readConfig: () => `RCONF`,
+  /** Sleep after N minutes stationary (1-720); 0 disables — saves power. */
+  setSleep: (pwd: string, minutes: number) => `SLEEP${pwd} ${minutes}`,
   /** Reboot the tracker — takes no password on ST-901A. */
   reboot: () => `RESTART`,
 
