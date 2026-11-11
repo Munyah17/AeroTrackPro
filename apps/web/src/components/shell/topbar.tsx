@@ -219,7 +219,7 @@ export function Topbar() {
       <Button
         variant="ghost"
         size="icon"
-        className="hidden shrink-0 rounded-xl sm:inline-flex"
+        className="inline-flex shrink-0 rounded-xl"
         aria-label="Hard refresh — reload all live data and check server status"
         title="Refresh all data + server status"
         disabled={refreshing}

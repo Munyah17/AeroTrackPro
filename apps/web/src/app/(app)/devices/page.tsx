@@ -6,6 +6,7 @@ import { Cable, Link2, Plus, Radio } from "lucide-react";
 import { toast } from "sonner";
 import { DEVICE_MODELS, type DeviceModel } from "@aerotrack/protocols";
 import { useFleet } from "@/hooks/use-fleet";
+import { vehicleLiveStatus, LIVE_STATUS } from "@/lib/live-status";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
@@ -114,7 +115,17 @@ export default function DevicesPage() {
             const m = DEVICE_MODELS.find((d) => d.id === v.deviceModelId);
             return (
               <div key={v.id} className="flex flex-wrap items-center gap-4 px-5 py-3.5">
-                <div className={cn("size-2.5 rounded-full", v.status === "offline" ? "bg-muted-foreground/50" : "bg-success")} />
+                {(() => {
+                  const ls = LIVE_STATUS[vehicleLiveStatus(v)];
+                  return (
+                    <>
+                      <span className={cn("size-2.5 rounded-full", ls.dot)} />
+                      <Pill tone={vehicleLiveStatus(v) === "online" ? "success" : vehicleLiveStatus(v) === "sleeping" ? "warning" : "danger"}>
+                        {ls.label}
+                      </Pill>
+                    </>
+                  );
+                })()}
                 <div className="min-w-0 flex-1">
                   <div className="text-[13.5px] font-semibold">{m?.vendor} {m?.model}</div>
                   <div className="text-[11.5px] text-muted-foreground">IMEI {v.imei} · SIM {v.simMsisdn}</div>
