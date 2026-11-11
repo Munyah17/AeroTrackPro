@@ -67,12 +67,13 @@ export class H02Decoder implements ProtocolDecoder {
     if (!vendor || !id || !type) return { kind: "ignored", reason: "malformed h02 frame" };
     session.deviceId = id;
 
-    if (type === "V1" || type === "V4" || type === "VI1") {
+    if (type === "V1" || type === "V4" || type === "VI1" || type === "V8") {
       // V1: time, validity, lat, NS, lon, EW, speed, course, date, status
       // V4: cmd, confirmed-cmd-time, then the V1 field set (base offset 5)
+      // V8 (ST-901A): V1 layout + trailing LBS/telemetry fields; validity "V"
       const base = type === "V4" ? 5 : 3;
       const time = parts[base]!;
-      const valid = parts[base + 1] === "A";
+      const valid = parts[base + 1] === "A" || parts[base + 1] === "V";
       const lat = nmeaToDecimal(parseFloat(parts[base + 2]!), parts[base + 3]!);
       const lon = nmeaToDecimal(parseFloat(parts[base + 4]!), parts[base + 5]!);
       const speedKmh = parseFloat(parts[base + 6]!) * KNOTS_TO_KMH;
@@ -93,6 +94,7 @@ export class H02Decoder implements ProtocolDecoder {
           raw: text,
           ignition: (status & 0x00400000) === 0 ? true : undefined,
           alarm: alarms.length ? (alarms[0] as Position["attributes"]["alarm"]) : undefined,
+          ...(type === "V8" ? { extras: parts.slice(base + 10) } : {}),
         },
       };
       return { kind: "position", position };
