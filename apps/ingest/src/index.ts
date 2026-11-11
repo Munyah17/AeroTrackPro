@@ -14,6 +14,7 @@ import {
   createDecoders,
   createSession,
   type Position,
+  type ProtocolKey,
   type TcpProtocolKey,
   type Session,
 } from "@aerotrack/protocols";
@@ -126,14 +127,23 @@ async function savePositions(protocol: ProtocolKey, socket: net.Socket, session:
   }
 }
 
-function handleConnection(socket: net.Socket, protocol: ProtocolKey) {
+function handleConnection(socket: net.Socket, protocol: TcpProtocolKey) {
   console.log(`[${protocol}] New connection from ${socket.remoteAddress}:${socket.remotePort}`);
   const decoder = decoders[protocol];
   const session: Session = createSession();
   let buffer: Buffer = Buffer.alloc(0);
+  let loggedFirstChunk = false;
 
   socket.on("data", async (chunk: Buffer) => {
     try {
+      if (!loggedFirstChunk) {
+        loggedFirstChunk = true;
+        const preview = chunk.subarray(0, 256);
+        console.log(
+          `[${protocol}] first bytes (${chunk.length}B): ${preview.toString("hex")}\n` +
+            `  ascii: ${JSON.stringify(preview.toString("latin1"))}`,
+        );
+      }
       buffer = Buffer.concat([buffer, chunk]);
 
       const { consumed, frames } = decoder.splitFrames(buffer);

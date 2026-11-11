@@ -21,7 +21,7 @@ async function markCommand(id: string, fields: Record<string, unknown>) {
   await db().from("device_commands").update(fields).eq("id", id);
 }
 
-async function drainQueue(decoders: Record<ProtocolKey, ProtocolDecoder>) {
+async function drainQueue(decoders: Partial<Record<ProtocolKey, ProtocolDecoder>>) {
   // Only our own queue: 'traccar' rows are dispatched by the web app through
   // Traccar's REST API; 'sms' rows wait on a gateway. 'none' = legacy rows
   // written before transports were distinguished.
@@ -40,6 +40,7 @@ async function drainQueue(decoders: Record<ProtocolKey, ProtocolDecoder>) {
     if (!conn) continue; // device offline — retry on next poll
 
     const decoder = decoders[conn.protocol];
+    if (!decoder) continue;
     try {
       const encoded = decoder.encodeCommand(row.command, conn.session);
       if (!encoded) {
@@ -71,7 +72,7 @@ async function drainQueue(decoders: Record<ProtocolKey, ProtocolDecoder>) {
   }
 }
 
-export function startCommandDispatcher(decoders: Record<ProtocolKey, ProtocolDecoder>) {
+export function startCommandDispatcher(decoders: Partial<Record<ProtocolKey, ProtocolDecoder>>) {
   setInterval(() => {
     drainQueue(decoders).catch((err) =>
       console.error("[commands] Queue drain failed:", err instanceof Error ? err.message : err),
