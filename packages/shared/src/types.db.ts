@@ -24,10 +24,38 @@ export type Database = {
           logo_url: string | null;
           domain_status: "pending" | "active" | "failed";
           trial_ends_at: string | null;
+          login_welcome: string | null;
+          login_show_powered_by: boolean;
+          login_allow_reset: boolean;
+          login_2fa: boolean;
+          login_bg_url: string | null;
+          favicon_url: string | null;
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["tenants"]["Row"], "id" | "created_at" | "updated_at">;
+        Insert: Omit<
+          Database["public"]["Tables"]["tenants"]["Row"],
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "login_welcome"
+          | "login_show_powered_by"
+          | "login_allow_reset"
+          | "login_2fa"
+          | "login_bg_url"
+          | "favicon_url"
+        > &
+          Partial<
+            Pick<
+              Database["public"]["Tables"]["tenants"]["Row"],
+              | "login_welcome"
+              | "login_show_powered_by"
+              | "login_allow_reset"
+              | "login_2fa"
+              | "login_bg_url"
+              | "favicon_url"
+            >
+          >;
         Update: Partial<Database["public"]["Tables"]["tenants"]["Insert"]>;
         Relationships: [];
       };
@@ -932,6 +960,72 @@ export type Database = {
         Insert: Omit<Database["public"]["Tables"]["fleet_delegates"]["Row"], "id" | "created_at" | "granted_by"> &
           Partial<Pick<Database["public"]["Tables"]["fleet_delegates"]["Row"], "granted_by">>;
         Update: Partial<Omit<Database["public"]["Tables"]["fleet_delegates"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
+      device_groups: {
+        Row: {
+          id: string;
+          tenant_id: string | null;
+          name: string;
+          color: string;
+          created_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["device_groups"]["Row"],
+          "id" | "created_at" | "tenant_id" | "color"
+        > &
+          Partial<Pick<Database["public"]["Tables"]["device_groups"]["Row"], "tenant_id" | "color">>;
+        Update: Partial<Omit<Database["public"]["Tables"]["device_groups"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
+      sms_gateways: {
+        Row: {
+          id: string;
+          name: string;
+          provider: string;
+          sender_id: string | null;
+          credentials: unknown;
+          is_default: boolean;
+          status: "active" | "inactive";
+          balance_usd: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["sms_gateways"]["Row"],
+          "id" | "created_at" | "updated_at" | "sender_id" | "credentials" | "is_default" | "status" | "balance_usd"
+        > &
+          Partial<
+            Pick<
+              Database["public"]["Tables"]["sms_gateways"]["Row"],
+              "sender_id" | "credentials" | "is_default" | "status" | "balance_usd"
+            >
+          >;
+        Update: Partial<Omit<Database["public"]["Tables"]["sms_gateways"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
+      email_templates: {
+        Row: {
+          id: string;
+          name: string;
+          kind: "system" | "alert" | "billing" | "digest";
+          subject: string;
+          body: string;
+          tenant_id: string | null;
+          updated_at: string;
+          created_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["email_templates"]["Row"],
+          "id" | "created_at" | "updated_at" | "kind" | "subject" | "body" | "tenant_id"
+        > &
+          Partial<
+            Pick<
+              Database["public"]["Tables"]["email_templates"]["Row"],
+              "kind" | "subject" | "body" | "tenant_id"
+            >
+          >;
+        Update: Partial<Omit<Database["public"]["Tables"]["email_templates"]["Row"], "id" | "created_at">>;
         Relationships: [];
       };
     };

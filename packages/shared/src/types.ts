@@ -227,6 +227,7 @@ export interface Plan {
   name: string;
   priceMonthlyUsd: number;
   maxVehicles: number | null;
+  maxUsers?: number | null;
   features: string[];
   active: boolean;
 }

@@ -64,6 +64,7 @@ const toPlan = (r: Row<"plans">): Plan => ({
   name: r.name,
   priceMonthlyUsd: r.price_monthly_usd,
   maxVehicles: r.max_vehicles,
+  maxUsers: r.max_users,
   features: r.features,
   active: r.active,
 });
@@ -254,6 +255,62 @@ const toFleetDelegate = (r: Row<"fleet_delegates">): FleetDelegate => ({
   createdAt: r.created_at,
 });
 
+export interface DeviceGroup {
+  id: string;
+  tenantId: string | null;
+  name: string;
+  color: string;
+  deviceCount: number;
+}
+
+const toDeviceGroup = (r: Row<"device_groups">): DeviceGroup => ({
+  id: r.id,
+  tenantId: r.tenant_id,
+  name: r.name,
+  color: r.color,
+  deviceCount: 0,
+});
+
+export interface SmsGateway {
+  id: string;
+  name: string;
+  provider: string;
+  senderId: string | null;
+  isDefault: boolean;
+  status: "active" | "inactive";
+  balanceUsd: number | null;
+}
+
+const toSmsGateway = (r: Row<"sms_gateways">): SmsGateway => ({
+  id: r.id,
+  name: r.name,
+  provider: r.provider,
+  senderId: r.sender_id,
+  isDefault: r.is_default,
+  status: r.status,
+  balanceUsd: r.balance_usd,
+});
+
+export interface EmailTemplate {
+  id: string;
+  name: string;
+  kind: "system" | "alert" | "billing" | "digest";
+  subject: string;
+  body: string;
+  tenantId: string | null;
+  updatedAt: string;
+}
+
+const toEmailTemplate = (r: Row<"email_templates">): EmailTemplate => ({
+  id: r.id,
+  name: r.name,
+  kind: r.kind,
+  subject: r.subject,
+  body: r.body,
+  tenantId: r.tenant_id,
+  updatedAt: r.updated_at,
+});
+
 /* ------------------------------------------------------------------ */
 /* Domain hooks                                                        */
 /* ------------------------------------------------------------------ */
@@ -333,6 +390,33 @@ export const useFleetDelegates = () =>
     map: toFleetDelegate,
     fallback: [],
     order: "created_at",
+    tenantScoped: false,
+  });
+
+/** Device groups (platform-wide + tenant-scoped rows for super admin). */
+export const useDeviceGroups = () =>
+  useTenantTable("device_groups", {
+    map: toDeviceGroup,
+    fallback: [],
+    order: "created_at",
+    tenantScoped: false,
+  });
+
+/** SMS gateways — platform-owner managed. */
+export const useSmsGateways = () =>
+  useTenantTable("sms_gateways", {
+    map: toSmsGateway,
+    fallback: [],
+    order: "created_at",
+    tenantScoped: false,
+  });
+
+/** Email templates — platform defaults + per-tenant overrides. */
+export const useEmailTemplates = () =>
+  useTenantTable("email_templates", {
+    map: toEmailTemplate,
+    fallback: [],
+    order: "updated_at",
     tenantScoped: false,
   });
 

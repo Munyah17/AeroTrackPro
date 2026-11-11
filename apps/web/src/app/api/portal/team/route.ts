@@ -65,6 +65,7 @@ export async function POST(req: Request) {
       email?: string;
       fullName?: string;
       role?: string;
+      tenantId?: string;
     } | null;
     const email = body?.email?.trim().toLowerCase();
     const role = body?.role;
@@ -79,6 +80,14 @@ export async function POST(req: Request) {
     }
 
     const admin = createAdminClient();
+    /* Master Admin may add a member to a chosen tenant (e.g. a client's
+       admin user); tenant admins are locked to their own tenant. */
+    let targetTenantId = c.me.tenant_id;
+    if (c.me.role === "super_admin" && body?.tenantId) {
+      const { data: t } = await admin.from("tenants").select("id").eq("id", body.tenantId).maybeSingle();
+      if (!t) return NextResponse.json({ error: "not_found", message: "Unknown organization." }, { status: 404 });
+      targetTenantId = t.id;
+    }
     const tempPassword = `At!${crypto.randomUUID().replace(/-/g, "").slice(0, 10)}x9`;
 
     /* Reuse an existing auth account if the email already has one — the person
@@ -101,7 +110,7 @@ export async function POST(req: Request) {
     const { data: member, error: userErr } = await admin
       .from("users")
       .insert({
-        tenant_id: c.me.tenant_id,
+        tenant_id: targetTenantId,
         auth_id: created.user.id,
         email,
         full_name: body?.fullName?.trim() || email,
