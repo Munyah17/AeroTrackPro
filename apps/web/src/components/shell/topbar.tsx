@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Bell, Menu, Moon, Sun, LogOut, User, Settings } from "lucide-react";
+import { Bell, Menu, Moon, RefreshCw, Sun, LogOut, User, Settings } from "lucide-react";
+import { toast } from "sonner";
 import { BrandMark } from "@/components/brand/mark";
-import { useAlerts } from "@/hooks/use-live-data";
+import { useAlerts, refreshAllLiveData } from "@/hooks/use-live-data";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/format";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -159,6 +160,37 @@ export function Topbar() {
       .toUpperCase(),
   };
 
+  const [refreshing, setRefreshing] = useState(false);
+
+  const hardRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    refreshAllLiveData();
+    router.refresh();
+    try {
+      const res = await fetch("/api/health", { cache: "no-store" });
+      const body = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        supabase?: string;
+        ms?: number;
+        error?: string;
+      };
+      if (res.ok && body.ok) {
+        toast.success("Data refreshed", {
+          description: `Server OK · Supabase ${body.ms ?? "?"}ms`,
+        });
+      } else {
+        toast.error("Server unreachable", {
+          description: body.error ?? `Supabase: ${body.supabase ?? "unknown"}`,
+        });
+      }
+    } catch {
+      toast.error("Server unreachable", { description: "Could not reach the health endpoint." });
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const signOut = async () => {
     const [{ supabase }, { clearAccountTierCache }, { clearLiveDataCache }, { clearFleetCache }] =
       await Promise.all([
@@ -183,6 +215,18 @@ export function Topbar() {
       </div>
 
       <div className="ml-auto" />
+
+      <Button
+        variant="ghost"
+        size="icon"
+        className="hidden shrink-0 rounded-xl sm:inline-flex"
+        aria-label="Hard refresh — reload all live data and check server status"
+        title="Refresh all data + server status"
+        disabled={refreshing}
+        onClick={() => void hardRefresh()}
+      >
+        <RefreshCw className={cn("size-[18px]", refreshing && "animate-spin")} />
+      </Button>
 
       <ThemeSwitch dark={dark} onToggle={toggle} />
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { type AssetKind, type Database, type Vehicle } from "@aerotrack/shared";
+import { useLiveRefreshTick } from "./use-live-data";
 
 type VehicleRow = Database["public"]["Tables"]["vehicles"]["Row"];
 type PositionRow = Database["public"]["Tables"]["positions"]["Row"];
@@ -87,6 +88,7 @@ export function useFleet(): {
   const [fleet, setFleet] = useState<Vehicle[]>(cachedFleet);
   const [live, setLive] = useState(cachedFleet.length > 0);
   const [trails, setTrails] = useState<Record<string, [number, number][]>>({});
+  const refreshTick = useLiveRefreshTick();
   const rowsRef = useRef<Map<string, VehicleRow>>(new Map());
 
   const appendTrail = (id: string, lng: number, lat: number) => {
@@ -175,7 +177,7 @@ export function useFleet(): {
       cancelled = true;
       cleanup?.();
     };
-  }, []);
+  }, [refreshTick]);
 
   return { vehicles: fleet, live, trails };
 }

@@ -23,6 +23,27 @@ const isConfigured = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
 );
 
+/** Global "hard refresh" — topbar button dispatches this; every live-data
+ *  hook re-runs its query. Cached rows stay visible while revalidating. */
+export const LIVE_REFRESH_EVENT = "aerotrack:live-refresh";
+
+export function refreshAllLiveData() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(LIVE_REFRESH_EVENT));
+  }
+}
+
+/** Subscribe a component to global refresh events; returns a bump counter. */
+export function useLiveRefreshTick(): number {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const onRefresh = () => setTick((t) => t + 1);
+    window.addEventListener(LIVE_REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(LIVE_REFRESH_EVENT, onRefresh);
+  }, []);
+  return tick;
+}
+
 type SupabaseClient = Awaited<typeof import("@/lib/supabase")>["supabase"];
 
 /* The tenant id is stable for the session — resolve once, share everywhere. */
@@ -117,6 +138,7 @@ export function useTenantTable<T extends TableName, D = Row<T>>(
   const [live, setLive] = useState(() => !!(cacheKey && rawCache.has(cacheKey)));
   const [loading, setLoading] = useState(() => !(cacheKey && rawCache.has(cacheKey)));
   const [tick, setTick] = useState(0);
+  const refreshTick = useLiveRefreshTick();
   const optsRef = useRef(opts);
   optsRef.current = opts;
 
@@ -184,7 +206,7 @@ export function useTenantTable<T extends TableName, D = Row<T>>(
       cleanup?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table, order, ascending, limit, realtime, tick]);
+  }, [table, order, ascending, limit, realtime, tick, refreshTick]);
 
   const insert = useCallback(
     async (values: Omit<InsertRow<T>, "tenant_id"> & { tenant_id?: string }) => {
@@ -481,6 +503,7 @@ export const useVehicleGroups = () =>
 export function useDeviceHealth(): { rows: DeviceHealth[]; live: boolean } {
   const [rows, setRows] = useState<DeviceHealth[]>([]);
   const [live, setLive] = useState(false);
+  const refreshTick = useLiveRefreshTick();
 
   useEffect(() => {
     if (!isConfigured) return;
@@ -527,7 +550,7 @@ export function useDeviceHealth(): { rows: DeviceHealth[]; live: boolean } {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshTick]);
 
   return { rows, live };
 }
