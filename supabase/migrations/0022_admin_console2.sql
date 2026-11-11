@@ -21,6 +21,7 @@ create table if not exists device_groups (
 );
 create index if not exists device_groups_tenant_idx on device_groups(tenant_id);
 alter table device_groups enable row level security;
+drop policy if exists device_groups_tenant_all on device_groups;
 create policy device_groups_tenant_all on device_groups
   for all using (tenant_id = auth_tenant_id() or is_super_admin())
   with check (tenant_id = auth_tenant_id() or is_super_admin());
@@ -39,6 +40,7 @@ create table if not exists sms_gateways (
   updated_at timestamptz not null default now()
 );
 alter table sms_gateways enable row level security;
+drop policy if exists sms_gateways_sadmin_all on sms_gateways;
 create policy sms_gateways_sadmin_all on sms_gateways
   for all using (is_super_admin()) with check (is_super_admin());
 
@@ -55,9 +57,11 @@ create table if not exists email_templates (
   unique (name, tenant_id)
 );
 alter table email_templates enable row level security;
+drop policy if exists email_templates_sadmin_all on email_templates;
 create policy email_templates_sadmin_all on email_templates
   for all using (is_super_admin()) with check (is_super_admin());
 -- Tenants can read their own overrides and the platform defaults (tenant_id null).
+drop policy if exists email_templates_tenant_read on email_templates;
 create policy email_templates_tenant_read on email_templates
   for select using (tenant_id = auth_tenant_id() or tenant_id is null);
 
@@ -72,9 +76,12 @@ create trigger touch_email_templates before update on email_templates
   for each row execute function touch_updated_at();
 
 -- ==================== storage: super admin can write any tenant's branding ====================
+drop policy if exists branding_sadmin_write on storage.objects;
 create policy branding_sadmin_write on storage.objects for insert
   with check (bucket_id = 'branding' and is_super_admin());
+drop policy if exists branding_sadmin_update on storage.objects;
 create policy branding_sadmin_update on storage.objects for update
   using (bucket_id = 'branding' and is_super_admin());
+drop policy if exists branding_sadmin_delete on storage.objects;
 create policy branding_sadmin_delete on storage.objects for delete
   using (bucket_id = 'branding' and is_super_admin());
