@@ -7,6 +7,7 @@ import { useTenants } from "@/hooks/use-platform-data";
 import { useTenantTable } from "@/hooks/use-live-data";
 import { useFleet } from "@/hooks/use-fleet";
 import { getDeviceModel } from "@aerotrack/protocols";
+import { vehicleLiveStatus, LIVE_STATUS } from "@/lib/live-status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -122,9 +123,14 @@ export default function AdminDevicesPage() {
                     </TableCell>
                     <TableCell><Pill tone="primary">{m?.protocol.toUpperCase()}</Pill></TableCell>
                     <TableCell>
-                      <Pill tone={v.status === "offline" ? "danger" : "success"}>
-                        {v.status === "offline" ? "Offline" : "Online"}
-                      </Pill>
+                      {(() => {
+                        const ls = LIVE_STATUS[vehicleLiveStatus(v)];
+                        return (
+                          <Pill tone={vehicleLiveStatus(v) === "online" ? "success" : vehicleLiveStatus(v) === "sleeping" ? "warning" : "danger"}>
+                            {ls.label}
+                          </Pill>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-[12.5px]">{tenant?.name ?? "—"}</TableCell>
                   </TableRow>

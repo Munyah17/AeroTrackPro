@@ -15,12 +15,21 @@ import {
 } from "@/components/ui/table";
 import { useTenantTable } from "@/hooks/use-live-data";
 import { useResellerClients } from "@/hooks/use-platform-data";
+import { useFleet } from "@/hooks/use-fleet";
+import { vehicleLiveStatus, LIVE_STATUS, type LiveStatus } from "@/lib/live-status";
 
 const ONLINE_WINDOW_MS = 15 * 60_000;
 
 interface RosterRow {
   imei: string;
   client: string;
+  protocol: string;
+  status: LiveStatus;
+}
+
+interface DeviceRow {
+  imei: string;
+  tenantId: string;
   protocol: string;
   online: boolean;
 }
@@ -29,7 +38,7 @@ export default function ResellerDevicesPage() {
   const [query, setQuery] = useState("");
 
   const { rows: devices } = useTenantTable("devices", {
-    map: (r): Omit<RosterRow, "client"> & { tenantId: string } => ({
+    map: (r): DeviceRow => ({
       imei: r.imei,
       tenantId: r.tenant_id,
       protocol: (r.protocol ?? "").toUpperCase(),
@@ -41,16 +50,24 @@ export default function ResellerDevicesPage() {
     ascending: true,
   });
   const { rows: clients } = useResellerClients();
+  const { vehicles } = useFleet();
 
   const roster = useMemo<RosterRow[]>(() => {
     const nameByTenant = new Map(clients.map((c) => [c.id, c.name]));
-    return devices.map((d) => ({
-      imei: d.imei,
-      client: nameByTenant.get(d.tenantId) ?? "—",
-      protocol: d.protocol,
-      online: d.online,
-    }));
-  }, [devices, clients]);
+    const liveByImei = new Map(vehicles.map((v) => [v.imei, vehicleLiveStatus(v)]));
+    return devices.map((d) => {
+      /* Canonical status: same LIVE_STATUS as tracking/devices pages when the
+         device maps to a fleet vehicle; connectivity fallback otherwise. */
+      const status =
+        liveByImei.get(d.imei) ?? (d.online ? "online" : "offline");
+      return {
+        imei: d.imei,
+        client: nameByTenant.get(d.tenantId) ?? "—",
+        protocol: d.protocol,
+        status,
+      };
+    });
+  }, [devices, clients, vehicles]);
 
   const filtered = roster.filter(
     (r) => r.imei.includes(query) || r.client.toLowerCase().includes(query.toLowerCase()),
@@ -88,7 +105,9 @@ export default function ResellerDevicesPage() {
                   <TableCell className="text-[13px]">{r.client}</TableCell>
                   <TableCell className="text-[12.5px] text-muted-foreground">{r.protocol}</TableCell>
                   <TableCell>
-                    <Pill tone={r.online ? "success" : "danger"}>{r.online ? "Online" : "Offline"}</Pill>
+                    <Pill tone={r.status === "online" ? "success" : r.status === "sleeping" ? "warning" : "danger"}>
+                      {LIVE_STATUS[r.status].label}
+                    </Pill>
                   </TableCell>
                 </TableRow>
               ))}

@@ -19,6 +19,21 @@ export function vehicleLiveStatus(vehicle: Vehicle): LiveStatus {
   return liveStatusOf(vehicle.status);
 }
 
+/**
+ * Canonical live status from raw signals — the single source of truth for
+ * any device/vehicle row. Mirrors toDomainVehicle's status derivation:
+ *   no fix in 15 min → offline; moving/idle (speed > 0) → online;
+ *   stopped/parked (speed 0) → sleeping.
+ */
+export function liveStatusFromSignals(
+  lastSeenAt: string | null | undefined,
+  speedKmh: number,
+): LiveStatus {
+  const age = lastSeenAt ? Date.now() - new Date(lastSeenAt).getTime() : Infinity;
+  if (age > 15 * 60_000) return "offline";
+  return speedKmh > 0 ? "online" : "sleeping";
+}
+
 export const LIVE_STATUS: Record<
   LiveStatus,
   { label: string; hex: string; dot: string; chip: string }

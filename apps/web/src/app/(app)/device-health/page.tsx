@@ -3,6 +3,7 @@
 import { Activity, BatteryWarning, RadioTower, WifiOff } from "lucide-react";
 import { useDeviceHealth } from "@/hooks/use-live-data";
 import { useFleet } from "@/hooks/use-fleet";
+import { vehicleLiveStatus, LIVE_STATUS, type LiveStatus } from "@/lib/live-status";
 import { getDeviceModel } from "@aerotrack/protocols";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -16,8 +17,15 @@ export default function DeviceHealthPage() {
   const { rows: deviceHealth } = useDeviceHealth();
   const { vehicles } = useFleet();
   const vehicleById = (id: string) => vehicles.find((v) => v.id === id);
-  const online = deviceHealth.filter((d) => d.online).length;
-  const offline = deviceHealth.length - online;
+  /* Canonical live status per device — identical to tracking/devices pages. */
+  const statusOf = (d: (typeof deviceHealth)[number]): LiveStatus => {
+    const v = vehicleById(d.vehicleId);
+    return v ? vehicleLiveStatus(v) : d.online ? "online" : "offline";
+  };
+  const count = (s: LiveStatus) => deviceHealth.filter((d) => statusOf(d) === s).length;
+  const online = count("online");
+  const sleeping = count("sleeping");
+  const offline = count("offline");
   const lowBattery = deviceHealth.filter((d) => (d.backupBatteryPct ?? 100) < 30).length;
 
   return (
@@ -27,6 +35,7 @@ export default function DeviceHealthPage() {
       <div className="mb-4 grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Devices" value={deviceHealth.length} icon={RadioTower} />
         <StatCard label="Online" value={online} icon={Activity} iconClassName="bg-success/10 text-success" delay={0.05} />
+        <StatCard label="Sleeping" value={sleeping} icon={Activity} iconClassName="bg-warning/15 text-warning-foreground" delay={0.08} />
         <StatCard label="Offline" value={offline} icon={WifiOff} iconClassName="bg-destructive/10 text-destructive" delay={0.1} />
         <StatCard label="Low Battery" value={lowBattery} icon={BatteryWarning} iconClassName="bg-warning/15 text-warning-foreground" delay={0.15} />
       </div>
@@ -59,7 +68,14 @@ export default function DeviceHealthPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Pill tone={d.online ? "success" : "danger"}>{d.online ? "Online" : "Offline"}</Pill>
+                      {(() => {
+                        const s = statusOf(d);
+                        return (
+                          <Pill tone={s === "online" ? "success" : s === "sleeping" ? "warning" : "danger"}>
+                            {LIVE_STATUS[s].label}
+                          </Pill>
+                        );
+                      })()}
                       <div className="mt-0.5 text-[10.5px] text-muted-foreground">{timeAgo(d.lastSeen)}</div>
                     </TableCell>
                     <TableCell>
