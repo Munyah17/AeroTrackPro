@@ -3,17 +3,16 @@ import type { Vehicle, VehicleStatus } from "@aerotrack/shared";
 /**
  * The live states shown to operators. Granular internal statuses
  * (moving/idle/stopped/parked/offline) collapse into exactly one of these.
- *  - online   → device reporting, moving or parked (green)
+ *  - online   → device reporting and active (green)
+ *  - sleeping → device reporting but stationary / engine off (orange)
  *  - offline  → device not reporting (red)
- *  ("sleeping" remains in the type for backwards compatibility but is no
- *   longer produced — parked devices show Online per operator preference.)
  */
 export type LiveStatus = "online" | "sleeping" | "offline";
 
 export function liveStatusOf(status: VehicleStatus): LiveStatus {
-  // Operator preference: only a silent device is Offline — parked/stationary
-  // units still count as Online (they keep reporting fixes).
-  return status === "offline" ? "offline" : "online";
+  if (status === "offline") return "offline";
+  if (status === "moving" || status === "idle") return "online";
+  return "sleeping"; // stopped, parked
 }
 
 export function vehicleLiveStatus(vehicle: Vehicle): LiveStatus {
