@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -12,6 +12,7 @@ import {
   MapPin,
   Radio,
   Route as RouteIcon,
+  History,
   Satellite,
   ShieldCheck,
   Signal,
@@ -21,17 +22,25 @@ import {
 } from "lucide-react";
 import { useDrivers, useMaintenanceItems, useTrips } from "@/hooks/use-live-data";
 import { useFleet } from "@/hooks/use-fleet";
+import { usePositionHistory } from "@/hooks/use-position-history";
 import { getDeviceModel } from "@aerotrack/protocols";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageContainer, Panel } from "@/components/shared/page";
 import { Pill, VehicleStatusChip } from "@/components/shared/status";
-import { coords, km, kmh, mapLinks, shortDate, shortDateTime, timeAgo } from "@/lib/format";
+import { coords, haversineKm, km, kmh, mapLinks, shortDate, shortDateTime, timeAgo } from "@/lib/format";
 
 const FleetMap = dynamic(() => import("@/components/map/fleet-map").then((m) => m.FleetMap), {
   ssr: false,
   loading: () => <Skeleton className="h-full w-full rounded-2xl" />,
 });
+
+const HISTORY_RANGES = [
+  { label: "1h", ms: 60 * 60_000 },
+  { label: "6h", ms: 6 * 60 * 60_000 },
+  { label: "24h", ms: 24 * 60 * 60_000 },
+  { label: "7d", ms: 7 * 24 * 60 * 60_000 },
+] as const;
 
 export default function VehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -39,6 +48,12 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
   const { rows: drivers } = useDrivers();
   const { rows: trips } = useTrips();
   const { rows: maintenance } = useMaintenanceItems();
+  const vehicleId = vehicles.find((v) => v.id === id)?.id;
+  const [historyMs, setHistoryMs] = useState<number>(0);
+  const { points: historyPoints, loading: historyLoading } = usePositionHistory(
+    vehicleId,
+    historyMs,
+  );
 
   const vehicle = vehicles.find((v) => v.id === id);
 
@@ -58,6 +73,17 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
   const vehicleTrips = trips.filter((t) => t.vehicleId === vehicle.id).slice(0, 6);
   const lastTrip = vehicleTrips[0];
   const vehicleMaintenance = maintenance.filter((m) => m.vehicleId === vehicle.id);
+
+  /* Position-history trace: real recorded fixes for the selected window. */
+  const historyPath: [number, number][] | undefined =
+    historyPoints.length > 1
+      ? historyPoints.map((p) => [Number(p.lng), Number(p.lat)] as [number, number])
+      : undefined;
+  const historyDistanceKm = historyPoints.reduce((sum, p, i) => {
+    const prev = historyPoints[i - 1];
+    return prev ? sum + haversineKm(Number(prev.lat), Number(prev.lng), Number(p.lat), Number(p.lng)) : sum;
+  }, 0);
+  const mapPath = historyPath ?? lastTrip?.path;
 
   return (
     <PageContainer>
@@ -120,7 +146,19 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
               <span className="min-w-0 truncate text-[13.5px] font-medium">{vehicle.position.address}</span>
               <span className="text-[11.5px] text-muted-foreground">{timeAgo(vehicle.position.updatedAt)}</span>
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <History className="size-3.5 text-muted-foreground" />
+              {HISTORY_RANGES.map((r) => (
+                <Button
+                  key={r.label}
+                  size="xs"
+                  variant={historyMs === r.ms ? "default" : "outline"}
+                  className="rounded-lg"
+                  onClick={() => setHistoryMs((cur) => (cur === r.ms ? 0 : r.ms))}
+                >
+                  {r.label}
+                </Button>
+              ))}
               <Button
                 render={<a href={mapLinks.google(vehicle.position.lat, vehicle.position.lng)} target="_blank" rel="noreferrer" />}
                 size="xs"
@@ -143,14 +181,22 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
             <FleetMap
               vehicles={[vehicle]}
               selectedId={vehicle.id}
-              path={lastTrip?.path}
-              center={[vehicle.position.lng, vehicle.position.lat]}
+              path={mapPath}
+              center={historyPath?.length ? [historyPath[historyPath.length - 1]![0], historyPath[historyPath.length - 1]![1]] : [vehicle.position.lng, vehicle.position.lat]}
               zoom={12.5}
             />
           </div>
           <div className="border-t border-border/60 px-4 py-2.5 text-[11.5px] text-muted-foreground">
             {coords(vehicle.position.lat, vehicle.position.lng)}
-            {lastTrip && <span> · showing last trip route ({km(lastTrip.distanceKm)})</span>}
+            {historyMs > 0 && (
+              <span>
+                {" "}
+                · history: {historyLoading ? "loading…" : `${historyPoints.length} fixes, ${km(historyDistanceKm)}`}
+                {historyPoints.length > 1 &&
+                  ` · ${shortDateTime(historyPoints[0]!.recorded_at)} → ${shortDateTime(historyPoints[historyPoints.length - 1]!.recorded_at)}`}
+              </span>
+            )}
+            {!historyMs && lastTrip && <span> · showing last trip route ({km(lastTrip.distanceKm)})</span>}
           </div>
         </Panel>
 

@@ -91,7 +91,9 @@ function VehicleSummary({
             <VehicleStatusChip status={vehicle.status} sleeping={vehicle.sleeping} />
           </div>
           <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground">
-            {vehicle.make} {vehicle.model} · {vehicle.name}
+            {vehicle.deviceName && vehicle.deviceName !== vehicle.name
+              ? `${vehicle.deviceName} · ${vehicle.name}`
+              : vehicle.name}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">

@@ -42,6 +42,9 @@ function toDomainVehicle(
     deviceModelId: device?.device_model ?? "",
     imei: device?.imei ?? "",
     simMsisdn: device?.phone_number ?? device?.sim_number ?? "",
+    deviceName: device?.name ?? "",
+    deviceProtocol: device?.protocol ?? "",
+    lastSeenAt: device?.last_seen_at ?? undefined,
     driverId: row.driver_id ?? undefined,
     groupId: row.group_id ?? undefined,
     position: {
