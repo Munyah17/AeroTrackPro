@@ -96,6 +96,8 @@ export type Database = {
           server_ip: string | null;
           server_port: number | null;
           last_position_at: string | null;
+          last_valid_fix_at: string | null;
+          last_gps_valid: boolean | null;
           last_seen_at: string | null;
           last_lat: number | null;
           last_lng: number | null;

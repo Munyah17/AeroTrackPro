@@ -96,6 +96,25 @@ async function savePositions(protocol: ProtocolKey, socket: net.Socket, session:
       continue;
     }
 
+    /* Invalid GPS fix (e.g. H02 'V' flag): the device is alive and
+       reporting, but the coordinates are stale last-known values.
+       Update freshness only — never write positions or move
+       last_position_at, so the dashboard keeps the real last fix. */
+    if (!position.valid) {
+      void db()
+        .from("devices")
+        .update({
+          last_seen_at: new Date().toISOString(),
+          last_gps_valid: false,
+        })
+        .eq("id", device.id)
+        .then();
+      console.log(
+        `[${protocol}] invalid fix from ${position.deviceId} @ ${position.timestamp.toISOString()} — last known position kept`,
+      );
+      continue;
+    }
+
     const duplicate = isDuplicateFix(device.id, position.timestamp.toISOString(), position.latitude, position.longitude);
     if (duplicate) {
       void db()
@@ -137,7 +156,9 @@ async function savePositions(protocol: ProtocolKey, socket: net.Socket, session:
       .from("devices")
       .update({
         last_position_at: row.recorded_at,
+        last_valid_fix_at: row.recorded_at,
         last_seen_at: new Date().toISOString(),
+        last_gps_valid: true,
         ...(position.attributes.batteryLevel != null
           ? { battery_level: Math.round(position.attributes.batteryLevel) }
           : {}),
@@ -164,6 +185,19 @@ function handleConnection(socket: net.Socket, protocol: TcpProtocolKey) {
     try {
       if (!loggedFirstChunk) {
         loggedFirstChunk = true;
+        /* GPS ports are public — reject HTTP/TLS scanner probes immediately
+           so they can't hold connections or fill logs. Device protocols
+           never start with an HTTP verb or a TLS handshake byte. */
+        const head = chunk.subarray(0, 8).toString("latin1");
+        const looksHttp = /^(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH|CONNECT|TRACE)\s/i.test(head);
+        const looksTls = chunk[0] === 0x16;
+        if (looksHttp || looksTls) {
+          console.log(
+            `[${protocol}] rejected non-device traffic from ${socket.remoteAddress}:${socket.remotePort} (${JSON.stringify(head.slice(0, 40))})`,
+          );
+          socket.destroy();
+          return;
+        }
         const preview = chunk.subarray(0, 256);
         console.log(
           `[${protocol}] first bytes (${chunk.length}B): ${preview.toString("hex")}\n` +
@@ -177,6 +211,11 @@ function handleConnection(socket: net.Socket, protocol: TcpProtocolKey) {
 
       for (const frame of frames) {
         const decoded = decoder.decode(frame, session);
+        if (decoded.kind === "position") {
+          console.log(
+            `[${protocol}] decoded position ${decoded.position.deviceId} valid=${decoded.position.valid} @ ${decoded.position.timestamp.toISOString()}`,
+          );
+        }
 
         switch (decoded.kind) {
           case "position":

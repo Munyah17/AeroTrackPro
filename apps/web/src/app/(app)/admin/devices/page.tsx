@@ -62,6 +62,8 @@ export default function AdminDevicesPage() {
       server_ip: null,
       server_port: PROTOCOLS.find((p) => p.id === form.protocol)?.port ?? null,
       last_position_at: null,
+      last_valid_fix_at: null,
+      last_gps_valid: null,
       last_seen_at: null,
       last_lat: null,
       last_lng: null,

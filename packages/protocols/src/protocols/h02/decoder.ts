@@ -70,10 +70,13 @@ export class H02Decoder implements ProtocolDecoder {
     if (type === "V1" || type === "V4" || type === "VI1" || type === "V8") {
       // V1: time, validity, lat, NS, lon, EW, speed, course, date, status
       // V4: cmd, confirmed-cmd-time, then the V1 field set (base offset 5)
-      // V8 (ST-901A): V1 layout + trailing LBS/telemetry fields; validity "V"
+      // V8 (ST-901A): V1 layout + trailing LBS/telemetry fields.
+      // Validity flag: 'A' = GPS fix valid; 'V' = NO fix — the device
+      // reports its last-known coordinates, which must not be treated
+      // as a live position (Traccar H02 does the same).
       const base = type === "V4" ? 5 : 3;
       const time = parts[base]!;
-      const valid = parts[base + 1] === "A" || parts[base + 1] === "V";
+      const valid = parts[base + 1] === "A";
       const lat = nmeaToDecimal(parseFloat(parts[base + 2]!), parts[base + 3]!);
       const lon = nmeaToDecimal(parseFloat(parts[base + 4]!), parts[base + 5]!);
       const speedKmh = parseFloat(parts[base + 6]!) * KNOTS_TO_KMH;
