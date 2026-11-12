@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -54,6 +54,18 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
     vehicleId,
     historyMs,
   );
+  const replay = useMemo(() => {
+    if (historyPoints.length < 2) return null;
+    return {
+      coords: historyPoints.map((p) => [Number(p.lng), Number(p.lat)] as [number, number]),
+      times: historyPoints.map((p) => new Date(p.recorded_at).getTime()),
+    };
+  }, [historyPoints]);
+  const historyPath = replay?.coords;
+  const historyDistanceKm = historyPoints.reduce((sum, p, i) => {
+    const prev = historyPoints[i - 1];
+    return prev ? sum + haversineKm(Number(prev.lat), Number(prev.lng), Number(p.lat), Number(p.lng)) : sum;
+  }, 0);
 
   const vehicle = vehicles.find((v) => v.id === id);
 
@@ -74,15 +86,7 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
   const lastTrip = vehicleTrips[0];
   const vehicleMaintenance = maintenance.filter((m) => m.vehicleId === vehicle.id);
 
-  /* Position-history trace: real recorded fixes for the selected window. */
-  const historyPath: [number, number][] | undefined =
-    historyPoints.length > 1
-      ? historyPoints.map((p) => [Number(p.lng), Number(p.lat)] as [number, number])
-      : undefined;
-  const historyDistanceKm = historyPoints.reduce((sum, p, i) => {
-    const prev = historyPoints[i - 1];
-    return prev ? sum + haversineKm(Number(prev.lat), Number(prev.lng), Number(p.lat), Number(p.lng)) : sum;
-  }, 0);
+  /* Position-history trace + replay path for the map. */
   const mapPath = historyPath ?? lastTrip?.path;
 
   return (
@@ -182,6 +186,7 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
               vehicles={[vehicle]}
               selectedId={vehicle.id}
               path={mapPath}
+              replay={replay}
               center={historyPath?.length ? [historyPath[historyPath.length - 1]![0], historyPath[historyPath.length - 1]![1]] : [vehicle.position.lng, vehicle.position.lat]}
               zoom={12.5}
             />
