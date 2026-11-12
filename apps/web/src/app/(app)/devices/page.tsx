@@ -2,16 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Cable, Link2, MapPin, Plus, Radio } from "lucide-react";
+import { Cable, Link2, Plus, Radio } from "lucide-react";
 import { toast } from "sonner";
 import { DEVICE_MODELS, type DeviceModel } from "@aerotrack/protocols";
 import type { Vehicle } from "@aerotrack/shared";
 import { useFleet } from "@/hooks/use-fleet";
 import { vehicleLiveStatus, LIVE_STATUS } from "@/lib/live-status";
-import { coords, timeAgo } from "@/lib/format";
+import { DeviceIsland } from "@/components/device-island";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
 import { cn } from "@/lib/utils";
@@ -56,82 +55,6 @@ function CapabilityPills({ model }: { model: DeviceModel }) {
 function protocolLabel(v: Vehicle): string {
   if (v.deviceProtocol) return v.deviceProtocol.toUpperCase();
   return DEVICE_MODELS.find((d) => d.id === v.deviceModelId)?.protocol.toUpperCase() ?? "—";
-}
-
-function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="flex items-center justify-between gap-3 py-2">
-      <span className="text-[12px] text-muted-foreground">{label}</span>
-      <span className={cn("truncate text-[12.5px] font-medium", mono && "font-mono")}>{value || "—"}</span>
-    </div>
-  );
-}
-
-/** Popup summary for one bound tracker — opened by clicking a row in the
- *  "Bound Devices" list. Shows the names/details the admin entered at
- *  registration, never manufacturer/factory names. */
-function TrackerSummaryDialog({ vehicle, onClose }: { vehicle: Vehicle | null; onClose: () => void }) {
-  return (
-    <Dialog open={vehicle !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        {vehicle && (
-          <>
-            <DialogHeader>
-              <div className="flex items-center gap-2.5">
-                <span className={cn("size-2.5 shrink-0 rounded-full", LIVE_STATUS[vehicleLiveStatus(vehicle)].dot)} />
-                <DialogTitle className="truncate text-[16px]">
-                  {vehicle.deviceName || vehicle.name}
-                </DialogTitle>
-              </div>
-              <DialogDescription className="flex items-center gap-2 pt-1">
-                <Pill tone={vehicleLiveStatus(vehicle) === "online" ? "success" : vehicleLiveStatus(vehicle) === "sleeping" ? "warning" : "danger"}>
-                  {LIVE_STATUS[vehicleLiveStatus(vehicle)].label}
-                </Pill>
-                <span className="truncate">
-                  {vehicle.name} · {vehicle.plate}
-                </span>
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="divide-y divide-border/60 rounded-xl border border-border/60 px-3.5">
-              <DetailRow label="Tracker ID" value={vehicle.imei} mono />
-              <DetailRow label="Protocol" value={protocolLabel(vehicle)} />
-              <DetailRow label="SIM / Phone" value={vehicle.simMsisdn} mono />
-              <DetailRow label="Signal" value={vehicle.gsmSignal ? `${vehicle.gsmSignal}%` : "—"} />
-              <DetailRow label="Last seen" value={vehicle.lastSeenAt ? timeAgo(vehicle.lastSeenAt) : "—"} />
-              <DetailRow
-                label="Last fix"
-                value={vehicle.position.lat !== 0 || vehicle.position.lng !== 0 ? timeAgo(vehicle.position.updatedAt) : "—"}
-              />
-            </div>
-
-            <div className="flex items-center gap-2.5 rounded-xl bg-accent/60 px-3 py-2.5">
-              <MapPin className="size-4 shrink-0 text-primary" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[12.5px] font-medium leading-tight">
-                  {vehicle.position.lat !== 0 || vehicle.position.lng !== 0
-                    ? coords(vehicle.position.lat, vehicle.position.lng)
-                    : "No GPS fix yet"}
-                </div>
-                <div className="truncate text-[10.5px] text-muted-foreground">
-                  {vehicle.position.speedKmh > 0 ? `${vehicle.position.speedKmh} km/h` : "Stationary"}
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button
-                render={<Link href="/tracking" />}
-                className="w-full rounded-xl shadow-card"
-              >
-                View on Live Tracking
-              </Button>
-            </DialogFooter>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 export default function DevicesPage() {
@@ -230,7 +153,7 @@ export default function DevicesPage() {
         </Panel>
       )}
 
-      <TrackerSummaryDialog vehicle={selected} onClose={() => setSelectedId(null)} />
+      <DeviceIsland vehicle={selected} onClose={() => setSelectedId(null)} />
     </PageContainer>
   );
 }
