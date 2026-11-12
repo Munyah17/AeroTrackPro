@@ -13,6 +13,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -83,20 +84,22 @@ export default function VehiclesPage() {
               }
             />
             <DropdownMenuContent className="w-52 rounded-xl">
-              <DropdownMenuLabel>Filter by group</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {groups.map((g) => (
-                <DropdownMenuCheckboxItem
-                  key={g.id}
-                  checked={groupFilter.includes(g.id)}
-                  onCheckedChange={(c) =>
-                    setGroupFilter((prev) => (c ? [...prev, g.id] : prev.filter((x) => x !== g.id)))
-                  }
-                >
-                  <span className="mr-2 size-2 rounded-full" style={{ background: g.color }} />
-                  {g.name}
-                </DropdownMenuCheckboxItem>
-              ))}
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Filter by group</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {groups.map((g) => (
+                  <DropdownMenuCheckboxItem
+                    key={g.id}
+                    checked={groupFilter.includes(g.id)}
+                    onCheckedChange={(c) =>
+                      setGroupFilter((prev) => (c ? [...prev, g.id] : prev.filter((x) => x !== g.id)))
+                    }
+                  >
+                    <span className="mr-2 size-2 rounded-full" style={{ background: g.color }} />
+                    {g.name}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
           <span className="text-[12.5px] text-muted-foreground sm:ml-auto">

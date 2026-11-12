@@ -37,6 +37,12 @@ export interface Vehicle {
   deviceModelId: string; // links to protocols DeviceModel
   imei: string;
   simMsisdn: string;
+  /** Admin-entered tracker name (devices.name) — shown in live tracking
+   *  instead of manufacturer/factory model names. */
+  deviceName?: string;
+  deviceProtocol?: string;
+  /** devices.last_seen_at — last frame of any kind (incl. invalid fixes). */
+  lastSeenAt?: string;
   driverId?: string;
   groupId?: string;
   position: LivePosition;

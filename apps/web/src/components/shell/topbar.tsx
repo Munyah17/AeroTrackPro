@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -244,10 +245,12 @@ export function Topbar() {
           }
         />
         <DropdownMenuContent align="end" className="w-[min(20rem,calc(100vw-1.5rem))] rounded-2xl p-2 shadow-float">
-          <DropdownMenuLabel className="flex items-center justify-between">
-            Notifications
-            <Badge variant="secondary" className="rounded-full">{activeAlerts.length} new</Badge>
-          </DropdownMenuLabel>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="flex items-center justify-between">
+              Notifications
+              <Badge variant="secondary" className="rounded-full">{activeAlerts.length} new</Badge>
+            </DropdownMenuLabel>
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
           {activeAlerts.slice(0, 5).map((a) => (
             <DropdownMenuItem key={a.id} render={<Link href="/alerts" />} className="rounded-xl p-3">
@@ -288,12 +291,14 @@ export function Topbar() {
           }
         />
         <DropdownMenuContent align="end" className="w-[min(18rem,calc(100vw-1.5rem))] rounded-2xl p-1.5 shadow-float">
-          <DropdownMenuLabel>
-            <div className="truncate text-[13px] font-semibold">{identity.name}</div>
-            <div className="truncate text-xs font-normal text-muted-foreground">
-              {session?.email ?? ROLE_LABELS[role]}
-            </div>
-          </DropdownMenuLabel>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>
+              <div className="truncate text-[13px] font-semibold">{identity.name}</div>
+              <div className="truncate text-xs font-normal text-muted-foreground">
+                {session?.email ?? ROLE_LABELS[role]}
+              </div>
+            </DropdownMenuLabel>
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem className="rounded-lg md:hidden" render={<Link href="/alerts" />}>
             <Bell className="size-4" /> Notifications

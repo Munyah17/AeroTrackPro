@@ -99,14 +99,19 @@ function TrackerSummaryDialog({ vehicle, onClose }: { vehicle: Vehicle | null; o
               <DetailRow label="SIM / Phone" value={vehicle.simMsisdn} mono />
               <DetailRow label="Signal" value={vehicle.gsmSignal ? `${vehicle.gsmSignal}%` : "—"} />
               <DetailRow label="Last seen" value={vehicle.lastSeenAt ? timeAgo(vehicle.lastSeenAt) : "—"} />
-              <DetailRow label="Last fix" value={vehicle.position.updatedAt ? timeAgo(vehicle.position.updatedAt) : "—"} />
+              <DetailRow
+                label="Last fix"
+                value={vehicle.position.lat !== 0 || vehicle.position.lng !== 0 ? timeAgo(vehicle.position.updatedAt) : "—"}
+              />
             </div>
 
             <div className="flex items-center gap-2.5 rounded-xl bg-accent/60 px-3 py-2.5">
               <MapPin className="size-4 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[12.5px] font-medium leading-tight">
-                  {coords(vehicle.position.lat, vehicle.position.lng)}
+                  {vehicle.position.lat !== 0 || vehicle.position.lng !== 0
+                    ? coords(vehicle.position.lat, vehicle.position.lng)
+                    : "No GPS fix yet"}
                 </div>
                 <div className="truncate text-[10.5px] text-muted-foreground">
                   {vehicle.position.speedKmh > 0 ? `${vehicle.position.speedKmh} km/h` : "Stationary"}
@@ -193,7 +198,6 @@ export default function DevicesPage() {
       ) : (
         <Panel className="divide-y divide-border/60">
           {vehicles.map((v) => {
-            const m = DEVICE_MODELS.find((d) => d.id === v.deviceModelId);
             return (
               <button
                 key={v.id}
