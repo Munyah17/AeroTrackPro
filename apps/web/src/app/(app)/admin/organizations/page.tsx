@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Building2, Globe, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
-import { useTenants } from "@/hooks/use-platform-data";
+import { useDevices, usePlatformUsers, useTenants } from "@/hooks/use-platform-data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,12 +20,29 @@ import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
 import { shortDate, usd } from "@/lib/format";
 
+const PER_DEVICE_MONTHLY_USD = 3.5;
+
 export default function OrganizationsPage() {
   const { rows: tenants, refresh } = useTenants();
+  const { rows: users } = usePlatformUsers();
+  const { rows: devices } = useDevices();
   const [query, setQuery] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ name: "", adminName: "", adminEmail: "", accountKind: "client" });
+
+  const userCountByTenant = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const u of users) m.set(u.tenantId, (m.get(u.tenantId) ?? 0) + 1);
+    return m;
+  }, [users]);
+
+  const deviceCountByTenant = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const d of devices) m.set(d.tenantId, (m.get(d.tenantId) ?? 0) + 1);
+    return m;
+  }, [devices]);
+
   const rows = useMemo(
     () => tenants.filter((t) => !query || t.name.toLowerCase().includes(query.toLowerCase())),
     [tenants, query],
@@ -109,7 +126,7 @@ export default function OrganizationsPage() {
                 <TableHead>Status</TableHead>
                 <TableHead>Plan</TableHead>
                 <TableHead className="text-right">Users</TableHead>
-                <TableHead className="text-right">Vehicles</TableHead>
+                <TableHead className="text-right">Devices</TableHead>
                 <TableHead className="text-right">MRR</TableHead>
                 <TableHead>Domain</TableHead>
                 <TableHead>Created</TableHead>
@@ -136,16 +153,18 @@ export default function OrganizationsPage() {
                     <Pill tone={t.status === "active" ? "success" : t.status === "trial" ? "info" : "danger"}>{t.status}</Pill>
                   </TableCell>
                   <TableCell><Pill tone="primary">{t.plan}</Pill></TableCell>
-                  <TableCell className="text-right tabular-nums">{t.userCount}</TableCell>
-                  <TableCell className="text-right tabular-nums">{t.vehicleCount}</TableCell>
-                  <TableCell className="text-right font-semibold tabular-nums">{usd(t.mrrUsd)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{userCountByTenant.get(t.id) ?? 0}</TableCell>
+                  <TableCell className="text-right tabular-nums">{deviceCountByTenant.get(t.id) ?? 0}</TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">
+                    {t.accountKind === "platform" ? "—" : usd((deviceCountByTenant.get(t.id) ?? 0) * PER_DEVICE_MONTHLY_USD)}
+                  </TableCell>
                   <TableCell>
                     {t.customDomain ? (
                       <span className="flex items-center gap-1.5 text-[12px]">
                         <Globe className="size-3.5 text-muted-foreground" /> {t.customDomain}
                       </span>
                     ) : (
-                      <span className="text-[12px] text-muted-foreground">{t.slug}.aerotrack.app</span>
+                      <span className="text-[12px] text-muted-foreground">—</span>
                     )}
                   </TableCell>
                   <TableCell className="text-[12px] text-muted-foreground">{shortDate(t.createdAt)}</TableCell>

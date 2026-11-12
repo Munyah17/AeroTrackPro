@@ -664,12 +664,13 @@ export type Database = {
           max_users: number | null;
           features: string[];
           active: boolean;
+          billing_unit: string;
           sort: number;
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["plans"]["Row"], "id" | "created_at" | "updated_at" | "active" | "features" | "sort"> &
-          Partial<Pick<Database["public"]["Tables"]["plans"]["Row"], "active" | "features" | "sort">>;
+        Insert: Omit<Database["public"]["Tables"]["plans"]["Row"], "id" | "created_at" | "updated_at" | "active" | "features" | "sort" | "billing_unit"> &
+          Partial<Pick<Database["public"]["Tables"]["plans"]["Row"], "active" | "features" | "sort" | "billing_unit">>;
         Update: Partial<Omit<Database["public"]["Tables"]["plans"]["Row"], "id" | "created_at">>;
         Relationships: [];
       };

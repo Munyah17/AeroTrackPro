@@ -208,7 +208,7 @@ export interface Tenant {
   name: string;
   slug: string;
   contactEmail: string;
-  plan: "basic" | "standard" | "pro" | "enterprise";
+  plan: string;
   status: "active" | "suspended" | "trial";
   primaryColor: string;
   logoUrl?: string;
@@ -218,6 +218,7 @@ export interface Tenant {
   vehicleCount: number;
   createdAt: string;
   mrrUsd: number;
+  accountKind?: "platform" | "owner" | "reseller" | "client";
 }
 
 export interface PlatformUser {
@@ -239,6 +240,7 @@ export interface Plan {
   maxUsers?: number | null;
   features: string[];
   active: boolean;
+  billingUnit?: "month" | "device";
 }
 
 export interface Invoice {

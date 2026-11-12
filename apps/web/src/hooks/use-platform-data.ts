@@ -36,6 +36,7 @@ const toTenant = (r: Row<"tenants">): Tenant => ({
   vehicleCount: r.vehicle_limit,
   createdAt: r.created_at,
   mrrUsd: r.mrr_usd,
+  accountKind: r.account_kind,
 });
 
 const ROLE_MAP: Record<string, PlatformUser["role"]> = {
@@ -67,6 +68,7 @@ const toPlan = (r: Row<"plans">): Plan => ({
   maxUsers: r.max_users,
   features: r.features,
   active: r.active,
+  billingUnit: r.billing_unit === "device" ? "device" : "month",
 });
 
 const toInvoice = (r: Row<"invoices">): Invoice => ({
@@ -318,6 +320,22 @@ const toEmailTemplate = (r: Row<"email_templates">): EmailTemplate => ({
 /** Tenants visible under RLS (own tenant; all tenants for super admins). */
 export const useTenants = () =>
   useTenantTable("tenants", { map: toTenant, order: "created_at" });
+
+export interface DeviceLite {
+  id: string;
+  tenantId: string;
+  status: string;
+}
+
+const toDeviceLite = (r: Row<"devices">): DeviceLite => ({
+  id: r.id,
+  tenantId: r.tenant_id,
+  status: r.status,
+});
+
+/** All devices visible under RLS (super admins see every tenant). */
+export const useDevices = () =>
+  useTenantTable("devices", { map: toDeviceLite, order: "created_at" });
 
 export const usePlatformUsers = () =>
   useTenantTable("users", { map: toPlatformUser, order: "created_at" });

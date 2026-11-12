@@ -24,29 +24,34 @@ interface PlanForm {
   id: string | null;
   name: string;
   price: string;
+  billingUnit: "month" | "device";
   maxVehicles: string;
   maxUsers: string;
   features: string;
 }
 
-const EMPTY: PlanForm = { id: null, name: "", price: "", maxVehicles: "", maxUsers: "", features: "" };
+const EMPTY: PlanForm = { id: null, name: "", price: "", billingUnit: "month", maxVehicles: "", maxUsers: "", features: "" };
 
 export default function PlansPage() {
-  const { rows: plans, live, loading, insert, update } = usePlans();
+  const { rows: allPlans, live, loading, insert, update } = usePlans();
+  const plans = allPlans.filter((p) => p.active);
   const { rows: tenants } = useTenants();
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<PlanForm>(EMPTY);
 
   /* Match by plan slug/name — DB plan ids are uuids, tenants store plan text. */
-  const subscribers = (planId: string) =>
-    tenants.filter((t) => `pln-${t.plan}` === planId || t.plan === planId).length;
+  const subscribers = (p: Plan) => {
+    const slug = p.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    return tenants.filter((t) => t.plan === slug || t.plan === p.name.toLowerCase()).length;
+  };
 
   const openEdit = (p: Plan) =>
     setForm({
       id: p.id,
       name: p.name,
       price: String(p.priceMonthlyUsd),
+      billingUnit: p.billingUnit ?? "month",
       maxVehicles: p.maxVehicles != null ? String(p.maxVehicles) : "",
       maxUsers: p.maxUsers != null ? String(p.maxUsers) : "",
       features: p.features.join("\n"),
@@ -64,6 +69,7 @@ export default function PlansPage() {
       ? await update(form.id, {
           name: form.name.trim(),
           price_monthly_usd: price,
+          billing_unit: form.billingUnit,
           max_vehicles: maxVehicles,
           max_users: maxUsers,
           features,
@@ -71,10 +77,11 @@ export default function PlansPage() {
       : await insert({
           name: form.name.trim(),
           price_monthly_usd: price,
+          billing_unit: form.billingUnit,
           max_vehicles: maxVehicles,
           max_users: maxUsers,
           features,
-          sort: plans.length + 1,
+          sort: allPlans.length + 1,
         });
     setSaving(false);
     if (!ok) return toast.error("Could not save plan — check your connection");
@@ -103,7 +110,7 @@ export default function PlansPage() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {plans.map((p) => {
-          const highlight = p.id === "pln-pro" || p.name.toLowerCase() === "pro";
+          const highlight = p.name.toLowerCase() === "pro" || p.name.toLowerCase() === "platform access";
           return (
             <Panel
               key={p.id}
@@ -118,10 +125,16 @@ export default function PlansPage() {
               <div className="text-[15px] font-semibold">{p.name}</div>
               <div className="mt-2 flex items-baseline gap-1">
                 <span className="text-[32px] font-bold tracking-tight tabular-nums">${p.priceMonthlyUsd}</span>
-                <span className="text-[13px] text-muted-foreground">/month</span>
+                <span className="text-[13px] text-muted-foreground">
+                  {p.billingUnit === "device" ? "/device/month" : "/month"}
+                </span>
               </div>
               <div className="mt-1 text-[12.5px] text-muted-foreground">
-                {p.maxVehicles ? `Up to ${p.maxVehicles} vehicles` : "Unlimited vehicles"}
+                {p.billingUnit === "device"
+                  ? "Billed per device per month"
+                  : p.maxVehicles
+                    ? `Up to ${p.maxVehicles} vehicles`
+                    : "Unlimited vehicles"}
               </div>
               <div className="my-4 h-px bg-border/70" />
               <ul className="flex flex-1 flex-col gap-2.5">
@@ -132,7 +145,7 @@ export default function PlansPage() {
                 ))}
               </ul>
               <div className="mt-5 flex items-center justify-between">
-                <Pill tone="muted">{subscribers(p.id)} subscribers</Pill>
+                <Pill tone="muted">{subscribers(p)} subscribers</Pill>
                 <Button
                   size="sm"
                   variant={highlight ? "default" : "outline"}
@@ -173,18 +186,33 @@ export default function PlansPage() {
                 placeholder="e.g. Growth"
               />
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label htmlFor="pl-price">$ /month</Label>
                 <Input
                   id="pl-price"
                   type="number"
                   min="0"
+                  step="0.01"
                   value={form.price}
                   onChange={(e) => setForm({ ...form, price: e.target.value })}
-                  placeholder="49"
+                  placeholder="3.50"
                 />
               </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="pl-unit">Billing unit</Label>
+                <select
+                  id="pl-unit"
+                  value={form.billingUnit}
+                  onChange={(e) => setForm({ ...form, billingUnit: e.target.value as "month" | "device" })}
+                  className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                >
+                  <option value="month">Per month (flat)</option>
+                  <option value="device">Per device / month</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label htmlFor="pl-vehicles">Max vehicles</Label>
                 <Input
