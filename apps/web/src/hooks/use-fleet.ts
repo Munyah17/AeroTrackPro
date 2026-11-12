@@ -20,8 +20,13 @@ function toDomainVehicle(
 ): Vehicle {
   const speed = Number(position?.speed_kmh ?? 0);
   const ageMs = position ? Date.now() - new Date(position.recorded_at).getTime() : Infinity;
+  /* Online = the device is powered and communicating (any frame, incl.
+     invalid GPS fixes). Fall back to position age when no device is bound. */
+  const commAgeMs = device?.last_seen_at
+    ? Date.now() - new Date(device.last_seen_at).getTime()
+    : ageMs;
   const status: Vehicle["status"] =
-    ageMs > 15 * 60_000 ? "offline" : speed > 3 ? "moving" : speed > 0 ? "idle" : "stopped";
+    commAgeMs > 15 * 60_000 ? "offline" : speed > 3 ? "moving" : speed > 0 ? "idle" : "stopped";
 
   return {
     id: row.id,
@@ -91,6 +96,8 @@ export function useFleet(): {
   const [trails, setTrails] = useState<Record<string, [number, number][]>>({});
   const refreshTick = useLiveRefreshTick();
   const rowsRef = useRef<Map<string, VehicleRow>>(new Map());
+  const positionsRef = useRef<Map<string, PositionRow>>(new Map());
+  const devicesRef = useRef<Map<string, DeviceRow>>(new Map());
 
   const appendTrail = (id: string, lng: number, lat: number) => {
     setTrails((t) => {
@@ -136,8 +143,10 @@ export function useFleet(): {
           if (p.vehicle_id && !latest.has(p.vehicle_id)) latest.set(p.vehicle_id, p);
         }
         const devicesById = new Map((deviceRows ?? []).map((d) => [d.id, d]));
+        devicesRef.current = devicesById;
+        positionsRef.current = latest;
         const deviceFor = (r: VehicleRow) =>
-          r.device_id ? devicesById.get(r.device_id) : undefined;
+          r.device_id ? devicesRef.current.get(r.device_id) : undefined;
         rowsRef.current = new Map(vehicleRows.map((r) => [r.id, r]));
         const fresh = vehicleRows.map((r) => toDomainVehicle(r, latest.get(r.id), deviceFor(r)));
         cachedFleet = fresh;
@@ -152,6 +161,7 @@ export function useFleet(): {
             (payload) => {
               const pos = payload.new as PositionRow;
               if (!pos.vehicle_id) return;
+              positionsRef.current.set(pos.vehicle_id, pos);
               const row = rowsRef.current.get(pos.vehicle_id);
               if (!row) return;
               appendTrail(pos.vehicle_id, Number(pos.lng), Number(pos.lat));
@@ -159,6 +169,23 @@ export function useFleet(): {
                 f.map((v) =>
                   v.id === pos.vehicle_id ? toDomainVehicle(row, pos, deviceFor(row)) : v,
                 ),
+              );
+            },
+          )
+          /* Devices report every frame (incl. invalid fixes) — refresh
+             Online/Offline/Sleeping live without a position INSERT. */
+          .on(
+            "postgres_changes",
+            { event: "UPDATE", schema: "public", table: "devices" },
+            (payload) => {
+              const d = payload.new as DeviceRow;
+              devicesRef.current.set(d.id, d);
+              setFleet((f) =>
+                f.map((v) => {
+                  const row = rowsRef.current.get(v.id);
+                  if (!row || row.device_id !== d.id) return v;
+                  return toDomainVehicle(row, positionsRef.current.get(v.id), d);
+                }),
               );
             },
           )
