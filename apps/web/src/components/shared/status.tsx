@@ -1,9 +1,18 @@
 import { cn } from "@/lib/utils";
-import { LIVE_STATUS, liveStatusOf } from "@/lib/live-status";
+import { LIVE_STATUS, liveStatusOf, type LiveStatus } from "@/lib/live-status";
 import type { AlertSeverity, AlertStatus, VehicleStatus } from "@aerotrack/shared";
 
-export function VehicleStatusChip({ status, className }: { status: VehicleStatus; className?: string }) {
-  const live = liveStatusOf(status);
+export function VehicleStatusChip({
+  status,
+  sleeping,
+  className,
+}: {
+  status: VehicleStatus;
+  sleeping?: boolean;
+  className?: string;
+}) {
+  const live: LiveStatus =
+    status === "offline" ? "offline" : sleeping ? "sleeping" : liveStatusOf(status);
   const s = LIVE_STATUS[live];
   return (
     <span

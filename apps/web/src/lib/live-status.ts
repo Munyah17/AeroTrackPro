@@ -1,37 +1,37 @@
 import type { Vehicle, VehicleStatus } from "@aerotrack/shared";
 
 /**
- * The live states shown to operators. Granular internal statuses
- * (moving/idle/stopped/parked/offline) collapse into exactly one of these.
- *  - online   → device reporting and active (green)
- *  - sleeping → device reporting but stationary / engine off (orange)
+ * The live states shown to operators. Any device that is powered on, has
+ * data and is reporting positions is Online — parked, stationary and
+ * non-vehicle assets included (engine/ACC state is irrelevant).
+ *  - online   → device reporting (green)
+ *  - sleeping → operator manually commanded sleep mode (orange)
  *  - offline  → device not reporting (red)
  */
 export type LiveStatus = "online" | "sleeping" | "offline";
 
 export function liveStatusOf(status: VehicleStatus): LiveStatus {
-  if (status === "offline") return "offline";
-  if (status === "moving" || status === "idle") return "online";
-  return "sleeping"; // stopped, parked
+  // Powered + reporting = Online, always. Only a silent device is Offline.
+  return status === "offline" ? "offline" : "online";
 }
 
 export function vehicleLiveStatus(vehicle: Vehicle): LiveStatus {
-  return liveStatusOf(vehicle.status);
+  if (vehicle.status === "offline") return "offline";
+  if (vehicle.sleeping) return "sleeping"; // operator commanded sleep mode
+  return "online";
 }
 
 /**
  * Canonical live status from raw signals — the single source of truth for
- * any device/vehicle row. Mirrors toDomainVehicle's status derivation:
- *   no fix in 15 min → offline; moving/idle (speed > 0) → online;
- *   stopped/parked (speed 0) → sleeping.
+ * any device/vehicle row. A device with a fresh fix is Online regardless of
+ * speed or ignition; only >15 min of silence is Offline.
  */
 export function liveStatusFromSignals(
   lastSeenAt: string | null | undefined,
-  speedKmh: number,
+  _speedKmh: number,
 ): LiveStatus {
   const age = lastSeenAt ? Date.now() - new Date(lastSeenAt).getTime() : Infinity;
-  if (age > 15 * 60_000) return "offline";
-  return speedKmh > 0 ? "online" : "sleeping";
+  return age > 15 * 60_000 ? "offline" : "online";
 }
 
 export const LIVE_STATUS: Record<

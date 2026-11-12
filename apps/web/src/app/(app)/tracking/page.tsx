@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VehicleStatusChip } from "@/components/shared/status";
-import { LIVE_STATUS, liveStatusOf, type LiveStatus } from "@/lib/live-status";
+import { LIVE_STATUS, vehicleLiveStatus, type LiveStatus } from "@/lib/live-status";
 import { cn } from "@/lib/utils";
 import { coords, kmh, mapLinks, timeAgo } from "@/lib/format";
 
@@ -59,7 +59,7 @@ function VehicleRow({
         <div className="truncate text-[11.5px] text-muted-foreground">{vehicle.name}</div>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
-        <VehicleStatusChip status={vehicle.status} />
+        <VehicleStatusChip status={vehicle.status} sleeping={vehicle.sleeping} />
         <span className="text-[11px] font-medium text-muted-foreground tabular-nums">
           {kmh(vehicle.position.speedKmh)}
         </span>
@@ -88,7 +88,7 @@ function VehicleSummary({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h3 className="truncate text-[15px] font-bold tracking-tight">{vehicle.plate}</h3>
-            <VehicleStatusChip status={vehicle.status} />
+            <VehicleStatusChip status={vehicle.status} sleeping={vehicle.sleeping} />
           </div>
           <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground">
             {vehicle.make} {vehicle.model} · {vehicle.name}
@@ -185,7 +185,7 @@ export default function TrackingPage() {
 
   const filtered = useMemo(() => {
     return vehicles.filter((v) => {
-      if (filter !== "all" && liveStatusOf(v.status) !== filter) return false;
+      if (filter !== "all" && vehicleLiveStatus(v) !== filter) return false;
       if (query) {
         const q = query.toLowerCase();
         return (
@@ -339,7 +339,7 @@ export default function TrackingPage() {
                 <span
                   className={cn(
                     "size-2 rounded-full",
-                    LIVE_STATUS[liveStatusOf(v.status)].dot,
+                    LIVE_STATUS[vehicleLiveStatus(v)].dot,
                     v.id === selectedId && "bg-primary-foreground",
                   )}
                 />
@@ -379,7 +379,7 @@ export default function TrackingPage() {
               </div>
               {sheetMinimized ? (
                 <div className="flex shrink-0 items-center gap-2.5 px-3.5 pb-3">
-                  <span className={cn("size-2.5 shrink-0 rounded-full", LIVE_STATUS[liveStatusOf(selected.status)].dot)} />
+                  <span className={cn("size-2.5 shrink-0 rounded-full", LIVE_STATUS[vehicleLiveStatus(selected)].dot)} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[13.5px] font-bold leading-tight">{selected.plate}</div>
                     <div className="truncate text-[11px] text-muted-foreground">
@@ -442,7 +442,7 @@ export default function TrackingPage() {
               className="flex flex-col items-center gap-1.5 rounded-xl px-1 py-2 text-center transition-colors hover:bg-accent/70"
               title={`${selected.plate} — show details`}
             >
-              <span className={cn("size-2.5 rounded-full", LIVE_STATUS[liveStatusOf(selected.status)].dot)} />
+              <span className={cn("size-2.5 rounded-full", LIVE_STATUS[vehicleLiveStatus(selected)].dot)} />
               <span className="max-w-full truncate text-[10px] font-bold leading-tight">{selected.plate}</span>
               <span className="text-[9.5px] text-muted-foreground tabular-nums">{kmh(selected.position.speedKmh)}</span>
             </button>

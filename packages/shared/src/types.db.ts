@@ -101,7 +101,7 @@ export type Database = {
           last_lng: number | null;
           last_speed_kmh: number | null;
           last_course: number | null;
-          connection_status: "online" | "offline" | "unknown";
+          connection_status: "online" | "offline" | "unknown" | "sleeping";
           traccar_id: number | null;
           last_fuel_level: number | null;
           last_fuel_at: string | null;

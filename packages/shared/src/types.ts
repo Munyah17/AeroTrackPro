@@ -50,6 +50,9 @@ export interface Vehicle {
   satellites: number;
   ignition: boolean;
   blocked: boolean; // immobilizer engaged
+  /** Operator commanded sleep mode via the app — device stays "sleeping"
+   *  (orange) until disabled, even though it still reports periodically. */
+  sleeping?: boolean;
   healthScore: number; // 0-100
   insuranceExpiry?: string; // ISO date
   licenseExpiry?: string;

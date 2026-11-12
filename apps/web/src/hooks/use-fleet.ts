@@ -54,6 +54,7 @@ function toDomainVehicle(
     satellites: 10,
     ignition: speed > 0,
     blocked: false,
+    sleeping: device?.connection_status === "sleeping" || undefined,
     healthScore: 90,
     insuranceExpiry: row.insurance_expiry ?? undefined,
     licenseExpiry: row.license_expiry ?? undefined,

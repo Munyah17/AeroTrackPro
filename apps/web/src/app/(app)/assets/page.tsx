@@ -80,7 +80,7 @@ export default function AssetsPage() {
                       {bat < 25 && <BatteryLow className="size-3.5 text-destructive" />}
                     </div>
                   </div>
-                  <VehicleStatusChip status={a.status} />
+                  <VehicleStatusChip status={a.status} sleeping={a.sleeping} />
                 </button>
               </Panel>
             );

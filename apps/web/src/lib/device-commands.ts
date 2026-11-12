@@ -108,6 +108,16 @@ export async function recordAndDispatch(opts: {
     .single();
   if (error) throw error;
 
+  // Manual sleep is operator-controlled: record the commanded state on the
+  // device so every portal shows Sleeping until it's disabled again.
+  if (command.type === "sleepMode") {
+    void db
+      .from("devices")
+      .update({ connection_status: command.enabled ? "sleeping" : "online" })
+      .eq("id", device.id)
+      .then();
+  }
+
   if (transport === "ingest") {
     // Native path: apps/ingest polls pending 'ingest' rows and writes the
     // encoded command down the device's live TCP socket when it connects.

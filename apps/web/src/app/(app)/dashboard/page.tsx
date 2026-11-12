@@ -296,7 +296,7 @@ export default function DashboardPage() {
                   <div className="text-[13px] font-bold text-primary tabular-nums">
                     {km((v.odometerKm % 400) + 120)}
                   </div>
-                  <VehicleStatusChip status={v.status} className="mt-0.5" />
+                  <VehicleStatusChip status={v.status} sleeping={v.sleeping} className="mt-0.5" />
                 </div>
               </Link>
             ))}

@@ -141,7 +141,7 @@ export default function VehiclesPage() {
                         </div>
                       </Link>
                     </TableCell>
-                    <TableCell><VehicleStatusChip status={v.status} /></TableCell>
+                    <TableCell><VehicleStatusChip status={v.status} sleeping={v.sleeping} /></TableCell>
                     <TableCell className="text-[13px]">{driver?.name ?? <span className="text-muted-foreground">—</span>}</TableCell>
                     <TableCell>
                       <div className="text-[12.5px] font-medium">{device?.model}</div>
