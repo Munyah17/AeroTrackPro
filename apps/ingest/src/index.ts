@@ -51,6 +51,26 @@ function reply(socket: net.Socket, response: Uint8Array | string | undefined) {
   socket.write(typeof response === "string" ? response : Buffer.from(response));
 }
 
+/* Public GPS ports attract scanners and stuck sockets. Cap concurrent
+   connections per protocol and reap sockets idle for 15 min (trackers
+   report far more often; a silent socket is dead weight or an attack). */
+const MAX_CONNECTIONS_PER_PROTOCOL = 500;
+const IDLE_TIMEOUT_MS = 15 * 60_000;
+const activeByProtocol = new Map<TcpProtocolKey, number>();
+
+function connectionSlot(protocol: TcpProtocolKey): boolean {
+  const n = activeByProtocol.get(protocol) ?? 0;
+  if (n >= MAX_CONNECTIONS_PER_PROTOCOL) return false;
+  activeByProtocol.set(protocol, n + 1);
+  return true;
+}
+
+function releaseConnectionSlot(protocol: TcpProtocolKey) {
+  const n = (activeByProtocol.get(protocol) ?? 1) - 1;
+  if (n <= 0) activeByProtocol.delete(protocol);
+  else activeByProtocol.set(protocol, n);
+}
+
 async function identify(
   socket: net.Socket,
   protocol: ProtocolKey,
@@ -175,6 +195,16 @@ async function savePositions(protocol: ProtocolKey, socket: net.Socket, session:
 }
 
 function handleConnection(socket: net.Socket, protocol: TcpProtocolKey) {
+  if (!connectionSlot(protocol)) {
+    console.warn(`[${protocol}] connection limit reached — dropping ${socket.remoteAddress}:${socket.remotePort}`);
+    socket.destroy();
+    return;
+  }
+  socket.setTimeout(IDLE_TIMEOUT_MS);
+  socket.on("timeout", () => {
+    console.log(`[${protocol}] idle timeout — closing ${socket.remoteAddress}:${socket.remotePort}`);
+    socket.destroy();
+  });
   console.log(`[${protocol}] New connection from ${socket.remoteAddress}:${socket.remotePort}`);
   const decoder = decoders[protocol];
   const session: Session = createSession();
@@ -278,6 +308,7 @@ function handleConnection(socket: net.Socket, protocol: TcpProtocolKey) {
 
   socket.on("close", () => {
     unregisterSocket(socket);
+    releaseConnectionSlot(protocol);
     console.log(`[${protocol}] Connection closed: ${socket.remoteAddress}:${socket.remotePort}`);
   });
 
