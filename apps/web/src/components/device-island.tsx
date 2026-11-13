@@ -38,21 +38,27 @@ function IslandRow({ label, value, mono }: { label: string; value: string; mono?
 export function DeviceIsland({ vehicle, onClose }: { vehicle: Vehicle | null; onClose: () => void }) {
   const [expanded, setExpanded] = useState(false);
 
+  /* Selecting a device pops the island open immediately — the full summary
+     is what the user asked to see, not just the collapsed pill. */
   useEffect(() => {
-    setExpanded(false);
+    if (vehicle?.id) setExpanded(true);
   }, [vehicle?.id]);
 
   return (
-    <AnimatePresence>
-      {vehicle && (
-        <motion.div
-          key="device-island"
-          initial={{ opacity: 0, y: -28, scale: 0.85 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -28, scale: 0.85 }}
-          transition={{ type: "spring", stiffness: 420, damping: 32 }}
-          className="pointer-events-auto fixed left-1/2 top-3 z-[70] w-max max-w-[calc(100vw-1.5rem)] -translate-x-1/2"
-        >
+    /* Center via flexbox on a fixed wrapper — putting -translate-x-1/2 on the
+       motion.div itself gets overwritten by framer-motion's inline transform
+       and pushes the island off the right edge. */
+    <div className="pointer-events-none fixed inset-x-0 top-3 z-[70] flex justify-center px-3">
+      <AnimatePresence>
+        {vehicle && (
+          <motion.div
+            key="device-island"
+            initial={{ opacity: 0, y: -28, scale: 0.85 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -28, scale: 0.85 }}
+            transition={{ type: "spring", stiffness: 420, damping: 32 }}
+            className="pointer-events-auto w-max max-w-full"
+          >
           <div
             className={cn(
               "overflow-hidden bg-neutral-950 text-white shadow-[0_12px_40px_-8px_rgba(0,0,0,0.55)] ring-1 ring-white/10 transition-[border-radius,width] duration-300",
@@ -145,8 +151,9 @@ export function DeviceIsland({ vehicle, onClose }: { vehicle: Vehicle | null; on
               )}
             </AnimatePresence>
           </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
