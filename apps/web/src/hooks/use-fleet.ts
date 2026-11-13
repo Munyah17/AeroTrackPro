@@ -156,6 +156,25 @@ export function useFleet(): {
         setFleet(fresh);
         setLive(true);
 
+        /* Seed trails from the positions we just fetched (last ~2000 fixes)
+           so the map shows each vehicle's recent path immediately instead
+           of waiting for the next live INSERT. */
+        const byVehicle = new Map<string, PositionRow[]>();
+        for (const p of positionRows ?? []) {
+          if (!p.vehicle_id) continue;
+          const arr = byVehicle.get(p.vehicle_id) ?? [];
+          arr.push(p);
+          byVehicle.set(p.vehicle_id, arr);
+        }
+        const seeded: Record<string, [number, number][]> = {};
+        for (const [vid, rows] of byVehicle) {
+          rows.sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
+          seeded[vid] = rows
+            .slice(-TRAIL_MAX_POINTS)
+            .map((p) => [Number(p.lng), Number(p.lat)] as [number, number]);
+        }
+        setTrails(seeded);
+
         const channel = supabase
           .channel("fleet-positions")
           .on(

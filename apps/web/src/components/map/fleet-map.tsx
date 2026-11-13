@@ -146,6 +146,25 @@ export function FleetMap({
         layout: { "line-cap": "round", "line-join": "round" },
       });
     }
+    // Replay progress trail — the portion of the route already traveled,
+    // drawn bright on top of the dim full-route line.
+    if (!map.getSource("replay-trail")) {
+      map.addSource("replay-trail", { type: "geojson", data: pathFeature(undefined) });
+      map.addLayer({
+        id: "replay-trail-casing",
+        type: "line",
+        source: "replay-trail",
+        paint: { "line-color": "#ffffff", "line-width": 8, "line-opacity": 0.85 },
+        layout: { "line-cap": "round", "line-join": "round" },
+      });
+      map.addLayer({
+        id: "replay-trail-line",
+        type: "line",
+        source: "replay-trail",
+        paint: { "line-color": "#22c55e", "line-width": 4 },
+        layout: { "line-cap": "round", "line-join": "round" },
+      });
+    }
     // Geofences
     if (geofences?.length && !map.getSource("geofences")) {
       const features = geofences.filter((g) => g.active).map((g) => {
@@ -278,6 +297,9 @@ export function FleetMap({
       return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
     };
 
+    const trailSource = () =>
+      map.getSource("replay-trail") as maplibregl.GeoJSONSource | undefined;
+
     const placeAt = (trackMs: number) => {
       const target = t0 + Math.min(trackMs, duration);
       // binary search for segment
@@ -290,7 +312,13 @@ export function FleetMap({
       const f = tB > tA ? (target - tA) / (tB - tA) : 0;
       const [lngA, latA] = pts[lo]!;
       const [lngB, latB] = pts[hi]!;
-      marker.setLngLat([lngA + (lngB - lngA) * f, latA + (latB - latA) * f]);
+      const curLng = lngA + (lngB - lngA) * f;
+      const curLat = latA + (latB - latA) * f;
+      marker.setLngLat([curLng, curLat]);
+      // Traveled tail: every fix up to the current segment + interpolated point.
+      const traveled: [number, number][] = pts.slice(0, lo + 1);
+      traveled.push([curLng, curLat]);
+      trailSource()?.setData(pathFeature(traveled));
       return target;
     };
 
@@ -356,6 +384,7 @@ export function FleetMap({
       replayMarkerRef.current?.remove();
       replayMarkerRef.current = null;
       replayControlsRef.current = null;
+      trailSource()?.setData(pathFeature(undefined));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replay?.coords, replay?.times]);
