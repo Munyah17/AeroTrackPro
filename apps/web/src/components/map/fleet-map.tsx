@@ -10,6 +10,32 @@ import { DEFAULT_PROVIDER, styleFor } from "@/lib/map-providers";
 import { LIVE_STATUS, liveStatusOf } from "@/lib/live-status";
 import { cn } from "@/lib/utils";
 
+/* SinoTrack-style flag marker: colored flag pin with a label pill above it,
+   anchored so the pole tip sits on the coordinate. */
+function flagElement(color: string, label: string): HTMLDivElement {
+  const el = document.createElement("div");
+  el.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:flex-start;">
+      <div style="background:${color};color:#fff;font-size:9.5px;font-weight:600;padding:1px 5px;border-radius:5px;white-space:nowrap;box-shadow:0 1px 4px rgb(0 0 0/.28);margin-bottom:1px;">${label}</div>
+      <svg width="14" height="20" viewBox="0 0 14 20">
+        <line x1="2.5" y1="1" x2="2.5" y2="20" stroke="${color}" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M4 1.5h9l-2.6 3.4L13 8.5H4z" fill="${color}"/>
+      </svg>
+    </div>`;
+  return el;
+}
+
+/* Purple 'Longest stay' pill marker with a small dot at the stop point. */
+function stayElement(label: string): HTMLDivElement {
+  const el = document.createElement("div");
+  el.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;">
+      <div style="background:#a855f7;color:#fff;font-size:9.5px;font-weight:600;padding:1px 5px;border-radius:5px;white-space:nowrap;box-shadow:0 1px 4px rgb(0 0 0/.28);margin-bottom:2px;">${label}</div>
+      <div style="width:8px;height:8px;border-radius:9999px;background:#a855f7;border:2px solid #fff;box-shadow:0 1px 4px rgb(0 0 0/.3);"></div>
+    </div>`;
+  return el;
+}
+
 function markerElement(vehicle: Vehicle, selected: boolean): HTMLDivElement {
   const el = document.createElement("div");
   el.className = "cursor-pointer";
@@ -63,6 +89,8 @@ export function FleetMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const markersRef = useRef<Map<string, Marker>>(new Map());
+  const flagMarkersRef = useRef<Marker[]>([]);
+  const stayMarkerRef = useRef<Marker | null>(null);
   const loadedRef = useRef(false);
   const pathRef = useRef<[number, number][] | undefined>(path);
   pathRef.current = path;
@@ -89,6 +117,13 @@ export function FleetMap({
       type: "Feature" as const,
       properties: {},
       geometry: { type: "LineString" as const, coordinates: pts && pts.length > 1 ? pts : [] },
+    });
+
+  const pointsFeature = (pts: [number, number][] | undefined) =>
+    ({
+      type: "Feature" as const,
+      properties: {},
+      geometry: { type: "MultiPoint" as const, coordinates: pts && pts.length > 1 ? pts : [] },
     });
 
   // Init once
@@ -165,6 +200,22 @@ export function FleetMap({
         layout: { "line-cap": "round", "line-join": "round" },
       });
     }
+    // SinoTrack-style breadcrumb dots at every fix along the path.
+    if (!map.getSource("trip-points")) {
+      map.addSource("trip-points", { type: "geojson", data: pointsFeature(pathRef.current) });
+      map.addLayer({
+        id: "trip-points",
+        type: "circle",
+        source: "trip-points",
+        paint: {
+          "circle-radius": 3.4,
+          "circle-color": "#1e40ff",
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 1.2,
+        },
+      });
+    }
+    syncPathArtifacts(map);
     // Geofences
     if (geofences?.length && !map.getSource("geofences")) {
       const features = geofences.filter((g) => g.active).map((g) => {
@@ -200,6 +251,21 @@ export function FleetMap({
         paint: { "line-color": ["get", "color"], "line-width": 2, "line-dasharray": [3, 2] },
       });
     }
+  }
+
+  /* Green 'Start' / orange 'End' flags at the path ends (SinoTrack style). */
+  function syncPathArtifacts(map: MlMap) {
+    flagMarkersRef.current.forEach((m) => m.remove());
+    flagMarkersRef.current = [];
+    const pts = pathRef.current;
+    if (!pts || pts.length < 2) return;
+    const start = new maplibregl.Marker({ element: flagElement("#22c55e", "Start"), anchor: "bottom" })
+      .setLngLat(pts[0]!)
+      .addTo(map);
+    const end = new maplibregl.Marker({ element: flagElement("#f97316", "End"), anchor: "bottom" })
+      .setLngLat(pts[pts.length - 1]!)
+      .addTo(map);
+    flagMarkersRef.current = [start, end];
   }
 
   // Sync markers
@@ -257,6 +323,10 @@ export function FleetMap({
     if (!map || !loadedRef.current) return;
     const src = map.getSource("trip-path") as maplibregl.GeoJSONSource | undefined;
     src?.setData(pathFeature(path));
+    (map.getSource("trip-points") as maplibregl.GeoJSONSource | undefined)?.setData(
+      pointsFeature(path),
+    );
+    syncPathArtifacts(map);
   }, [path]);
 
   // Fly to selection
@@ -285,6 +355,29 @@ export function FleetMap({
     const { coords: pts, times } = data;
     const duration = Math.max(1, times[times.length - 1]! - times[0]!);
     const t0 = times[0]!;
+
+    /* 'Longest stay' — the biggest time gap between consecutive fixes is the
+       longest stop; mark it like SinoTrack's purple label. */
+    let stayIdx = -1;
+    let stayMs = 0;
+    for (let i = 1; i < times.length; i++) {
+      const d = times[i]! - times[i - 1]!;
+      if (d > stayMs) {
+        stayMs = d;
+        stayIdx = i - 1;
+      }
+    }
+    if (stayIdx >= 0 && stayMs >= 5 * 60_000) {
+      const h = Math.floor(stayMs / 3_600_000);
+      const m = Math.round((stayMs % 3_600_000) / 60_000);
+      const label = `Longest stay ${h > 0 ? `${h}H ` : ""}${m}M`;
+      stayMarkerRef.current = new maplibregl.Marker({
+        element: stayElement(label),
+        anchor: "bottom",
+      })
+        .setLngLat(pts[stayIdx]!)
+        .addTo(map);
+    }
 
     const el = document.createElement("div");
     el.style.cssText =
@@ -385,6 +478,8 @@ export function FleetMap({
       replayMarkerRef.current = null;
       replayControlsRef.current = null;
       trailSource()?.setData(pathFeature(undefined));
+      stayMarkerRef.current?.remove();
+      stayMarkerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replay?.coords, replay?.times]);
