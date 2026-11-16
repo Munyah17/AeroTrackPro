@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Bell, Menu, Moon, RefreshCw, Sun, LogOut, User, Settings } from "lucide-react";
+import { Bell, Check, Crown, LayoutGrid, Menu, Moon, Navigation, RefreshCw, Store, Sun, Truck, LogOut, User, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { BrandMark } from "@/components/brand/mark";
 import { useAlerts, refreshAllLiveData } from "@/hooks/use-live-data";
@@ -24,8 +24,15 @@ import {
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { NAV_META } from "@/lib/nav";
 import { useBrand } from "./brand-provider";
-import { isNavActive, navFor, ROLE_LABELS } from "@/lib/rbac";
+import { canSwitchPortal, isNavActive, navFor, portalLinks, ROLE_LABELS, type Portal } from "@/lib/rbac";
 import { useRole } from "./role-provider";
+
+const PORTAL_ICONS: Record<Portal, typeof Crown> = {
+  master: Crown,
+  reseller: Store,
+  fleet: Truck,
+  tracking: Navigation,
+};
 
 function useDarkMode() {
   // Initial class is applied by the inline script in layout.tsx before
@@ -136,6 +143,58 @@ function MobileNav() {
   );
 }
 
+/** Switch between the surfaces this account can operate (Master Admin gets all four). */
+function PortalSwitcher() {
+  const router = useRouter();
+  const { role, portal, fleetAccess, ready, setPortal } = useRole();
+  const links = ready ? portalLinks(role, fleetAccess) : [];
+  if (!canSwitchPortal(role, fleetAccess)) return null;
+
+  const current = links.find((l) => l.portal === portal) ?? links[0];
+  const CurrentIcon = current ? PORTAL_ICONS[current.portal] : LayoutGrid;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            variant="outline"
+            className="hidden h-9 shrink-0 items-center gap-2 rounded-xl px-3 text-[12.5px] font-medium sm:inline-flex"
+            aria-label="Switch portal"
+          >
+            <CurrentIcon className="size-4 text-primary" />
+            <span className="max-w-36 truncate">{current?.label ?? "Portal"}</span>
+          </Button>
+        }
+      />
+      <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 shadow-float">
+        <DropdownMenuLabel className="px-2.5 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Switch surface
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {links.map((l) => {
+          const Icon = PORTAL_ICONS[l.portal];
+          const active = l.portal === portal;
+          return (
+            <DropdownMenuItem
+              key={l.portal}
+              className="rounded-xl"
+              onClick={() => {
+                setPortal(l.portal);
+                router.push(l.href);
+              }}
+            >
+              <Icon className="size-4" />
+              <span className="flex-1">{l.label}</span>
+              {active && <Check className="size-4 text-primary" />}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function Topbar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -230,6 +289,8 @@ export function Topbar() {
       </Button>
 
       <ThemeSwitch dark={dark} onToggle={toggle} />
+
+      <PortalSwitcher />
 
       <DropdownMenu>
         <DropdownMenuTrigger

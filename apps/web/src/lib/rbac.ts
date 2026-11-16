@@ -130,6 +130,13 @@ const FLEET_PREFIXES = [
 
 const TRACKING_PREFIXES = ["/tracking", "/vehicles", "/trips", "/alerts", "/fleet"];
 
+/** End-user surface paths (excludes /fleet/* console pages and /settings). */
+const TRACKING_ONLY_PREFIXES = ["/tracking", "/vehicles", "/trips", "/alerts"];
+
+export function isTrackingOnlyPath(pathname: string) {
+  return TRACKING_ONLY_PREFIXES.some((prefix) => matches(pathname, prefix));
+}
+
 const WORKSPACE_SETTINGS = [
   "/settings/general",
   "/settings/users",
@@ -174,6 +181,7 @@ export function navFor(role: Role, portal: Portal, fleetAccess: boolean): NavSec
   if (role === "super_admin") {
     if (portal === "fleet") return FLEET_PORTAL_NAV;
     if (portal === "reseller") return RESELLER_NAV;
+    if (portal === "tracking") return USER_NAV;
     return MASTER_NAV;
   }
   if (portal === "fleet" && fleetAccess) return FLEET_PORTAL_NAV;
@@ -194,6 +202,7 @@ export function portalLinks(role: Role, fleetAccess: boolean): PortalLink[] {
       { portal: "master", href: "/admin", label: "Master Admin" },
       { portal: "reseller", href: "/reseller", label: "Reseller Portal" },
       { portal: "fleet", href: "/dashboard", label: "Fleet Management" },
+      { portal: "tracking", href: "/tracking", label: "Live Tracking" },
     ];
   }
   if (!fleetAccess) return [];
@@ -215,6 +224,7 @@ export function canSwitchPortal(role: Role, fleetAccess: boolean) {
 
 export function surfaceLabel(role: Role, portal: Portal) {
   if (portal === "fleet") return "Fleet Management";
+  if (portal === "tracking") return "Live Tracking";
   if (role === "super_admin") return "Master Admin";
   if (role === "reseller") return "Reseller Portal";
   return "Live Tracking";
@@ -224,6 +234,7 @@ export function homeFor(role: Role, portal: Portal, fleetAccess: boolean) {
   if (role === "super_admin") {
     if (portal === "reseller") return "/reseller";
     if (portal === "fleet") return "/dashboard";
+    if (portal === "tracking") return "/tracking";
     return "/admin";
   }
   if (role === "reseller") {

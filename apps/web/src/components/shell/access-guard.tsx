@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { canVisit, homeFor, isFleetPath } from "@/lib/rbac";
+import { canVisit, homeFor, isFleetPath, isTrackingOnlyPath } from "@/lib/rbac";
 import { useRole } from "./role-provider";
 
 /**
@@ -30,6 +30,7 @@ export function AccessGuard({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith("/admin") && portal !== "master") setPortal("master");
     else if (pathname.startsWith("/reseller") && portal !== "reseller") setPortal("reseller");
     else if (isFleetPath(pathname) && portal !== "fleet") setPortal("fleet");
+    else if (isTrackingOnlyPath(pathname) && portal !== "tracking") setPortal("tracking");
   }, [allowed, authed, fleetAccess, pathname, portal, ready, role, router, setPortal]);
 
   if (!ready || !authed || !allowed) {

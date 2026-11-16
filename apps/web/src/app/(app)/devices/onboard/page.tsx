@@ -7,32 +7,70 @@ import {
   BatteryCharging,
   Check,
   CheckCircle2,
+  ChevronDown,
   Copy,
   Cpu,
   Download,
   Laptop,
   Play,
   Radio,
+  Search,
   Smartphone,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@aerotrack/shared";
+import { DEVICE_MODELS, type DeviceModel, type ProtocolKey } from "@aerotrack/protocols";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 
-const PROTOCOLS = [
-  { value: "GT06", label: "GT06 (Jimi, WanWay, Seeworld, GF-07/09)" },
-  { value: "H02", label: "H02 (SinoTrack ST-901/902/905/906)" },
-  { value: "GPS103", label: "GPS103 (Coban TK103B/303G/403A)" },
-  { value: "Eelink", label: "Eelink" },
-  { value: "Queclink", label: "Queclink @Track (GL300)" },
-  { value: "Meitrack", label: "Meitrack (T366)" },
-  { value: "Topflytech", label: "Topflytech (TLW2-12B)" },
-  { value: "VT200", label: "VT200 (ThinkRace)" },
-];
+/** Wire protocol → listener port (Traccar conventions, matches apps/ingest). */
+const PROTOCOL_INFO: Record<string, { label: string; port: number }> = {
+  gt06: { label: "GT06", port: 5023 },
+  h02: { label: "H02", port: 5013 },
+  gps103: { label: "GPS103", port: 5001 },
+  eelink: { label: "Eelink", port: 5064 },
+  queclink: { label: "Queclink", port: 5004 },
+  meitrack: { label: "Meitrack", port: 5020 },
+  topflytech: { label: "Topflytech", port: 5049 },
+  vt200: { label: "VT200", port: 5045 },
+  teltonika: { label: "Teltonika", port: 5027 },
+  jt808: { label: "JT808", port: 5015 },
+  watch: { label: "Watch / 365GPS", port: 5093 },
+};
+
+const ALL_PROTOCOLS = Object.entries(PROTOCOL_INFO).map(([value, info]) => ({
+  value,
+  label: `${info.label} (port ${info.port})`,
+}));
+
+/* Brands/models the business sees most — surfaced first in the picker. */
+const PRIORITY_VENDORS = ["SinoTrack", "Concox", "Kingwo", "Seeworld", "Teltonika"];
+const PRIORITY_MODEL_IDS = ["concox-gt02", "probe-fuel-probe", "gf07", "gf09"];
+
+function deviceSortScore(m: DeviceModel): number {
+  const vendorIdx = PRIORITY_VENDORS.indexOf(m.vendor);
+  if (vendorIdx >= 0) return vendorIdx * 1000;
+  const modelIdx = PRIORITY_MODEL_IDS.indexOf(m.id);
+  if (modelIdx >= 0) return 5000 + modelIdx;
+  return 9000;
+}
+
+const SORTED_MODELS = [...DEVICE_MODELS].sort((a, b) => {
+  const d = deviceSortScore(a) - deviceSortScore(b);
+  return d !== 0 ? d : `${a.vendor} ${a.model}`.localeCompare(`${b.vendor} ${b.model}`);
+});
 
 type TrackerKind = "phone" | "laptop";
 
@@ -62,7 +100,9 @@ export default function OnboardDevicePage() {
 
   // Hardware wizard state
   const [step, setStep] = useState<"info" | "config" | "verify">("info");
-  const [protocol, setProtocol] = useState("GT06");
+  const [protocolKey, setProtocolKey] = useState<ProtocolKey>("gt06");
+  const [selectedModel, setSelectedModel] = useState<DeviceModel | null>(null);
+  const [otherMode, setOtherMode] = useState(false);
   const [imei, setImei] = useState("");
   const [deviceName, setDeviceName] = useState("");
 
@@ -71,6 +111,18 @@ export default function OnboardDevicePage() {
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<CreatedTracker | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+
+  const pickModel = (m: DeviceModel) => {
+    setSelectedModel(m);
+    setOtherMode(false);
+    setProtocolKey(m.protocol);
+    if (!deviceName.trim()) setDeviceName(`${m.vendor} ${m.model}`);
+  };
+
+  const pickOther = () => {
+    setSelectedModel(null);
+    setOtherMode(true);
+  };
 
   const handleNext = () => {
     if (step === "info" && imei && deviceName) setStep("config");
@@ -354,19 +406,95 @@ export default function OnboardDevicePage() {
           </h3>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-[13px] font-medium">Device Protocol</Label>
-              <Select value={protocol} onValueChange={(v) => v && setProtocol(v)}>
-                <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  {PROTOCOLS.map((p) => (
-                    <SelectItem key={p.value} value={p.value}>
-                      {p.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-[13px] font-medium">Device</Label>
+              {selectedModel && !otherMode ? (
+                <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13.5px] font-semibold">
+                      {selectedModel.vendor} {selectedModel.model}
+                    </div>
+                    <div className="truncate text-[11.5px] text-muted-foreground">
+                      {PROTOCOL_INFO[selectedModel.protocol]?.label ?? selectedModel.protocol} · port{" "}
+                      {PROTOCOL_INFO[selectedModel.protocol]?.port ?? "—"}
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 shrink-0 rounded-lg text-[12px]"
+                    onClick={() => setSelectedModel(null)}
+                  >
+                    Change
+                  </Button>
+                </div>
+              ) : (
+                <Popover>
+                  <PopoverTrigger
+                    render={
+                      <Button
+                        variant="outline"
+                        className="h-11 w-full justify-between rounded-xl font-normal"
+                      />
+                    }
+                  >
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <Search className="size-4" />
+                      {otherMode ? "Other device — pick protocol below" : "Search device brand or model…"}
+                    </span>
+                    <ChevronDown className="size-4 opacity-50" />
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[420px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Type to search — e.g. Sinotrack, GT02, GF-09…" />
+                      <CommandList className="max-h-72">
+                        <CommandEmpty>No matching device — choose “Other” below.</CommandEmpty>
+                        <CommandGroup heading="Popular">
+                          {SORTED_MODELS.map((m) => (
+                            <CommandItem
+                              key={m.id}
+                              value={`${m.vendor} ${m.model} ${m.description}`}
+                              onSelect={() => pickModel(m)}
+                              className="flex-col items-start gap-0.5 py-2"
+                            >
+                              <span className="text-[13px] font-medium">
+                                {m.vendor} {m.model}
+                              </span>
+                              <span className="text-[11px] text-muted-foreground">
+                                {PROTOCOL_INFO[m.protocol]?.label ?? m.protocol} · port{" "}
+                                {PROTOCOL_INFO[m.protocol]?.port ?? "—"}
+                              </span>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                        <CommandGroup>
+                          <CommandItem
+                            value="other device not listed custom protocol"
+                            onSelect={pickOther}
+                            className="text-primary"
+                          >
+                            Other — my device is not listed
+                          </CommandItem>
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              )}
+              {otherMode && (
+                <Select value={protocolKey} onValueChange={(v) => v && setProtocolKey(v as ProtocolKey)}>
+                  <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {ALL_PROTOCOLS.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <p className="text-[11.5px] text-muted-foreground">
-                Check your device manual or packaging for the protocol type.
+                Pick your tracker from the list — we configure the right protocol and port automatically.
+                Can&apos;t find it? Choose &quot;Other&quot;.
               </p>
             </div>
 
@@ -425,14 +553,7 @@ export default function OnboardDevicePage() {
                   <span className="font-semibold">Server IP:</span> {process.env.NEXT_PUBLIC_DEVICE_SERVER_IP || "gps.aerotrack.app"}
                 </div>
                 <div>
-                  <span className="font-semibold">Port:</span>{" "}
-                  {PROTOCOLS.find((p) => p.value === protocol)?.value === "GT06"
-                    ? "5023"
-                    : PROTOCOLS.find((p) => p.value === protocol)?.value === "H02"
-                      ? "5013"
-                      : PROTOCOLS.find((p) => p.value === protocol)?.value === "GPS103"
-                        ? "5001"
-                        : "5000"}
+                  <span className="font-semibold">Port:</span> {PROTOCOL_INFO[protocolKey]?.port ?? "5000"}
                 </div>
                 <div className="text-[11px] text-blue-700 dark:text-blue-300">
                   Configuration method depends on device model — check device manual or use SMS commands.
@@ -443,7 +564,7 @@ export default function OnboardDevicePage() {
             <div className="space-y-2">
               <Label className="text-[13px] font-medium">SMS Configuration (if supported)</Label>
               <div className="rounded-lg border bg-muted/50 p-3 font-mono text-[11px]">
-                <div>For {protocol} devices:</div>
+                <div>For {PROTOCOL_INFO[protocolKey]?.label ?? protocolKey} devices:</div>
                 <div className="mt-2 text-muted-foreground">
                   Send SMS to device: <span className="font-semibold text-foreground">SERVER,0,gps.aerotrack.app,5023,0#</span>
                 </div>
