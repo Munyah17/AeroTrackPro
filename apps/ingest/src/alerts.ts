@@ -43,7 +43,7 @@ const ALARM_TITLES: Partial<Record<AlarmType, string>> = {
 const lastAlertAt = new Map<string, number>();
 const DEBOUNCE_MS = 10 * 60_000;
 
-function shouldRaise(deviceId: string, type: string): boolean {
+export function shouldRaise(deviceId: string, type: string): boolean {
   const key = `${deviceId}:${type}`;
   const last = lastAlertAt.get(key) ?? 0;
   if (Date.now() - last < DEBOUNCE_MS) return false;
@@ -51,7 +51,7 @@ function shouldRaise(deviceId: string, type: string): boolean {
   return true;
 }
 
-async function insertAlert(
+export async function insertAlert(
   device: DeviceRecord,
   position: Position,
   alertType: string,
@@ -139,7 +139,7 @@ async function geofencesForTenant(tenantId: string): Promise<GeofenceRow[]> {
   return rows;
 }
 
-function haversineM(lng1: number, lat1: number, lng2: number, lat2: number): number {
+export function haversineM(lng1: number, lat1: number, lng2: number, lat2: number): number {
   const R = 6_371_000;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;

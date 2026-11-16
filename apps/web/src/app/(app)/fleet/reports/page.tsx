@@ -20,6 +20,7 @@ import {
   useDrivers,
   useFuelRecords,
   useGeofences,
+  useIgnitionEvents,
   useInsurancePolicies,
   useMaintenanceItems,
   useTenantTable,
@@ -79,13 +80,24 @@ const PREVIEW_LIMIT = 150;
 export default function FleetReportsPage() {
   /* ------------------------------- data ------------------------------- */
   const { rows: vehicles } = useTenantTable("vehicles", {
-    map: (r) => ({ id: r.id, name: r.name, plate: r.plate, driverId: r.driver_id ?? null, groupId: r.group_id ?? null, groupName: r.group_name ?? null }),
+    map: (r) => ({ id: r.id, name: r.name, plate: r.plate, deviceId: r.device_id ?? null, driverId: r.driver_id ?? null, groupId: r.group_id ?? null, groupName: r.group_name ?? null }),
     order: "name",
     ascending: true,
+  });
+  /* Device engine state feeds the engine-hours report. */
+  const { rows: engineRows } = useTenantTable("devices", {
+    map: (r) => ({
+      deviceId: r.id,
+      engineHoursMin: r.engine_hours_min,
+      engineCut: r.engine_cut,
+      ignition: r.ignition,
+    }),
+    limit: 500,
   });
   const { rows: drivers } = useDrivers();
   const { rows: trips } = useTrips();
   const { rows: driverEvents } = useDriverEvents();
+  const { rows: ignitionEvents } = useIgnitionEvents();
   const { rows: fuelRecords } = useFuelRecords();
   const { rows: geofences } = useGeofences();
   const { rows: alerts } = useAlerts();
@@ -132,6 +144,17 @@ export default function FleetReportsPage() {
     if (!selected) return;
     const { from, to } = rangeBounds(range);
     try {
+      /* Attribute trips to the vehicle's currently assigned driver — the
+         trips table has no driver column of its own. */
+      const tripsAttributed = trips.map((t) =>
+        t.driverId ? t : { ...t, driverId: vehicles.find((v) => v.id === t.vehicleId)?.driverId ?? undefined },
+      );
+      const engines = engineRows
+        .map((e) => {
+          const vehicle = vehicles.find((v) => v.deviceId === e.deviceId);
+          return vehicle ? { vehicleId: vehicle.id, ...e } : null;
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null);
       const out = selected.run({
         from,
         to,
@@ -139,8 +162,10 @@ export default function FleetReportsPage() {
         driverIds: driverScope.size ? driverScope : undefined,
         vehicles,
         drivers,
-        trips,
+        trips: tripsAttributed,
         driverEvents,
+        ignitionEvents,
+        engines,
         fuelRecords,
         geofences,
         alerts,

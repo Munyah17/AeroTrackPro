@@ -143,6 +143,7 @@ export interface Trip {
   durationMin: number;
   maxSpeedKmh: number;
   avgSpeedKmh: number;
+  idleTimeMin?: number;
   fuelUsedL?: number;
   path: [number, number][]; // [lng, lat]
   events: { type: string; at: string; lat: number; lng: number }[];

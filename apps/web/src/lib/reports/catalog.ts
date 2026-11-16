@@ -7,7 +7,7 @@ import type {
   MaintenanceItem,
   Trip,
 } from "@aerotrack/shared";
-import type { DriverEvent } from "@/hooks/use-live-data";
+import type { DriverEvent, IgnitionEvent } from "@/hooks/use-live-data";
 
 /**
  * Report catalog — each definition turns live/mock datasets into a flat
@@ -36,6 +36,15 @@ export interface InsurancePolicyRef {
   status: string;
 }
 
+export interface EngineRef {
+  vehicleId: string;
+  deviceId: string;
+  /** Cumulative ACC-on minutes persisted on the device row. */
+  engineHoursMin: number;
+  engineCut: boolean;
+  ignition: boolean | null;
+}
+
 export interface ReportInput {
   from: Date;
   to: Date;
@@ -45,6 +54,8 @@ export interface ReportInput {
   drivers: Driver[];
   trips: Trip[];
   driverEvents: DriverEvent[];
+  ignitionEvents: IgnitionEvent[];
+  engines: EngineRef[];
   fuelRecords: FuelRecord[];
   geofences: Geofence[];
   alerts: FleetAlert[];
@@ -97,8 +108,72 @@ function inDriverScope(input: ReportInput, driverId?: string | null) {
   return !input.driverIds || !driverId || input.driverIds.has(driverId);
 }
 
-const HARSH_TYPES = new Set(["harsh_brake", "harsh_accel", "harsh_corner", "harshBraking", "harshAcceleration"]);
+/* driver_events CHECK allows harsh_braking/harsh_acceleration/harsh_cornering;
+   keep the legacy/Traccar-style spellings too so imported data still matches. */
+const HARSH_TYPES = new Set([
+  "harsh_braking", "harsh_acceleration", "harsh_cornering",
+  "harsh_brake", "harsh_accel", "harsh_corner",
+  "harshBraking", "harshAcceleration",
+]);
 const SECURITY_TYPES = new Set(["sos", "powerCut", "batteryDisconnected", "crash", "fuelTheft", "deviceOffline"]);
+
+/* ------------------------- derived stop periods ------------------------- */
+
+export interface StopPeriod {
+  vehicleId: string;
+  from: string;
+  to?: string;
+  ongoing: boolean;
+  minutes: number;
+  location: string;
+}
+
+/** Parking periods = gaps between consecutive trips, plus the edges of the
+ *  report range (parked before the first trip / still parked after the last). */
+export function deriveStops(i: ReportInput): StopPeriod[] {
+  const stops: StopPeriod[] = [];
+  const byVehicle = new Map<string, Trip[]>();
+  for (const t of i.trips.filter((x) => inVehicleScope(i, x.vehicleId))) {
+    const list = byVehicle.get(t.vehicleId) ?? [];
+    list.push(t);
+    byVehicle.set(t.vehicleId, list);
+  }
+  const fromMs = i.from.getTime();
+  const toMs = i.to.getTime();
+  for (const [vid, list] of byVehicle) {
+    list.sort((a, b) => a.startAt.localeCompare(b.startAt));
+    /* Leading stop: range start → first trip start (only when the first
+       trip is fully inside the range, i.e. the vehicle was parked first). */
+    const first = list[0];
+    if (first && new Date(first.startAt).getTime() > fromMs && new Date(first.startAt).getTime() <= toMs) {
+      const minutes = (new Date(first.startAt).getTime() - fromMs) / 60000;
+      if (minutes >= 5) {
+        stops.push({ vehicleId: vid, from: i.from.toISOString(), to: first.startAt, ongoing: false, minutes, location: first.startAddress });
+      }
+    }
+    for (let k = 0; k < list.length - 1; k++) {
+      const end = new Date(list[k].endAt).getTime();
+      const start = new Date(list[k + 1].startAt).getTime();
+      if (start > end && start >= fromMs && end <= toMs) {
+        stops.push({ vehicleId: vid, from: list[k].endAt, to: list[k + 1].startAt, ongoing: false, minutes: (start - end) / 60000, location: list[k].endAddress });
+      }
+    }
+    /* Trailing stop: last trip end → range end — still parked (or parked
+       until the period closed). */
+    const lastTrip = list[list.length - 1];
+    if (lastTrip) {
+      const end = new Date(lastTrip.endAt).getTime();
+      if (end < toMs && end >= fromMs) {
+        const minutes = (toMs - end) / 60000;
+        if (minutes >= 5) {
+          stops.push({ vehicleId: vid, from: lastTrip.endAt, ongoing: true, minutes, location: lastTrip.endAddress });
+        }
+      }
+    }
+  }
+  stops.sort((a, b) => a.from.localeCompare(b.from));
+  return stops;
+}
 
 export const REPORT_CATEGORIES: ReportCategory[] = [
   {
@@ -124,23 +199,100 @@ export const REPORT_CATEGORIES: ReportCategory[] = [
         scopes: ["vehicles"],
         run: (i) => {
           const rows: ReportResult["rows"] = [];
-          const byVehicle = new Map<string, Trip[]>();
-          for (const t of i.trips.filter((x) => inVehicleScope(i, x.vehicleId))) {
-            const list = byVehicle.get(t.vehicleId) ?? [];
-            list.push(t);
-            byVehicle.set(t.vehicleId, list);
-          }
-          for (const [vid, list] of byVehicle) {
-            list.sort((a, b) => a.startAt.localeCompare(b.startAt));
-            for (let k = 0; k < list.length - 1; k++) {
-              const end = new Date(list[k].endAt).getTime();
-              const start = new Date(list[k + 1].startAt).getTime();
-              if (start > end && start >= i.from.getTime() && end <= i.to.getTime()) {
-                rows.push([fmt(list[k].endAt), fmt(list[k + 1].startAt), Math.round((start - end) / 60000), vehicleName(i, vid), list[k].endAddress]);
-              }
-            }
+          for (const stop of deriveStops(i)) {
+            rows.push([fmt(stop.from), stop.ongoing ? "ongoing" : fmt(stop.to), Math.round(stop.minutes), vehicleName(i, stop.vehicleId), stop.location]);
           }
           return { columns: ["Stop start", "Stop end", "Duration (min)", "Vehicle", "Location"], rows };
+        },
+      },
+      {
+        id: "parking",
+        name: "Parking locations",
+        description: "Where vehicles park — stops clustered by place",
+        scopes: ["vehicles"],
+        run: (i) => {
+          /* Cluster stops by location key: the endAddress string ("lat, lng")
+             rounded to ~110 m so repeat park spots aggregate. */
+          const key = (loc: string) => {
+            const [lat, lng] = loc.split(",").map((p) => parseFloat(p.trim()));
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return loc || "—";
+            return `${lat.toFixed(3)}, ${lng.toFixed(3)}`;
+          };
+          const agg = new Map<string, { vehicleId: string; stops: number; totalMin: number; longestMin: number; last?: string }>();
+          for (const s of deriveStops(i)) {
+            const k = `${s.vehicleId}|${key(s.location)}`;
+            const a = agg.get(k) ?? { vehicleId: s.vehicleId, stops: 0, totalMin: 0, longestMin: 0 };
+            a.stops += 1;
+            a.totalMin += s.minutes;
+            a.longestMin = Math.max(a.longestMin, s.minutes);
+            if (!a.last || s.from > a.last) a.last = s.from;
+            agg.set(k, a);
+          }
+          const rows = [...agg.entries()]
+            .sort(([, a], [, b]) => b.totalMin - a.totalMin)
+            .map(([k, a]) => [vehicleName(i, a.vehicleId), k.split("|")[1], a.stops, n1(a.totalMin / 60), Math.round(a.longestMin), fmt(a.last)]);
+          return { columns: ["Vehicle", "Location", "Stops", "Total parked (h)", "Longest (min)", "Last parked"], rows };
+        },
+      },
+      {
+        id: "ignition-events",
+        name: "Ignition events",
+        description: "ACC on/off transitions log",
+        scopes: ["vehicles", "drivers"],
+        run: (i) => ({
+          columns: ["Time", "Vehicle", "Driver", "Event", "Location"],
+          rows: i.ignitionEvents
+            .filter((e) => inRange(e.recordedAt, i.from, i.to) && inVehicleScope(i, e.vehicleId) && inDriverScope(i, e.driverId))
+            .map((e) => [
+              fmt(e.recordedAt),
+              vehicleName(i, e.vehicleId),
+              driverName(i, e.driverId),
+              e.kind === "ignition_on" ? "Ignition ON" : "Ignition OFF",
+              e.position ? `${e.position.lat.toFixed(5)}, ${e.position.lng.toFixed(5)}` : "",
+            ]),
+        }),
+      },
+      {
+        id: "engine-hours",
+        name: "Engine hours",
+        description: "ACC-on time per vehicle — derived from ignition events + cumulative counter",
+        scopes: ["vehicles"],
+        run: (i) => {
+          /* Pair ignition_on→ignition_off inside the range to get period
+             ACC-on time; a leading 'on' counts from range start and a
+             trailing 'on' counts to range end (or now). */
+          const rows: ReportResult["rows"] = [];
+          const byVehicle = new Map<string, IgnitionEvent[]>();
+          for (const e of i.ignitionEvents.filter((x) => inVehicleScope(i, x.vehicleId))) {
+            const list = byVehicle.get(e.vehicleId!) ?? [];
+            list.push(e);
+            byVehicle.set(e.vehicleId!, list);
+          }
+          const end = Math.min(i.to.getTime(), Date.now());
+          for (const [vid, list] of byVehicle) {
+            list.sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
+            let onMin = 0;
+            let onAt = list[0]?.kind === "ignition_off" ? i.from.getTime() : 0;
+            for (const e of list) {
+              const t = new Date(e.recordedAt).getTime();
+              if (e.kind === "ignition_on" && t >= i.from.getTime()) onAt = onAt || t;
+              else if (e.kind === "ignition_on") onAt = i.from.getTime();
+              if (e.kind === "ignition_off" && onAt) {
+                onMin += (Math.min(t, end) - onAt) / 60000;
+                onAt = 0;
+              }
+            }
+            if (onAt) onMin += (end - onAt) / 60000;
+            const engine = i.engines.find((x) => x.vehicleId === vid);
+            rows.push([
+              vehicleName(i, vid),
+              n1(onMin / 60),
+              engine ? n1(engine.engineHoursMin / 60) : "",
+              engine?.ignition == null ? "—" : engine.ignition ? "on" : "off",
+              engine?.engineCut ? "yes" : "no",
+            ]);
+          }
+          return { columns: ["Vehicle", "ACC-on this period (h)", "Total engine hours", "Ignition now", "Immobilized"], rows };
         },
       },
       {
@@ -149,20 +301,20 @@ export const REPORT_CATEGORIES: ReportCategory[] = [
         description: "Distance and drive time per vehicle per day",
         scopes: ["vehicles"],
         run: (i) => {
-          const agg = new Map<string, { trips: number; km: number; min: number }>();
+          const agg = new Map<string, { trips: number; km: number; min: number; idleMin: number }>();
           for (const t of i.trips.filter((x) => inRange(x.startAt, i.from, i.to) && inVehicleScope(i, x.vehicleId))) {
             const key = `${day(t.startAt)}|${t.vehicleId}`;
-            const a = agg.get(key) ?? { trips: 0, km: 0, min: 0 };
-            a.trips += 1; a.km += t.distanceKm; a.min += t.durationMin;
+            const a = agg.get(key) ?? { trips: 0, km: 0, min: 0, idleMin: 0 };
+            a.trips += 1; a.km += t.distanceKm; a.min += t.durationMin; a.idleMin += t.idleTimeMin ?? 0;
             agg.set(key, a);
           }
           const rows = [...agg.entries()]
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([key, a]) => {
               const [d, vid] = key.split("|");
-              return [d, vehicleName(i, vid), a.trips, n1(a.km), Math.round(a.min)];
+              return [d, vehicleName(i, vid), a.trips, n1(a.km), Math.round(a.min), Math.round(a.idleMin)];
             });
-          return { columns: ["Date", "Vehicle", "Trips", "Distance (km)", "Drive time (min)"], rows };
+          return { columns: ["Date", "Vehicle", "Trips", "Distance (km)", "Drive time (min)", "Idle (min)"], rows };
         },
       },
       {
@@ -327,22 +479,27 @@ export const REPORT_CATEGORIES: ReportCategory[] = [
         description: "Behavior score, risk and event counts per driver",
         scopes: ["drivers"],
         run: (i) => {
-          const events = new Map<string, { harsh: number; overspeed: number }>();
+          /* Score computed live from period events — 100 minus penalties.
+             The stored behaviorScore is stale; this reflects the range. */
+          const events = new Map<string, { harsh: number; overspeed: number; idling: number }>();
           for (const e of i.driverEvents.filter((x) => inRange(x.recordedAt, i.from, i.to))) {
             if (!e.driverId) continue;
-            const a = events.get(e.driverId) ?? { harsh: 0, overspeed: 0 };
+            const a = events.get(e.driverId) ?? { harsh: 0, overspeed: 0, idling: 0 };
             if (HARSH_TYPES.has(e.type)) a.harsh += 1;
             if (e.type === "overspeed") a.overspeed += 1;
+            if (e.type === "idling") a.idling += 1;
             events.set(e.driverId, a);
           }
+          const risk = (score: number) => (score >= 80 ? "low" : score >= 60 ? "medium" : "high");
           const rows = i.drivers
             .filter((d) => inDriverScope(i, d.id))
             .map((d) => {
-              const e = events.get(d.id) ?? { harsh: 0, overspeed: 0 };
-              return [d.name, d.behaviorScore, d.riskLevel, d.tripsThisMonth, n1(d.distanceThisMonthKm), e.harsh, e.overspeed];
+              const e = events.get(d.id) ?? { harsh: 0, overspeed: 0, idling: 0 };
+              const score = Math.max(0, 100 - e.harsh * 3 - e.overspeed * 2 - e.idling);
+              return [d.name, score, risk(score), d.tripsThisMonth, n1(d.distanceThisMonthKm), e.harsh, e.overspeed, e.idling];
             })
             .sort((a, b) => (b[1] as number) - (a[1] as number));
-          return { columns: ["Driver", "Score", "Risk", "Trips / month", "Distance (km)", "Harsh events", "Overspeed"], rows };
+          return { columns: ["Driver", "Score", "Risk", "Trips / month", "Distance (km)", "Harsh events", "Overspeed", "Idling"], rows };
         },
       },
     ],

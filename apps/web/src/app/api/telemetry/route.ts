@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import type { Database } from "@aerotrack/shared";
 import {
+  analyzeFuelReading,
+  asFuelProfile,
+  fuelLevelPct,
+  fuelUsedLitres,
+} from "@aerotrack/shared";
+import {
   normalizeForwardBody,
   resolveBridgeDevice,
   verifyForwardSecret,
@@ -13,40 +19,8 @@ type PositionInsert = Database["public"]["Tables"]["positions"]["Insert"];
 type DeviceUpdate = Database["public"]["Tables"]["devices"]["Update"];
 type FuelRecordInsert = Database["public"]["Tables"]["fuel_records"]["Insert"];
 
-/*
- * Fuel sensors: capacitive/ultrasonic tank probes report level %; resistive
- * probes may report litres; Bluetooth flow meters report cumulative litres
- * burned. Traccar surfaces all of these as position attributes — the exact
- * key varies by protocol/model, so we probe a list of common names.
- */
-const FUEL_LEVEL_KEYS = ["fuel", "fuel1", "fuelLevel", "fuel_level", "fuelLevel1", "io72", "io90", "can_fuel"];
-const FUEL_USED_KEYS = ["fuelUsed", "fuelConsumption", "fuel_used", "fuelCounter", "totalFuelUsed"];
-
-/** % jump that counts as a genuine event (probe noise + sloshing is < ~3%). */
-const FUEL_JUMP_PCT = 8;
-/** Stationary when below this speed — a big drop while parked = suspected theft. */
-const STATIONARY_KMH = 3;
-
-function numAttr(attrs: Record<string, unknown>, keys: string[]): number | null {
-  for (const k of keys) {
-    const v = attrs[k];
-    const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
-    if (Number.isFinite(n)) return n;
-  }
-  return null;
-}
-
-/** Tank level % from probe attributes (values >100 treated as raw — ignored). */
-function fuelLevelPct(attrs: Record<string, unknown>): number | null {
-  const v = numAttr(attrs, FUEL_LEVEL_KEYS);
-  if (v == null || v < 0 || v > 100) return null;
-  return v;
-}
-
-function fuelUsedLitres(attrs: Record<string, unknown>): number | null {
-  const v = numAttr(attrs, FUEL_USED_KEYS);
-  return v != null && v >= 0 ? v : null;
-}
+/* Fuel probe/flow-meter detection lives in @aerotrack/shared (fuel-anomaly.ts)
+   so this route and the native TCP ingest run the same adaptive model. */
 
 /**
  * Traccar position forwarding endpoint.
@@ -140,11 +114,14 @@ export async function POST(req: Request): Promise<Response> {
     deviceId: string;
     vehicleId: string;
     kind: "refill" | "theft" | "consumption";
+    reason: string;
+    windowMin?: number;
     deltaPct?: number;
     deltaL?: number;
     levelAfterPct: number | null;
     recordedAt: string;
     imei: string;
+    speedKmh: number;
   }[] = [];
 
   for (const { position, device } of fixes) {
@@ -216,36 +193,58 @@ export async function POST(req: Request): Promise<Response> {
     stamp.last_seen_at = new Date().toISOString();
     stamp.connection_status = "online"; // a live fix implies the unit is reachable
 
-    /* Fuel probe / flow-meter analysis (rule engine):
-     *   big jump up                      -> refill
-     *   big drop while stationary        -> suspected theft (notified)
-     *   big drop while moving            -> consumption event
-     *   flow-meter cumulative delta      -> consumption event
+    /* Fuel probe / flow-meter analysis — adaptive model (fuel-anomaly.ts):
+     *   big jump up                        -> refill
+     *   big drop while stationary          -> suspected theft (notified)
+     *   repeated sub-noise stationary drops -> skim theft (notified)
+     *   drop rate >> learned baseline      -> abnormal drain (notified)
+     *   plausible drop while moving        -> consumption event
+     *   flow-meter cumulative delta        -> consumption event
+     *   flow delta, parked + ACC off       -> suspected theft (notified)
      */
     const levelPct = fuelLevelPct(attrs);
     const usedL = fuelUsedLitres(attrs);
-    if (levelPct != null) {
-      const prev = bridge.last_fuel_level;
-      if (prev != null && bridge.vehicle_id) {
-        const delta = levelPct - prev;
-        if (delta >= FUEL_JUMP_PCT) {
-          fuelEvents.push({ tenantId: bridge.tenant_id, deviceId: bridge.id, vehicleId: bridge.vehicle_id, kind: "refill", deltaPct: delta, levelAfterPct: levelPct, recordedAt: recordedAt ?? new Date().toISOString(), imei: bridge.imei });
-        } else if (delta <= -FUEL_JUMP_PCT) {
-          const speed = typeof position.speed === "number" ? position.speed * 1.852 : 0;
-          fuelEvents.push({ tenantId: bridge.tenant_id, deviceId: bridge.id, vehicleId: bridge.vehicle_id, kind: speed < STATIONARY_KMH ? "theft" : "consumption", deltaPct: -delta, levelAfterPct: levelPct, recordedAt: recordedAt ?? new Date().toISOString(), imei: bridge.imei });
-        }
+    if (levelPct != null || usedL != null) {
+      const res = analyzeFuelReading({
+        at: recordedAt ?? new Date().toISOString(),
+        levelPct,
+        prevLevelPct: bridge.last_fuel_level,
+        prevAt: bridge.last_fuel_at,
+        usedLitres: usedL,
+        prevUsedLitres: bridge.last_fuel_used_l,
+        speedKmh: typeof position.speed === "number" ? position.speed * 1.852 : 0,
+        ignitionOff: attrs.acc === false || attrs.ignition === false,
+        profile: asFuelProfile(bridge.fuel_profile),
+      });
+      for (const ev of res.events) {
+        if (!bridge.vehicle_id) break;
+        fuelEvents.push({
+          tenantId: bridge.tenant_id,
+          deviceId: bridge.id,
+          vehicleId: bridge.vehicle_id,
+          kind: ev.kind,
+          reason: ev.reason,
+          windowMin: ev.windowMin,
+          deltaPct: ev.deltaPct,
+          deltaL: ev.deltaL,
+          levelAfterPct: ev.levelAfterPct,
+          recordedAt: recordedAt ?? new Date().toISOString(),
+          imei: bridge.imei,
+          speedKmh: typeof position.speed === "number" ? position.speed * 1.852 : 0,
+        });
       }
-      stamp.last_fuel_level = levelPct;
-      stamp.last_fuel_at = recordedAt ?? new Date().toISOString();
-      bridge.last_fuel_level = levelPct; // keep in-request comparisons sequential
-    }
-    if (usedL != null) {
-      const prev = bridge.last_fuel_used_l;
-      if (prev != null && usedL > prev && bridge.vehicle_id) {
-        fuelEvents.push({ tenantId: bridge.tenant_id, deviceId: bridge.id, vehicleId: bridge.vehicle_id, kind: "consumption", deltaL: usedL - prev, levelAfterPct: levelPct, recordedAt: recordedAt ?? new Date().toISOString(), imei: bridge.imei });
+      stamp.fuel_profile = res.profile;
+      bridge.fuel_profile = res.profile; // keep learning across warm invocations
+      if (levelPct != null) {
+        stamp.last_fuel_level = levelPct;
+        stamp.last_fuel_at = recordedAt ?? new Date().toISOString();
+        bridge.last_fuel_level = levelPct; // keep in-request comparisons sequential
+        bridge.last_fuel_at = recordedAt ?? new Date().toISOString();
       }
-      stamp.last_fuel_used_l = usedL;
-      bridge.last_fuel_used_l = usedL;
+      if (usedL != null) {
+        stamp.last_fuel_used_l = usedL;
+        bridge.last_fuel_used_l = usedL;
+      }
     }
     if (typeof attrs.battery === "number") stamp.battery_level = Math.round(attrs.battery);
     if (typeof attrs.batteryLevel === "number") stamp.battery_level = Math.round(attrs.batteryLevel);
@@ -293,7 +292,7 @@ export async function POST(req: Request): Promise<Response> {
       kind: fe.kind,
       litres: Math.round(litres * 10) / 10,
       level_after_pct: fe.levelAfterPct != null ? Math.round(fe.levelAfterPct) : null,
-      station: fe.deltaL != null ? "flow-meter" : "tank-probe",
+      station: fe.deltaL != null ? "flow-meter" : `tank-probe:${fe.reason}`,
       recorded_at: fe.recordedAt,
       coupon_id: null,
       cost_usd: null,
@@ -301,9 +300,17 @@ export async function POST(req: Request): Promise<Response> {
     });
 
     if (fe.kind === "theft") {
+      const desc =
+        fe.reason === "skim"
+          ? `drained gradually over ~${fe.windowMin ?? "?"} min`
+          : fe.reason === "abnormal-rate"
+            ? "consumed far above this vehicle's learned baseline"
+            : fe.reason === "flow-stationary"
+              ? "flow meter counted litres while parked"
+              : "sudden tank-level drop";
       await notifyEvent(db, fe.tenantId, "fuel_alert", {
         title: "Suspected fuel theft",
-        body: `${vehicleName ? `${vehicleName} ` : ""}(tracker ${fe.imei}) tank level dropped ${fe.deltaPct?.toFixed(1)}% (≈${Math.round(litres)}L) while stationary.`,
+        body: `${vehicleName ? `${vehicleName} ` : ""}(tracker ${fe.imei}) ~${Math.round(litres)}L ${desc}${fe.deltaPct != null ? ` (${fe.deltaPct.toFixed(1)}% of tank)` : ""} while ${fe.speedKmh < 3 ? "stationary" : `moving at ${Math.round(fe.speedKmh)} km/h`}.`,
         link: "/fuel",
       });
     }

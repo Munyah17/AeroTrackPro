@@ -24,16 +24,29 @@ import { ascii, asciiBytes, nmeaToDecimal, parseDdmmyyHhmmss } from "../../core/
 
 const KNOTS_TO_KMH = 1.852;
 
-/** Status dword: bits are active-low alarm flags (0 = alarm active). */
+/* Status dword: active-low alarm flags (0 = alarm active). Bit map per the
+   H02 protocol doc + Traccar's H02ProtocolDecoder + SinoTrack ST-9xx field
+   reports. Bit meanings vary between firmware families, so the bits below
+   are the intersection verified on SinoTrack hardware. Checks run in
+   severity order — only alarms[0] is reported upstream. */
 function statusAlarms(status: number) {
   const alarms: string[] = [];
-  if ((status & 0x00000001) === 0) alarms.push("tamper");
-  if ((status & 0x00000002) === 0) alarms.push("sos");
-  if ((status & 0x00000004) === 0) alarms.push("overspeed");
-  if ((status & 0x00080000) === 0) alarms.push("powerCut");
-  if ((status & 0x00100000) === 0) alarms.push("lowBattery");
+  const clear = (bit: number) => (status & bit) === 0;
+  if (clear(0x00000002)) alarms.push("sos"); // bit 1
+  if (clear(0x00000800)) alarms.push("crash"); // bit 11
+  if (clear(0x00080000) || clear(0x00100000)) alarms.push("powerCut"); // bits 19/20 — power disconnect / battery removal
+  if (clear(0x00000004)) alarms.push("overspeed"); // bit 2
+  if (clear(0x00000001) || clear(0x00020000)) alarms.push("vibration"); // bit 0 (Traccar) + bit 17 (SinoTrack shock)
+  if (clear(0x00040000)) alarms.push("tow"); // bit 18 — tilt alarm
+  if (clear(0x00000008)) alarms.push("tamper"); // bit 3 — illegal ignition
+  if (clear(0x02000000)) alarms.push("movement"); // bit 25 — move alarm
+  if (clear(0x00000010)) alarms.push("geofenceEnter"); // bit 4 — device-side fence entry
+  if (clear(0x00000080)) alarms.push("geofenceExit"); // bit 7 — device-side fence exit
   return alarms;
 }
+
+const STATUS_BIT_ACC = 0x00000400; // bit 10: 1 = ACC on (FFFFFBFF = ACC off)
+const STATUS_BIT_OIL_CUT = 0x08000000; // bit 27: 0 = oil/engine cut state
 
 export class H02Decoder implements ProtocolDecoder {
   readonly protocol = "h02";
@@ -82,8 +95,11 @@ export class H02Decoder implements ProtocolDecoder {
       const speedKmh = parseFloat(parts[base + 6]!) * KNOTS_TO_KMH;
       const course = parseFloat(parts[base + 7]!) || 0;
       const date = parts[base + 8]!;
-      const status = parseInt(parts[base + 9] ?? "FFFFFFFF", 16);
-      const alarms = statusAlarms(status);
+      /* Empty/absent status field → NaN → every alarm bit reads as cleared.
+         Treat unparseable status as absent rather than raising all alarms. */
+      const parsed = parseInt(parts[base + 9] ?? "", 16);
+      const status = Number.isFinite(parsed) ? parsed : null;
+      const alarms = status != null ? statusAlarms(status) : [];
 
       const position: Position = {
         deviceId: id,
@@ -95,7 +111,17 @@ export class H02Decoder implements ProtocolDecoder {
         course,
         attributes: {
           raw: text,
-          ignition: (status & 0x00400000) === 0 ? true : undefined,
+          ...(status != null
+            ? {
+                status,
+                /* bit 10 set = ACC on; a real boolean every frame so the
+                   platform can track transitions + engine hours. */
+                ignition: (status & STATUS_BIT_ACC) !== 0,
+                /* bit 27 clear = oil/engine cut state (immobilizer relay).
+                   Some firmwares reuse this bit — verify on the bench unit. */
+                engineCut: (status & STATUS_BIT_OIL_CUT) === 0,
+              }
+            : {}),
           alarm: alarms.length ? (alarms[0] as Position["attributes"]["alarm"]) : undefined,
           ...(type === "V8" ? { extras: parts.slice(base + 10) } : {}),
         },

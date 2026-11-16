@@ -56,12 +56,14 @@ function toDomainVehicle(
       updatedAt: position?.recorded_at ?? new Date(0).toISOString(),
     },
     odometerKm: Number(row.odometer_km ?? 0),
-    engineHours: 0,
+    engineHours: (device?.engine_hours_min ?? 0) / 60,
     fuelCapacityL: Number(row.fuel_capacity_liters ?? 0) || undefined,
     gsmSignal: device?.signal_strength ?? 80,
     satellites: 10,
-    ignition: speed > 0,
-    blocked: false,
+    /* ACC state from the device status word; fall back to motion when the
+       tracker doesn't report it. */
+    ignition: device?.ignition ?? speed > 0,
+    blocked: device?.engine_cut ?? false,
     sleeping: device?.connection_status === "sleeping" || undefined,
     healthScore: 90,
     insuranceExpiry: row.insurance_expiry ?? undefined,
@@ -101,6 +103,9 @@ export function useFleet(): {
   const rowsRef = useRef<Map<string, VehicleRow>>(new Map());
   const positionsRef = useRef<Map<string, PositionRow>>(new Map());
   const devicesRef = useRef<Map<string, DeviceRow>>(new Map());
+  /* Newest fix timestamp seen — the fallback poll asks the API only for
+     positions strictly newer than this, so it stays cheap. */
+  const newestFixRef = useRef("");
 
   const appendTrail = (id: string, lng: number, lat: number) => {
     setTrails((t) => {
@@ -151,6 +156,9 @@ export function useFleet(): {
         const deviceFor = (r: VehicleRow) =>
           r.device_id ? devicesRef.current.get(r.device_id) : undefined;
         rowsRef.current = new Map(vehicleRows.map((r) => [r.id, r]));
+        for (const p of latest.values()) {
+          if (p.recorded_at > newestFixRef.current) newestFixRef.current = p.recorded_at;
+        }
         const fresh = vehicleRows.map((r) => toDomainVehicle(r, latest.get(r.id), deviceFor(r)));
         cachedFleet = fresh;
         setFleet(fresh);
@@ -175,45 +183,108 @@ export function useFleet(): {
         }
         setTrails(seeded);
 
+        /** Apply one fix: update the latest-position map, extend the trail,
+            repaint the vehicle card. Shared by realtime + fallback poll. */
+        const applyPosition = (pos: PositionRow) => {
+          if (!pos.vehicle_id) return;
+          if (pos.recorded_at > newestFixRef.current) newestFixRef.current = pos.recorded_at;
+          positionsRef.current.set(pos.vehicle_id, pos);
+          const row = rowsRef.current.get(pos.vehicle_id);
+          if (!row) return;
+          appendTrail(pos.vehicle_id, Number(pos.lng), Number(pos.lat));
+          setFleet((f) =>
+            f.map((v) =>
+              v.id === pos.vehicle_id ? toDomainVehicle(row, pos, deviceFor(row)) : v,
+            ),
+          );
+        };
+
+        /* The ingest service mirrors each fix onto devices.last_* — so a
+           devices UPDATE already carries the newest coordinates. Synthesize
+           a position from it when it's newer than what we hold; this makes
+           markers move even if a positions INSERT event was missed. */
+        const applyDevice = (d: DeviceRow) => {
+          devicesRef.current.set(d.id, d);
+          for (const [vid, row] of rowsRef.current) {
+            if (row.device_id !== d.id) continue;
+            if (
+              d.last_lat != null &&
+              d.last_lng != null &&
+              d.last_position_at != null &&
+              d.last_position_at > (positionsRef.current.get(vid)?.recorded_at ?? "")
+            ) {
+              applyPosition({
+                ...positionsRef.current.get(vid),
+                id: `dev-${d.id}-${d.last_position_at}`,
+                tenant_id: d.tenant_id,
+                device_id: d.id,
+                vehicle_id: vid,
+                lat: d.last_lat,
+                lng: d.last_lng,
+                speed_kmh: d.last_speed_kmh ?? 0,
+                course: d.last_course ?? 0,
+                recorded_at: d.last_position_at,
+              } as PositionRow);
+              continue;
+            }
+            setFleet((f) =>
+              f.map((v) =>
+                v.id === vid
+                  ? toDomainVehicle(row, positionsRef.current.get(vid), d)
+                  : v,
+              ),
+            );
+          }
+        };
+
         const channel = supabase
           .channel("fleet-positions")
           .on(
             "postgres_changes",
             { event: "INSERT", schema: "public", table: "positions" },
-            (payload) => {
-              const pos = payload.new as PositionRow;
-              if (!pos.vehicle_id) return;
-              positionsRef.current.set(pos.vehicle_id, pos);
-              const row = rowsRef.current.get(pos.vehicle_id);
-              if (!row) return;
-              appendTrail(pos.vehicle_id, Number(pos.lng), Number(pos.lat));
-              setFleet((f) =>
-                f.map((v) =>
-                  v.id === pos.vehicle_id ? toDomainVehicle(row, pos, deviceFor(row)) : v,
-                ),
-              );
-            },
+            (payload) => applyPosition(payload.new as PositionRow),
           )
           /* Devices report every frame (incl. invalid fixes) — refresh
              Online/Offline/Sleeping live without a position INSERT. */
           .on(
             "postgres_changes",
             { event: "UPDATE", schema: "public", table: "devices" },
-            (payload) => {
-              const d = payload.new as DeviceRow;
-              devicesRef.current.set(d.id, d);
-              setFleet((f) =>
-                f.map((v) => {
-                  const row = rowsRef.current.get(v.id);
-                  if (!row || row.device_id !== d.id) return v;
-                  return toDomainVehicle(row, positionsRef.current.get(v.id), d);
-                }),
-              );
-            },
+            (payload) => applyDevice(payload.new as DeviceRow),
           )
           .subscribe();
 
+        /* Fallback poll: realtime websockets can silently drop behind
+           proxies or tab throttling. Re-checking every 15s bounds map
+           staleness without hammering the API — the positions query only
+           fetches fixes newer than the newest one already applied. */
+        const poll = async () => {
+          try {
+            const [devs, poss] = await Promise.all([
+              supabase.from("devices").select("*").limit(500),
+              supabase
+                .from("positions")
+                .select("*")
+                .gt("recorded_at", newestFixRef.current || "1970-01-01T00:00:00Z")
+                .order("recorded_at", { ascending: false })
+                .limit(2000),
+            ]);
+            if (cancelled) return;
+            for (const d of devs.data ?? []) applyDevice(d);
+            for (const p of poss.data ?? []) applyPosition(p);
+          } catch {
+            /* transient fetch failure — realtime may still be flowing */
+          }
+        };
+        const pollTimer = setInterval(() => void poll(), 15_000);
+        /* Tab refocus → immediate catch-up instead of waiting for the tick. */
+        const onVisible = () => {
+          if (document.visibilityState === "visible") void poll();
+        };
+        document.addEventListener("visibilitychange", onVisible);
+
         cleanup = () => {
+          clearInterval(pollTimer);
+          document.removeEventListener("visibilitychange", onVisible);
           void supabase.removeChannel(channel);
         };
       } catch {

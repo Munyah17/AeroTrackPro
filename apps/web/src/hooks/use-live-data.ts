@@ -357,6 +357,7 @@ export const toTrip = (r: Row<"trips">): Trip => ({
   durationMin: r.duration_min ?? 0,
   maxSpeedKmh: r.max_speed_kmh ?? 0,
   avgSpeedKmh: r.avg_speed_kmh ?? 0,
+  idleTimeMin: r.idle_time_min ?? 0,
   path: (r.path ?? []) as [number, number][],
   events: [],
 });
@@ -423,6 +424,29 @@ export const toDriverEvent = (r: Row<"driver_events">): DriverEvent => ({
   recordedAt: r.recorded_at,
 });
 
+export interface IgnitionEvent {
+  id: string;
+  deviceId: string;
+  vehicleId?: string;
+  driverId?: string;
+  kind: "ignition_on" | "ignition_off";
+  position?: { lat: number; lng: number };
+  recordedAt: string;
+}
+
+export const toIgnitionEvent = (r: Row<"ignition_events">): IgnitionEvent => ({
+  id: r.id,
+  deviceId: r.device_id,
+  vehicleId: r.vehicle_id ?? undefined,
+  driverId: r.driver_id ?? undefined,
+  kind: r.kind,
+  position:
+    r.position && typeof r.position === "object"
+      ? (r.position as { lat: number; lng: number })
+      : undefined,
+  recordedAt: r.recorded_at,
+});
+
 export interface AppNotification {
   id: string;
   type: string;
@@ -456,6 +480,15 @@ export const useDriverEvents = () =>
     fallback: [],
     order: "recorded_at",
     realtime: true,
+  });
+
+export const useIgnitionEvents = () =>
+  useTenantTable("ignition_events", {
+    map: toIgnitionEvent,
+    fallback: [],
+    order: "recorded_at",
+    realtime: true,
+    limit: 2000,
   });
 
 export const useFuelRecords = () =>

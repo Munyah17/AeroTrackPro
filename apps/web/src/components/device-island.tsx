@@ -3,29 +3,64 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronUp, MapPin, Navigation, X } from "lucide-react";
-import { DEVICE_MODELS, getDeviceModel, type DeviceModel } from "@aerotrack/protocols";
+import {
+  Activity,
+  ChevronRight,
+  ChevronUp,
+  Clock,
+  Gauge,
+  Hash,
+  MapPin,
+  ShieldAlert,
+  Signal,
+  Timer,
+  X,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
+import { getDeviceModel, type DeviceModel } from "@aerotrack/protocols";
 import type { Vehicle } from "@aerotrack/shared";
-import { vehicleLiveStatus, LIVE_STATUS } from "@/lib/live-status";
+import { vehicleLiveStatus, LIVE_STATUS, type LiveStatus } from "@/lib/live-status";
 import { coords, kmh, timeAgo } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-function protocolLabel(v: Vehicle): string {
-  if (v.deviceProtocol) return v.deviceProtocol.toUpperCase();
-  return DEVICE_MODELS.find((d) => d.id === v.deviceModelId)?.protocol.toUpperCase() ?? "—";
-}
 
 function modelLabel(v: Vehicle): string {
   const m: DeviceModel | undefined = getDeviceModel(v.deviceModelId);
   return m ? `${m.vendor} ${m.model}` : "—";
 }
 
-function IslandRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+const STATUS_TILE_TONE: Record<LiveStatus, string> = {
+  online: "bg-emerald-400/15 text-emerald-300",
+  sleeping: "bg-amber-400/15 text-amber-300",
+  offline: "bg-rose-400/15 text-rose-300",
+};
+
+function IslandTile({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  tone?: string;
+}) {
   return (
-    <div className="flex items-center justify-between gap-3 py-1.5">
-      <span className="text-[11px] text-white/50">{label}</span>
-      <span className={cn("truncate text-[12px] font-medium text-white/90", mono && "font-mono")}>{value || "—"}</span>
+    <div className="rounded-2xl bg-white/5 p-3">
+      <div className="flex items-center gap-1.5">
+        <span
+          className={cn(
+            "flex size-6 shrink-0 items-center justify-center rounded-lg",
+            tone ?? "bg-white/10 text-white/70",
+          )}
+        >
+          <Icon className="size-3.5" />
+        </span>
+        <span className="truncate text-[10.5px] font-medium text-white/45">{label}</span>
+      </div>
+      <div className="mt-1.5 truncate text-[15px] font-bold leading-tight">{value}</div>
     </div>
   );
 }
@@ -37,6 +72,7 @@ function IslandRow({ label, value, mono }: { label: string; value: string; mono?
  */
 export function DeviceIsland({ vehicle, onClose }: { vehicle: Vehicle | null; onClose: () => void }) {
   const [expanded, setExpanded] = useState(false);
+  const status: LiveStatus = vehicle ? vehicleLiveStatus(vehicle) : "online";
 
   /* Selecting a device pops the island open immediately — the full summary
      is what the user asked to see, not just the collapsed pill. */
@@ -94,40 +130,70 @@ export function DeviceIsland({ vehicle, onClose }: { vehicle: Vehicle | null; on
                   className="overflow-hidden"
                 >
                   <div className="px-4 pb-4 pt-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10.5px] font-bold uppercase tracking-wider text-white/40">
-                          {modelLabel(vehicle)}
-                        </span>
-                        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/80">
-                          {LIVE_STATUS[vehicleLiveStatus(vehicle)].label}
-                        </span>
+                    {/* Header — device name + model/plate/status subtitle */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-[15px] font-bold leading-tight">
+                          {vehicle.deviceName || vehicle.name}
+                        </div>
+                        <div className="mt-0.5 truncate text-[11px] text-white/45">
+                          {modelLabel(vehicle)} · {vehicle.plate} · {LIVE_STATUS[status].label}
+                        </div>
                       </div>
                       <button
                         onClick={onClose}
                         aria-label="Close device summary"
-                        className="rounded-full p-1 text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+                        className="shrink-0 rounded-full p-1.5 text-white/50 transition-colors hover:bg-white/10 hover:text-white"
                       >
                         <X className="size-4" />
                       </button>
                     </div>
 
-                    <div className="mt-2 divide-y divide-white/5 rounded-2xl bg-white/5 px-3.5">
-                      <IslandRow label="Tracker ID" value={vehicle.imei} mono />
-                      <IslandRow label="Protocol" value={protocolLabel(vehicle)} />
-                      <IslandRow label="SIM / Phone" value={vehicle.simMsisdn} mono />
-                      <IslandRow label="Signal" value={vehicle.gsmSignal ? `${vehicle.gsmSignal}%` : "—"} />
-                      <IslandRow label="Last seen" value={vehicle.lastSeenAt ? timeAgo(vehicle.lastSeenAt) : "—"} />
-                      <IslandRow
-                        label="Last fix"
-                        value={vehicle.position.lat !== 0 || vehicle.position.lng !== 0 ? timeAgo(vehicle.position.updatedAt) : "—"}
+                    {/* Stat tiles — 2-column grid, icon chip + label over a bold value */}
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <IslandTile
+                        icon={Activity}
+                        label="Status"
+                        value={LIVE_STATUS[status].label}
+                        tone={STATUS_TILE_TONE[status]}
                       />
+                      <IslandTile icon={Gauge} label="Speed" value={kmh(vehicle.position.speedKmh)} />
+                      <IslandTile
+                        icon={Signal}
+                        label="Signal"
+                        value={vehicle.gsmSignal ? `${vehicle.gsmSignal}%` : "—"}
+                      />
+                      <IslandTile
+                        icon={Zap}
+                        label="Ignition"
+                        value={vehicle.ignition ? "On" : "Off"}
+                      />
+                      <IslandTile
+                        icon={Timer}
+                        label="Engine hrs"
+                        value={vehicle.engineHours > 0 ? `${vehicle.engineHours.toFixed(1)} h` : "—"}
+                      />
+                      <IslandTile
+                        icon={Clock}
+                        label="Last seen"
+                        value={vehicle.lastSeenAt ? timeAgo(vehicle.lastSeenAt) : "—"}
+                      />
+                      <IslandTile icon={Hash} label="Tracker ID" value={vehicle.imei} />
+                      {vehicle.blocked && (
+                        <IslandTile
+                          icon={ShieldAlert}
+                          label="Immobilizer"
+                          value="Engine cut"
+                          tone="bg-rose-400/15 text-rose-300"
+                        />
+                      )}
                     </div>
 
-                    <div className="mt-2.5 flex items-center gap-2.5 rounded-2xl bg-white/5 px-3 py-2.5">
+                    {/* Location strip */}
+                    <div className="mt-2 flex items-center gap-2.5 rounded-2xl bg-white/5 px-3 py-2.5">
                       <MapPin className="size-4 shrink-0 text-sky-400" />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-[12.5px] font-medium leading-tight text-white/90">
+                        <div className="truncate text-[12px] font-medium leading-tight text-white/90">
                           {vehicle.position.lat !== 0 || vehicle.position.lng !== 0
                             ? coords(vehicle.position.lat, vehicle.position.lng)
                             : "No GPS fix yet"}
@@ -140,11 +206,11 @@ export function DeviceIsland({ vehicle, onClose }: { vehicle: Vehicle | null; on
                     </div>
 
                     <Button
-                      render={<Link href="/tracking" />}
+                      render={<Link href={`/vehicles/${vehicle.id}`} />}
                       size="sm"
-                      className="mt-3 h-9 w-full gap-1.5 rounded-xl bg-white text-[12.5px] font-semibold text-neutral-950 shadow-none hover:bg-white/90"
+                      className="mt-3 h-10 w-full gap-1.5 rounded-xl bg-white text-[13px] font-semibold text-neutral-950 shadow-none hover:bg-white/90"
                     >
-                      <Navigation className="size-3.5" /> View on Live Tracking
+                      <ChevronRight className="size-4" /> View Details
                     </Button>
                   </div>
                 </motion.div>

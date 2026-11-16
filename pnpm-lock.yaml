@@ -13,6 +13,9 @@ importers:
       '@aerotrack/protocols':
         specifier: workspace:*
         version: link:../../packages/protocols
+      '@aerotrack/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@supabase/supabase-js':
         specifier: ^2.45.0
         version: 2.110.0

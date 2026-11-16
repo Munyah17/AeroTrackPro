@@ -154,14 +154,17 @@ export interface BridgeDevice {
   protocol: string;
   traccar_id: number | null;
   last_fuel_level: number | null;
+  last_fuel_at: string | null;
   last_fuel_used_l: number | null;
+  /** Adaptive fuel model state (devices.fuel_profile jsonb). */
+  fuel_profile: unknown;
 }
 
 const deviceCache = new Map<string, BridgeDevice | null>();
 
 async function loadDevice(query: { traccarId?: number; imei?: string }): Promise<BridgeDevice | null> {
   const db = createAdminClient();
-  const sel = db.from("devices").select("id, tenant_id, imei, protocol, traccar_id, last_fuel_level, last_fuel_used_l");
+  const sel = db.from("devices").select("id, tenant_id, imei, protocol, traccar_id, last_fuel_level, last_fuel_at, last_fuel_used_l, fuel_profile");
   const { data: device } = query.traccarId != null
     ? await sel.eq("traccar_id", query.traccarId).maybeSingle()
     : await sel.eq("imei", query.imei!).maybeSingle();
@@ -181,7 +184,9 @@ async function loadDevice(query: { traccarId?: number; imei?: string }): Promise
     protocol: device.protocol,
     traccar_id: device.traccar_id ?? null,
     last_fuel_level: device.last_fuel_level != null ? Number(device.last_fuel_level) : null,
+    last_fuel_at: device.last_fuel_at ?? null,
     last_fuel_used_l: device.last_fuel_used_l != null ? Number(device.last_fuel_used_l) : null,
+    fuel_profile: device.fuel_profile ?? null,
   };
 }
 

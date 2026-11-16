@@ -104,17 +104,29 @@ export type Database = {
           last_speed_kmh: number | null;
           last_course: number | null;
           connection_status: "online" | "offline" | "unknown" | "sleeping";
+          ignition: boolean | null;
+          engine_cut: boolean;
+          engine_hours_min: number;
           traccar_id: number | null;
           last_fuel_level: number | null;
           last_fuel_at: string | null;
           last_fuel_used_l: number | null;
+          fuel_profile: unknown;
           ingest_token: string | null;
           firmware_version: string | null;
           notes: string | null;
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["devices"]["Row"], "id" | "created_at" | "updated_at">;
+        Insert: Omit<
+          Database["public"]["Tables"]["devices"]["Row"],
+          "id" | "created_at" | "updated_at" | "ignition" | "engine_cut" | "engine_hours_min" | "fuel_profile"
+        > & {
+          ignition?: boolean | null;
+          engine_cut?: boolean;
+          engine_hours_min?: number;
+          fuel_profile?: unknown;
+        };
         Update: Partial<Database["public"]["Tables"]["devices"]["Insert"]>;
         Relationships: [];
       };
@@ -641,6 +653,23 @@ export type Database = {
         Update: Partial<Omit<Database["public"]["Tables"]["driver_events"]["Row"], "id" | "created_at">>;
         Relationships: [];
       };
+      ignition_events: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          device_id: string;
+          vehicle_id: string | null;
+          driver_id: string | null;
+          kind: "ignition_on" | "ignition_off";
+          position: unknown | null;
+          recorded_at: string;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["ignition_events"]["Row"], "id" | "created_at" | "recorded_at"> &
+          Partial<Pick<Database["public"]["Tables"]["ignition_events"]["Row"], "recorded_at">>;
+        Update: Partial<Omit<Database["public"]["Tables"]["ignition_events"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
       reports: {
         Row: {
           id: string;
@@ -1047,6 +1076,10 @@ export type Database = {
       auth_tenant_id: { Args: Record<string, never>; Returns: string };
       auth_user_role: { Args: Record<string, never>; Returns: string };
       is_super_admin: { Args: Record<string, never>; Returns: boolean };
+      increment_engine_hours: {
+        Args: { p_device_id: string; p_minutes: number };
+        Returns: undefined;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

@@ -21,6 +21,7 @@ import {
 import { db, findDeviceByImei, persistenceEnabled, type DeviceRecord } from "./db";
 import { registerConnection, unregisterSocket, connectionCount } from "./connections";
 import { evaluateAlerts } from "./alerts";
+import { deriveTelemetry } from "./derive";
 import { dispatchWebhooks } from "./webhooks";
 import { startCommandDispatcher } from "./commands";
 
@@ -178,7 +179,16 @@ async function savePositions(protocol: ProtocolKey, socket: net.Socket, session:
         last_position_at: row.recorded_at,
         last_valid_fix_at: row.recorded_at,
         last_seen_at: new Date().toISOString(),
-        last_gps_valid: true,
+        last_lat: position.latitude,
+        last_lng: position.longitude,
+        last_speed_kmh: Math.round(position.speedKmh * 10) / 10,
+        last_course: Math.round(position.course),
+        ...(typeof position.attributes.ignition === "boolean"
+          ? { ignition: position.attributes.ignition }
+          : {}),
+        ...(typeof position.attributes.engineCut === "boolean"
+          ? { engine_cut: position.attributes.engineCut }
+          : {}),
         ...(position.attributes.batteryLevel != null
           ? { battery_level: Math.round(position.attributes.batteryLevel) }
           : {}),
@@ -189,6 +199,7 @@ async function savePositions(protocol: ProtocolKey, socket: net.Socket, session:
       .eq("id", device.id)
       .then();
 
+    void deriveTelemetry(device, position);
     void evaluateAlerts(device, position);
     void dispatchWebhooks(device.tenant_id, "position.created", data);
   }
