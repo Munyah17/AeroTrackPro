@@ -43,7 +43,20 @@ async function sessionUser() {
     .select("id, tenant_id, full_name, email")
     .eq("auth_id", user.id)
     .maybeSingle();
-  return me;
+  if (!me) return null;
+
+  /* Master Admin support session: an open admin_impersonations row scopes
+     this request to the impersonated tenant (mirrors auth_tenant_id()). */
+  const { data: imp } = await sb
+    .from("admin_impersonations")
+    .select("tenant_id")
+    .eq("admin_user_id", user.id)
+    .is("ended_at", null)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return { ...me, tenant_id: imp?.tenant_id ?? me.tenant_id };
 }
 
 export async function GET(req: NextRequest) {

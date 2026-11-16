@@ -10,6 +10,13 @@ import {
   type FleetDelegate,
 } from "@/lib/fleet-access";
 import { resolveAccountTier, type AccountTier } from "@/lib/account-tier";
+import {
+  fetchActiveImpersonation,
+  startImpersonation as startImpersonationRow,
+  stopImpersonation as stopImpersonationRow,
+  type Impersonation,
+} from "@/lib/impersonation";
+import { clearLiveDataCache, refreshAllLiveData } from "@/hooks/use-live-data";
 
 interface GrantInput {
   name: string;
@@ -32,9 +39,15 @@ interface RoleState {
   authed: boolean;
   /** The resolved account for identity display. Null when unauthenticated. */
   session: AccountTier | null;
+  /** Open Master Admin support session on a tenant, if any. */
+  impersonation: Impersonation | null;
   setPortal: (portal: Portal) => void;
   grantFleet: (input: GrantInput) => FleetDelegate;
   revokeFleet: (id: string) => void;
+  /** Log into a tenant with temporary full access (support/maintenance). */
+  startImpersonation: (tenantId: string, reason?: string) => Promise<Impersonation | null>;
+  /** End the support session and return to the Master Admin portal. */
+  stopImpersonation: () => Promise<void>;
 }
 
 const RoleContext = createContext<RoleState | null>(null);
@@ -45,6 +58,7 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
   const [delegates, setDelegates] = useState<FleetDelegate[]>([]);
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const [impersonation, setImpersonation] = useState<Impersonation | null>(null);
 
   useEffect(() => {
     /* Delegates live in the fleet_delegates table; non-admins can only
@@ -61,6 +75,15 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         setAuthed(true);
       }
       setReady(true);
+    });
+
+    /* Restore an open support session after reload — the DB row is the
+       source of truth, so impersonation survives refreshes and new tabs. */
+    void fetchActiveImpersonation().then((imp) => {
+      if (imp) {
+        setImpersonation(imp);
+        setPortalState("fleet");
+      }
     });
   }, []);
 
@@ -104,6 +127,34 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     void deleteDelegate(id);
   }, []);
 
+  /* Every data hook caches the resolved tenant id for the session — drop
+     all caches and force a reload so queries re-scope to the tenant. */
+  const reloadForTenantChange = useCallback(() => {
+    clearLiveDataCache();
+    refreshAllLiveData();
+  }, []);
+
+  const startImpersonation = useCallback(
+    async (tenantId: string, reason?: string) => {
+      const imp = await startImpersonationRow(tenantId, reason);
+      if (!imp) return null;
+      setImpersonation(imp);
+      setPortalState("fleet");
+      reloadForTenantChange();
+      return imp;
+    },
+    [reloadForTenantChange],
+  );
+
+  const stopImpersonation = useCallback(async () => {
+    if (!impersonation) return;
+    const ok = await stopImpersonationRow(impersonation.id);
+    if (!ok) return;
+    setImpersonation(null);
+    setPortalState("master");
+    reloadForTenantChange();
+  }, [impersonation, reloadForTenantChange]);
+
   const value = useMemo<RoleState>(
     () => ({
       role,
@@ -113,11 +164,14 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       ready,
       authed,
       session,
+      impersonation,
       setPortal,
       grantFleet,
       revokeFleet,
+      startImpersonation,
+      stopImpersonation,
     }),
-    [role, portal, delegates, fleetAccess, ready, authed, session, setPortal, grantFleet, revokeFleet],
+    [role, portal, delegates, fleetAccess, ready, authed, session, impersonation, setPortal, grantFleet, revokeFleet, startImpersonation, stopImpersonation],
   );
 
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;

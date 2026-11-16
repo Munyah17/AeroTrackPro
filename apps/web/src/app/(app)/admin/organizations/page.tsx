@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Building2, Globe, Plus, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Building2, Eye, Globe, Loader2, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useDevices, usePlatformUsers, useTenants } from "@/hooks/use-platform-data";
+import { useRole } from "@/components/shell/role-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,13 +25,28 @@ import { shortDate, usd } from "@/lib/format";
 const PER_DEVICE_MONTHLY_USD = 3.5;
 
 export default function OrganizationsPage() {
+  const router = useRouter();
+  const { startImpersonation, impersonation } = useRole();
   const { rows: tenants, refresh } = useTenants();
   const { rows: users } = usePlatformUsers();
   const { rows: devices } = useDevices();
   const [query, setQuery] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [openingId, setOpeningId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", adminName: "", adminEmail: "", accountKind: "client" });
+
+  const openTenant = async (tenantId: string, name: string) => {
+    setOpeningId(tenantId);
+    const imp = await startImpersonation(tenantId, `Support access — opened from Organizations`);
+    setOpeningId(null);
+    if (!imp) {
+      toast.error("Could not open a support session — migration 0028 may not be applied yet");
+      return;
+    }
+    toast.success(`Now viewing ${name} — use “Back To Super Admin” to return`);
+    router.push("/dashboard");
+  };
 
   const userCountByTenant = useMemo(() => {
     const m = new Map<string, number>();
@@ -130,6 +147,7 @@ export default function OrganizationsPage() {
                 <TableHead className="text-right">MRR</TableHead>
                 <TableHead>Domain</TableHead>
                 <TableHead>Created</TableHead>
+                <TableHead className="pr-5 text-right">Access</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -168,6 +186,28 @@ export default function OrganizationsPage() {
                     )}
                   </TableCell>
                   <TableCell className="text-[12px] text-muted-foreground">{shortDate(t.createdAt)}</TableCell>
+                  <TableCell className="pr-5 text-right">
+                    {t.accountKind === "platform" ? (
+                      <span className="text-[11.5px] text-muted-foreground">—</span>
+                    ) : impersonation?.tenantId === t.id ? (
+                      <span className="text-[11.5px] font-medium text-amber-600 dark:text-amber-400">Active</span>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1.5 rounded-lg text-[12px]"
+                        disabled={openingId !== null}
+                        onClick={() => void openTenant(t.id, t.name)}
+                      >
+                        {openingId === t.id ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <Eye className="size-3.5" />
+                        )}
+                        Open
+                      </Button>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
