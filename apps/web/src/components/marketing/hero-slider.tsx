@@ -95,8 +95,8 @@ export function HeroSlider() {
           <QuickApply />
         </div>
 
-        {/* controls: dots + arrows */}
-        <div className="absolute bottom-5 right-5 flex items-center gap-2 sm:right-6">
+        {/* controls: dots + arrows — top-left keeps clear of the QuickApply card */}
+        <div className="absolute left-5 top-5 flex items-center gap-2 sm:left-6 sm:top-6">
           <div className="mr-1 hidden items-center gap-1.5 sm:flex">
             {slides.map((s, i) => (
               <button

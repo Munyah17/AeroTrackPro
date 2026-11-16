@@ -68,18 +68,33 @@ export interface ResellerBill {
   addonBreakdown: { module: AddonModule; monthly: number }[];
 }
 
+/** Apply super-admin price overrides (platform_settings.addon_prices) to the
+ *  static module catalog. Unknown ids fall back to the catalog price. */
+export function modulesWithPrices(
+  priceOverrides: Record<string, number> = {},
+): AddonModule[] {
+  return ADDON_MODULES.map((m) => ({
+    ...m,
+    pricePerDeviceUsd: priceOverrides[m.id] ?? m.pricePerDeviceUsd,
+  }));
+}
+
 export function computeResellerBill(
   clients: ResellerClient[] = RESELLER_CLIENTS,
   enabledAddonIds: string[] = ENABLED_ADDONS,
+  pricing: { baseTrackingPerDeviceUsd: number } = RESELLER_PRICING,
+  modules: AddonModule[] = ADDON_MODULES,
 ): ResellerBill {
   const totalDevices = clients.reduce((n, c) => n + c.devices, 0);
   const activeDevices = clients.reduce((n, c) => n + c.activeDevices, 0);
-  const baseMonthly = activeDevices * RESELLER_PRICING.baseTrackingPerDeviceUsd;
+  const baseMonthly = activeDevices * pricing.baseTrackingPerDeviceUsd;
 
-  const addonBreakdown = ADDON_MODULES.filter((m) => enabledAddonIds.includes(m.id)).map((module) => ({
-    module,
-    monthly: activeDevices * module.pricePerDeviceUsd,
-  }));
+  const addonBreakdown = modules
+    .filter((m) => enabledAddonIds.includes(m.id))
+    .map((module) => ({
+      module,
+      monthly: activeDevices * module.pricePerDeviceUsd,
+    }));
   const addonsMonthly = addonBreakdown.reduce((n, a) => n + a.monthly, 0);
 
   return {

@@ -670,6 +670,17 @@ export type Database = {
         Update: Partial<Omit<Database["public"]["Tables"]["ignition_events"]["Row"], "id" | "created_at">>;
         Relationships: [];
       };
+      platform_settings: {
+        Row: {
+          key: string;
+          value: unknown;
+          updated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["platform_settings"]["Row"], "updated_at"> &
+          Partial<Pick<Database["public"]["Tables"]["platform_settings"]["Row"], "updated_at">>;
+        Update: Partial<Omit<Database["public"]["Tables"]["platform_settings"]["Row"], "key">>;
+        Relationships: [];
+      };
       reports: {
         Row: {
           id: string;

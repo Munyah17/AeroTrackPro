@@ -11,7 +11,7 @@ import {
   type SupportTicket,
   type Tenant,
 } from "@aerotrack/shared";
-import { type ResellerClient } from "@/lib/reseller";
+import { type ResellerClient, RESELLER_PRICING, modulesWithPrices, type AddonModule } from "@/lib/reseller";
 import { useTenantTable } from "./use-live-data";
 
 type Tables = Database["public"]["Tables"];
@@ -384,6 +384,45 @@ export const usePartners = () =>
     tenantScoped: false,
   });
 
+export interface PlatformSetting {
+  key: string;
+  value: unknown;
+}
+
+const toPlatformSetting = (r: Row<"platform_settings">): PlatformSetting => ({
+  key: r.key,
+  value: r.value,
+});
+
+/**
+ * Global platform settings (platform_settings table). Readable by every
+ * signed-in user; writes are super-admin only (RLS). `save` upserts by key.
+ */
+export function usePlatformSettings() {
+  const table = useTenantTable("platform_settings", {
+    map: toPlatformSetting,
+    fallback: [],
+    order: "key",
+    tenantScoped: false,
+  });
+
+  const save = async (key: string, value: unknown): Promise<boolean> => {
+    try {
+      const { supabase } = await import("@/lib/supabase");
+      const { error } = await supabase
+        .from("platform_settings")
+        .upsert({ key, value: value as never, updated_at: new Date().toISOString() });
+      if (error) return false;
+      table.refresh();
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  return { ...table, save };
+}
+
 /** Client & partner feedback inbox (authors see own tenant; admins see all). */
 export const useFeedback = () =>
   useTenantTable("feedback", {
@@ -467,3 +506,42 @@ export const useResellerClients = () => {
     : table.rows;
   return { ...table, rows };
 };
+
+export interface ResellerPricing {
+  setupFeeUsd: number;
+  baseTrackingPerDeviceUsd: number;
+}
+
+const asRecord = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+
+const num = (v: unknown, fallback: number) =>
+  typeof v === "number" && Number.isFinite(v) ? v : fallback;
+
+/**
+ * Global reseller pricing — platform_settings rows override the static
+ * defaults in lib/reseller. Falls back to defaults until settings load.
+ */
+export function useResellerPricing() {
+  const { rows, live } = usePlatformSettings();
+
+  const pricingRow = rows.find((r) => r.key === "reseller_pricing");
+  const addonRow = rows.find((r) => r.key === "addon_prices");
+
+  const pricing: ResellerPricing = {
+    setupFeeUsd: num(asRecord(pricingRow?.value).setupFeeUsd, RESELLER_PRICING.setupFeeUsd),
+    baseTrackingPerDeviceUsd: num(
+      asRecord(pricingRow?.value).baseTrackingPerDeviceUsd,
+      RESELLER_PRICING.baseTrackingPerDeviceUsd,
+    ),
+  };
+
+  const overrides = Object.fromEntries(
+    Object.entries(asRecord(addonRow?.value)).map(([k, v]) => [k, num(v, NaN)]),
+  );
+  const modules: AddonModule[] = modulesWithPrices(
+    Object.fromEntries(Object.entries(overrides).filter(([, v]) => Number.isFinite(v))),
+  );
+
+  return { pricing, modules, live };
+}

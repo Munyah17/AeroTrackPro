@@ -95,15 +95,16 @@ export default function DashboardPage() {
         </Button>
       </div>
 
-      {/* KPI row */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total Vehicles" value={stats.total} icon={Car} trend={8} trendLabel="this month" />
+      {/* KPI row — 2 per row on phones, 4 across on wide screens */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <StatCard label="Total Vehicles" value={stats.total} icon={Car} trend={8} trendLabel="this month" compact />
         <StatCard
           label="Vehicles On Track"
           value={stats.moving}
           icon={Navigation}
           footer={`${stats.onTrackPct}% of fleet moving`}
           delay={0.05}
+          compact
         />
         <StatCard
           label="Active Alerts"
@@ -112,6 +113,7 @@ export default function DashboardPage() {
           iconClassName="bg-destructive/10 text-destructive"
           footer={<Link href="/alerts" className="font-medium text-primary">View all alerts</Link>}
           delay={0.1}
+          compact
         />
         <StatCard
           label="Avg. Daily Distance"
@@ -122,6 +124,7 @@ export default function DashboardPage() {
           trend={12.5}
           trendLabel="vs yesterday"
           delay={0.15}
+          compact
         />
       </div>
 

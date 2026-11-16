@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { AccessGuard } from "./access-guard";
+import { BottomNav } from "./bottom-nav";
 import { CommandPaletteProvider } from "./command-palette";
 import { RoleProvider } from "./role-provider";
 import { Sidebar } from "./sidebar";
@@ -28,10 +29,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )}
           >
             <Topbar />
-            <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+            <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0">
               <AccessGuard>{children}</AccessGuard>
             </main>
           </div>
+          <BottomNav />
         </div>
       </CommandPaletteProvider>
     </RoleProvider>

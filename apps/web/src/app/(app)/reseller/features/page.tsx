@@ -6,15 +6,16 @@ import { toast } from "sonner";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
 import { Switch } from "@/components/ui/switch";
-import { ADDON_MODULES, ENABLED_ADDONS, computeResellerBill } from "@/lib/reseller";
-import { useTenantAddons } from "@/hooks/use-platform-data";
+import { ENABLED_ADDONS, computeResellerBill } from "@/lib/reseller";
+import { useResellerPricing, useTenantAddons } from "@/hooks/use-platform-data";
 import { usd } from "@/lib/format";
 
 export default function ResellerFeaturesPage() {
   const { rows: addons, live, insert, update } = useTenantAddons();
+  const { pricing, modules } = useResellerPricing();
   const [local, setLocal] = useState<string[]>(ENABLED_ADDONS);
   const enabled = live ? addons.filter((a) => a.active).map((a) => a.module) : local;
-  const bill = computeResellerBill(undefined, enabled);
+  const bill = computeResellerBill(undefined, enabled, pricing, modules);
 
   const toggle = async (id: string, name: string, on: boolean) => {
     if (live) {
@@ -39,7 +40,7 @@ export default function ResellerFeaturesPage() {
       </div>
 
       <div className="space-y-3">
-        {ADDON_MODULES.map((m) => {
+        {modules.map((m) => {
           const on = enabled.includes(m.id);
           const planned = m.status === "planned";
           return (

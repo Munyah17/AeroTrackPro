@@ -176,6 +176,22 @@ export default function TrackingPage() {
     return () => mq.removeEventListener("change", apply);
   }, []);
 
+  // Deep links (?vehicle=<id> or ?imei=<imei>) preselect a unit — used by the
+  // reseller devices roster and any external "track this device" links.
+  useEffect(() => {
+    if (vehicles.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const wanted = params.get("vehicle") ?? params.get("imei");
+    if (!wanted) return;
+    const match = vehicles.find((v) => v.id === wanted || v.imei === wanted);
+    if (match) {
+      setSelectedId(match.id);
+      setSheetMinimized(false);
+      setDetailCollapsed(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicles]);
+
   // On a wide layout, keep a vehicle selected so the detail column is useful.
   // On a phone, leave the map clear until the person picks one.
   useEffect(() => {

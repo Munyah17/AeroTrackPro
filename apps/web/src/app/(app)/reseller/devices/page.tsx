@@ -1,9 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { MoreHorizontal, Navigation, Search } from "lucide-react";
+import { toast } from "sonner";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -25,6 +35,7 @@ interface RosterRow {
   client: string;
   protocol: string;
   status: LiveStatus;
+  vehicleId: string | null;
 }
 
 interface DeviceRow {
@@ -36,6 +47,7 @@ interface DeviceRow {
 
 export default function ResellerDevicesPage() {
   const [query, setQuery] = useState("");
+  const router = useRouter();
 
   const { rows: devices } = useTenantTable("devices", {
     map: (r): DeviceRow => ({
@@ -55,6 +67,7 @@ export default function ResellerDevicesPage() {
   const roster = useMemo<RosterRow[]>(() => {
     const nameByTenant = new Map(clients.map((c) => [c.id, c.name]));
     const liveByImei = new Map(vehicles.map((v) => [v.imei, vehicleLiveStatus(v)]));
+    const vehicleByImei = new Map(vehicles.map((v) => [v.imei, v.id]));
     return devices.map((d) => {
       /* Canonical status: same LIVE_STATUS as tracking/devices pages when the
          device maps to a fleet vehicle; connectivity fallback otherwise. */
@@ -65,9 +78,22 @@ export default function ResellerDevicesPage() {
         client: nameByTenant.get(d.tenantId) ?? "—",
         protocol: d.protocol,
         status,
+        vehicleId: vehicleByImei.get(d.imei) ?? null,
       };
     });
   }, [devices, clients, vehicles]);
+
+  const trackLive = (r: RosterRow) =>
+    router.push(r.vehicleId ? `/tracking?vehicle=${r.vehicleId}` : `/tracking?imei=${r.imei}`);
+
+  const copyImei = async (imei: string) => {
+    try {
+      await navigator.clipboard.writeText(imei);
+      toast.success("IMEI copied");
+    } catch {
+      toast.error("Could not copy IMEI");
+    }
+  };
 
   const filtered = roster.filter(
     (r) => r.imei.includes(query) || r.client.toLowerCase().includes(query.toLowerCase()),
@@ -100,7 +126,11 @@ export default function ResellerDevicesPage() {
             </TableHeader>
             <TableBody>
               {filtered.slice(0, 60).map((r) => (
-                <TableRow key={r.imei}>
+                <TableRow
+                  key={r.imei}
+                  className="cursor-pointer"
+                  onClick={() => trackLive(r)}
+                >
                   <TableCell className="pl-5 font-mono text-[12.5px]">{r.imei}</TableCell>
                   <TableCell className="text-[13px]">{r.client}</TableCell>
                   <TableCell className="text-[12.5px] text-muted-foreground">{r.protocol}</TableCell>
@@ -108,6 +138,40 @@ export default function ResellerDevicesPage() {
                     <Pill tone={r.status === "online" ? "success" : r.status === "sleeping" ? "warning" : "danger"}>
                       {LIVE_STATUS[r.status].label}
                     </Pill>
+                  </TableCell>
+                  <TableCell className="pr-3 text-right">
+                    <div onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 rounded-lg"
+                            aria-label={`Actions for ${r.imei}`}
+                          />
+                        }
+                      >
+                        <MoreHorizontal className="size-4" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48 rounded-xl">
+                        <DropdownMenuItem onClick={() => trackLive(r)}>
+                          <Navigation className="size-4" /> Track live
+                        </DropdownMenuItem>
+                        {r.vehicleId && (
+                          <DropdownMenuItem
+                            onClick={() => router.push(`/vehicles/${r.vehicleId}`)}
+                          >
+                            View vehicle
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => void copyImei(r.imei)}>
+                          Copy IMEI
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
