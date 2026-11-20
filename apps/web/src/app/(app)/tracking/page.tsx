@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion, useDragControls } from "framer-motion";
-import { ChevronRight, ChevronsLeft, ChevronsRight, MapPin, Minus, Navigation, Plus, Search, Star, X } from "lucide-react";
+import { ChevronRight, ChevronsLeft, ChevronsRight, Compass, Fuel, Gauge, MapPin, Minus, Navigation, Plus, Route, Search, Signal, Star, X, Zap } from "lucide-react";
 import type { Vehicle } from "@aerotrack/shared";
 import { useGeofences } from "@/hooks/use-live-data";
 import { useFleet } from "@/hooks/use-fleet";
@@ -82,26 +82,42 @@ function VehicleSummary({
   onClose: () => void;
   onMinimize?: () => void;
 }) {
+  const p = vehicle.position;
+  const vehicleLine = [vehicle.make, vehicle.model, vehicle.year || null].filter(Boolean).join(" ");
+  const stats: { icon: typeof Gauge; label: string; value: string }[] = [
+    { icon: Gauge, label: "Speed", value: kmh(p.speedKmh) },
+    { icon: Compass, label: "Heading", value: `${p.course}°` },
+    { icon: Zap, label: "Ignition", value: vehicle.ignition ? "On" : "Off" },
+    { icon: Signal, label: "Signal", value: `${vehicle.gsmSignal}%` },
+    { icon: Route, label: "Odometer", value: `${Math.round(vehicle.odometerKm).toLocaleString()} km` },
+  ];
+  if (vehicle.fuelLevelPct != null) {
+    stats.push({ icon: Fuel, label: "Fuel", value: `${Math.round(vehicle.fuelLevelPct)}%` });
+  }
+
   return (
-    <div className="p-3.5">
-      <div className="flex items-start justify-between gap-2">
+    <div className="p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="truncate text-[15px] font-bold tracking-tight">{vehicle.plate}</h3>
+            <h3 className="truncate text-[18px] font-bold tracking-tight">{vehicle.plate}</h3>
             <VehicleStatusChip status={vehicle.status} sleeping={vehicle.sleeping} />
           </div>
-          <p className="mt-0.5 truncate text-[11.5px] text-muted-foreground">
-            {vehicle.deviceName && vehicle.deviceName !== vehicle.name
-              ? `${vehicle.deviceName} · ${vehicle.name}`
-              : vehicle.name}
+          <p className="mt-1 truncate text-[12.5px] text-muted-foreground">
+            {[vehicle.name, vehicleLine].filter(Boolean).join(" · ") || "Vehicle"}
           </p>
+          {vehicle.deviceName && vehicle.deviceName !== vehicle.name && (
+            <p className="mt-0.5 truncate text-[11px] text-muted-foreground/80">
+              Tracker: {vehicle.deviceName}
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           {onMinimize && (
             <Button
               variant="ghost"
               size="icon"
-              className="size-9 rounded-lg text-muted-foreground hover:text-foreground"
+              className="size-10 rounded-xl text-muted-foreground hover:text-foreground"
               onClick={onMinimize}
               aria-label="Minimize vehicle details"
               title="Minimize"
@@ -109,48 +125,49 @@ function VehicleSummary({
               <Minus className="size-4" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="-mr-1 -mt-1 size-9 rounded-lg" onClick={onClose} aria-label="Close vehicle details">
+          <Button variant="ghost" size="icon" className="-mr-1.5 -mt-1.5 size-10 rounded-xl" onClick={onClose} aria-label="Close vehicle details">
             <X className="size-4" />
           </Button>
         </div>
       </div>
 
-      <div className="mt-2.5 flex items-center gap-2 rounded-xl bg-accent/60 px-2.5 py-2">
-        <MapPin className="size-4 shrink-0 text-primary" />
+      <div className="mt-3 flex items-center gap-3 rounded-2xl bg-accent/60 p-3">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <MapPin className="size-5" />
+        </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[12.5px] font-medium leading-tight">
-            {vehicle.position.address || coords(vehicle.position.lat, vehicle.position.lng)}
+          <div className="truncate text-[13.5px] font-semibold leading-snug">
+            {p.address || coords(p.lat, p.lng)}
           </div>
-          <div className="truncate text-[10.5px] text-muted-foreground">
-            {timeAgo(vehicle.position.updatedAt)} · {coords(vehicle.position.lat, vehicle.position.lng)}
+          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span className="truncate">{coords(p.lat, p.lng)}</span>
+            <span className="shrink-0">·</span>
+            <span className="shrink-0">{timeAgo(p.updatedAt)}</span>
           </div>
         </div>
       </div>
 
-      <div className="mt-2.5 grid grid-cols-3 gap-1.5">
-        {[
-          { label: "Speed", value: kmh(vehicle.position.speedKmh) },
-          { label: "Heading", value: `${vehicle.position.course}°` },
-          { label: "Ignition", value: vehicle.ignition ? "On" : "Off" },
-        ].map((s) => (
-          <div key={s.label} className="rounded-lg border border-border/60 py-1.5 text-center">
-            <div className="text-[13.5px] font-bold tabular-nums leading-tight">{s.value}</div>
-            <div className="text-[10px] text-muted-foreground">{s.label}</div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {stats.map((s) => (
+          <div key={s.label} className="rounded-xl border border-border/60 bg-background/60 px-2.5 py-2.5">
+            <s.icon className="size-3.5 text-muted-foreground" />
+            <div className="mt-1.5 truncate text-[15px] font-bold tabular-nums leading-tight">{s.value}</div>
+            <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{s.label}</div>
           </div>
         ))}
       </div>
 
-      <div className="mt-2.5 flex flex-col gap-1.5 min-[420px]:flex-row">
-        <Button render={<a href={`/vehicles/${vehicle.id}`} />} size="sm" className="h-10 w-full min-w-0 flex-1 gap-1.5 rounded-xl text-[12.5px] shadow-card">
-          Details &amp; trips <ChevronRight className="size-3.5" />
+      <div className="mt-4 flex flex-col gap-2 min-[420px]:flex-row">
+        <Button render={<a href={`/vehicles/${vehicle.id}`} />} size="sm" className="h-11 w-full min-w-0 flex-1 gap-2 rounded-xl text-[13px] font-semibold shadow-card">
+          Details &amp; trips <ChevronRight className="size-4" />
         </Button>
         <Button
-          render={<a href={mapLinks.google(vehicle.position.lat, vehicle.position.lng)} target="_blank" rel="noreferrer" />}
+          render={<a href={mapLinks.google(p.lat, p.lng)} target="_blank" rel="noreferrer" />}
           variant="outline"
           size="sm"
-          className="h-10 w-full min-w-0 flex-1 gap-1.5 rounded-xl text-[12.5px]"
+          className="h-11 w-full min-w-0 flex-1 gap-2 rounded-xl text-[13px]"
         >
-          <Navigation className="size-3.5" /> Navigate
+          <Navigation className="size-4" /> Navigate
         </Button>
       </div>
     </div>
@@ -384,7 +401,7 @@ export default function TrackingPage() {
               onDragEnd={(_, info) => {
                 if (info.offset.y > 80 || info.velocity.y > 500) setSelectedId(undefined);
               }}
-              className="absolute inset-x-2 bottom-2 z-20 flex max-h-[48%] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-float backdrop-blur-xl lg:hidden"
+              className="absolute inset-x-2 bottom-2 z-20 flex max-h-[62%] flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-float backdrop-blur-xl lg:hidden"
             >
               {/* Grab handle — drag down to dismiss; content below stays scrollable */}
               <div
