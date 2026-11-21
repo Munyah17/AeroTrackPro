@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { CheckCircle2, ChevronDown, CircleAlert, Landmark, Loader2, Send, Smartphone } from "lucide-react";
+import { CheckCircle2, ChevronDown, CircleAlert, Landmark, Loader2, Smartphone } from "lucide-react";
 import { SERVICES, type ServiceKey } from "@/lib/pricing";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -264,8 +264,8 @@ export function ApplyForm() {
       <div className="mt-2 grid gap-2">
         {(
           [
-            { id: "bank_transfer", icon: Landmark, label: "Bank transfer — FBC Bank", hint: "manual confirmation" },
-            { id: "direct_transfer", icon: Send, label: "EcoCash / InnBucks direct transfer", hint: "send to our number" },
+            { id: "bank_transfer", icon: Landmark, img: null, label: "Bank transfer — FBC Bank", hint: "manual confirmation" },
+            { id: "direct_transfer", icon: null, img: "/ecocash-banner.png", label: "EcoCash / InnBucks direct transfer", hint: "send to our number" },
           ] as const
         ).map((m) => (
           <div
@@ -282,8 +282,16 @@ export function ApplyForm() {
               aria-expanded={method === m.id}
               className="flex w-full items-center gap-3 px-3.5 py-3 text-left text-sm"
             >
-              <m.icon className="size-4 shrink-0 text-primary" />
-              <span className="flex-1 font-medium">{m.label}</span>
+              {m.img ? (
+                <span className="flex-1">
+                  <img src={m.img} alt={m.label} className="h-7 w-auto object-contain" />
+                </span>
+              ) : (
+                <>
+                  <m.icon className="size-4 shrink-0 text-primary" />
+                  <span className="flex-1 font-medium">{m.label}</span>
+                </>
+              )}
               <span className="text-xs text-muted-foreground">{m.hint}</span>
               <ChevronDown
                 className={`size-4 shrink-0 text-muted-foreground transition-transform ${
