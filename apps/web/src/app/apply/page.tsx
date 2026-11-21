@@ -22,7 +22,7 @@ import { SiteHeader } from "@/components/marketing/site-header";
 export const metadata: Metadata = {
   title: "Apply for Tracking — Get Fitted This Week",
   description:
-    "Apply for GPS tracking, fuel monitoring, engine cut-off, speed governor and dashcam installs — hardware, professional fitting and platform activation included. Pay with EcoCash, OneMoney, InnBucks or bank transfer. Installers: onboard your own devices at $3.50/month.",
+    "Apply for GPS tracking, fuel monitoring, engine cut-off, speed governor and dashcam installs — hardware, professional fitting and platform activation included. Pay with EcoCash, OneMoney, InnBucks, card (Visa/Mastercard) or bank transfer. Installers: onboard your own devices at $3.50/month.",
 };
 
 const howItWorks = [

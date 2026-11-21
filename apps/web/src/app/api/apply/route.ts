@@ -4,6 +4,7 @@ import { createAdminClient, isServiceRoleConfigured } from "@/lib/supabase/serve
 import { notifyOps } from "@/lib/ops-mail";
 import { quoteServices, SERVICES, type ServiceKey } from "@/lib/pricing";
 import { initiateMobilePayment, MOBILE_METHODS, type MobileMethod } from "@/lib/paynow";
+import { createCheckoutSession } from "@/lib/stripe";
 
 /*
  * Public service application → lead + payment initiation.
@@ -12,6 +13,8 @@ import { initiateMobilePayment, MOBILE_METHODS, type MobileMethod } from "@/lib/
  *   ecocash | onemoney | innbucks → mobile push via the gateway; status
  *                                   becomes awaiting_customer, confirmed by
  *                                   /api/payments/result + /api/payments/status
+ *   stripe_card → hosted Stripe Checkout; session id stored in poll_url as
+ *                 stripe:<id>, confirmed by /api/payments/status
  *   bank_transfer | direct_transfer → manual; instructions returned to the
  *                                     applicant, status pending_review
  *
@@ -32,7 +35,7 @@ const schema = z.object({
   services: z.array(z.string()).min(1, "Select at least one service"),
   message: z.string().trim().max(2000).optional().or(z.literal("")),
   payment: z.object({
-    method: z.enum([...MOBILE_METHODS, "bank_transfer", "direct_transfer"]),
+    method: z.enum([...MOBILE_METHODS, "bank_transfer", "direct_transfer", "stripe_card"]),
     payerPhone: z.string().trim().min(7).max(24).optional(),
   }),
 });
@@ -43,6 +46,7 @@ const METHOD_LABEL: Record<string, string> = {
   innbucks: "InnBucks",
   bank_transfer: "Bank transfer",
   direct_transfer: "EcoCash / InnBucks direct transfer",
+  stripe_card: "Card (Stripe)",
 };
 
 function ref(): string {
@@ -123,8 +127,45 @@ export async function POST(req: Request) {
   let status = "pending_review";
   let instructions: string;
   let pollUrl: string | null = null;
+  let checkoutUrl: string | undefined;
 
-  if (mobile) {
+  if (v.payment.method === "stripe_card") {
+    if (quote.total <= 0) {
+      instructions = "Your application is saved — we will confirm pricing and send a secure card payment link." + quotedNote;
+    } else {
+      const session = await createCheckoutSession({
+        reference,
+        amount: quote.total,
+        email: v.email || `${v.phone.replace(/\D/g, "")}@aerotrack.live`,
+        description: `AeroTrack services — ${quote.items.map((i) => i.name).join(", ")}`,
+      });
+      if (!session.ok || !session.url || !session.sessionId) {
+        await db.from("payments").insert({
+          lead_id: lead.id,
+          reference,
+          amount: quote.total,
+          method: v.payment.method,
+          channel: "online",
+          status: "failed",
+          gateway_status: session.error ?? "session create failed",
+        });
+        await notifyOps(
+          "Payment initiation FAILED",
+          `Application ${reference} — ${v.name} (${v.phone})\n` +
+            `Method: Card (Stripe) — Amount: $${quote.total.toFixed(2)}\n` +
+            `Gateway error: ${session.error}`,
+        );
+        return NextResponse.json(
+          { ok: false, error: "card checkout is unavailable right now — please choose Paynow or a manual method" },
+          { status: 502 },
+        );
+      }
+      status = "awaiting_customer";
+      pollUrl = `stripe:${session.sessionId}`;
+      checkoutUrl = session.url;
+      instructions = `Complete the secure card payment of $${quote.total.toFixed(2)} on Stripe.${quotedNote}`;
+    }
+  } else if (mobile) {
     const init = await initiateMobilePayment({
       reference,
       amount: quote.total,
@@ -180,6 +221,8 @@ export async function POST(req: Request) {
   });
   if (payErr) console.error("[apply] payment insert failed:", payErr.message);
 
+  // Stripe already knows its URL; the client redirects there next.
+
   await notifyOps(
     "New application received",
     `Reference: ${reference}\n` +
@@ -198,6 +241,7 @@ export async function POST(req: Request) {
     amount: quote.total,
     status,
     instructions,
+    checkoutUrl,
     quotedItems: quote.quotedItems.map((q) => q.name),
   });
 }

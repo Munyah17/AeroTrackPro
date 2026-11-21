@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type PaymentMethod = "ecocash" | "onemoney" | "innbucks" | "bank_transfer" | "direct_transfer";
+type PaymentMethod = "ecocash" | "onemoney" | "innbucks" | "bank_transfer" | "direct_transfer" | "stripe_card";
 
 const MOBILE_METHODS: { id: PaymentMethod; label: string }[] = [
   { id: "ecocash", label: "EcoCash" },
@@ -113,6 +113,10 @@ export function ApplyForm() {
         setPhase({ step: "error", message: msg });
         return;
       }
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
       if (data.status === "awaiting_customer") {
         setPhase({ step: "awaiting", reference: data.reference, instructions: data.instructions });
         pollStatus(data.reference);
@@ -214,14 +218,49 @@ export function ApplyForm() {
       <p className="mt-6 flex items-center gap-2 text-sm font-semibold">
         <Smartphone className="size-4 text-primary" /> How will you pay?
       </p>
-      <div className="mt-3 grid gap-2">
-        {MOBILE_METHODS.map((m) => (
-          <label key={m.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/70 px-3.5 py-3 text-sm transition-colors hover:border-primary/50">
-            <input type="radio" name="pay" checked={method === m.id} onChange={() => setMethod(m.id)} className="accent-primary" />
-            <span className="flex-1">{m.label}</span>
-            <span className="text-xs text-muted-foreground">instant approval on your phone</span>
-          </label>
-        ))}
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => setMethod((m) => (MOBILE_METHODS.some((x) => x.id === m) ? m : "ecocash"))}
+          aria-pressed={MOBILE_METHODS.some((m) => m.id === method)}
+          className={`overflow-hidden rounded-xl border bg-white transition-all ${
+            MOBILE_METHODS.some((m) => m.id === method)
+              ? "border-primary ring-2 ring-primary/40"
+              : "border-border/70 hover:border-primary/50"
+          }`}
+        >
+          <img src="/paynow-banner.png" alt="Paynow — EcoCash, ZIPIT, InnBucks, O'mari, Visa and Mastercard" className="w-full" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setMethod("stripe_card")}
+          aria-pressed={method === "stripe_card"}
+          className={`overflow-hidden rounded-xl border bg-white transition-all ${
+            method === "stripe_card"
+              ? "border-primary ring-2 ring-primary/40"
+              : "border-border/70 hover:border-primary/50"
+          }`}
+        >
+          <img src="/stripe-banner.png" alt="Stripe — Visa, Mastercard, American Express, Apple Pay and Google Pay" className="w-full" />
+        </button>
+      </div>
+      {MOBILE_METHODS.some((m) => m.id === method) && (
+        <div className="mt-2 grid gap-2">
+          {MOBILE_METHODS.map((m) => (
+            <label key={m.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/70 px-3.5 py-3 text-sm transition-colors hover:border-primary/50">
+              <input type="radio" name="pay" checked={method === m.id} onChange={() => setMethod(m.id)} className="accent-primary" />
+              <span className="flex-1">{m.label}</span>
+              <span className="text-xs text-muted-foreground">instant approval on your phone</span>
+            </label>
+          ))}
+        </div>
+      )}
+      {method === "stripe_card" && (
+        <p className="mt-2 rounded-xl bg-muted/50 px-4 py-2.5 text-xs text-muted-foreground">
+          Visa, Mastercard, Amex, Apple Pay &amp; Google Pay — you&rsquo;ll be redirected to Stripe&rsquo;s secure card checkout.
+        </p>
+      )}
+      <div className="mt-2 grid gap-2">
         <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/70 px-3.5 py-3 text-sm transition-colors hover:border-primary/50">
           <input type="radio" name="pay" checked={method === "bank_transfer"} onChange={() => setMethod("bank_transfer")} className="accent-primary" />
           <span className="flex-1">Bank transfer — FBC Bank</span>

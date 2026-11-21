@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient, isServiceRoleConfigured } from "@/lib/supabase/server";
 import { pollPayment } from "@/lib/paynow";
+import { retrieveCheckoutSession } from "@/lib/stripe";
 import { notifyOps } from "@/lib/ops-mail";
 
 /*
@@ -31,14 +32,24 @@ export async function GET(req: Request) {
   let gatewayStatus = payment.gateway_status;
 
   if (!TERMINAL.has(status) && payment.poll_url) {
-    const poll = await pollPayment(payment.poll_url);
-    gatewayStatus = poll.gatewayStatus;
-    const next =
-      poll.status === "paid" ? "paid"
-      : poll.status === "failed" ? "failed"
-      : poll.status === "cancelled" ? "cancelled"
-      : status;
-    if (next !== status || poll.gatewayStatus !== payment.gateway_status) {
+    let next = status;
+    if (payment.poll_url.startsWith("stripe:")) {
+      const session = await retrieveCheckoutSession(payment.poll_url.slice(7));
+      gatewayStatus = session.raw ?? gatewayStatus;
+      next =
+        session.state === "paid" ? "paid"
+        : session.state === "expired" ? "cancelled"
+        : status;
+    } else {
+      const poll = await pollPayment(payment.poll_url);
+      gatewayStatus = poll.gatewayStatus;
+      next =
+        poll.status === "paid" ? "paid"
+        : poll.status === "failed" ? "failed"
+        : poll.status === "cancelled" ? "cancelled"
+        : status;
+    }
+    if (next !== status || gatewayStatus !== payment.gateway_status) {
       status = next;
       await db
         .from("payments")

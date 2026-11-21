@@ -169,6 +169,13 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Paynow (mobile money — EcoCash / OneMoney / InnBucks)
+PAYNOW_INTEGRATION_ID=your_paynow_integration_id
+PAYNOW_INTEGRATION_KEY=your_paynow_integration_key
+
+# Stripe (card checkout — Visa / Mastercard / Amex / Apple Pay / Google Pay)
+STRIPE_SECRET_KEY=sk_live_or_test_key
 ```
 
 ### 4. Start Supabase Locally (Optional)
