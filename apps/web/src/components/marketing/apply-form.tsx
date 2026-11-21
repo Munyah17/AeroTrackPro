@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { CheckCircle2, CircleAlert, Loader2, Smartphone } from "lucide-react";
+import { CheckCircle2, ChevronDown, CircleAlert, Landmark, Loader2, Send, Smartphone } from "lucide-react";
 import { SERVICES, type ServiceKey } from "@/lib/pricing";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -262,64 +262,84 @@ export function ApplyForm() {
         {method === "stripe_card" && "Visa, Mastercard, Amex, Apple Pay & Google Pay — you'll be redirected to Stripe's secure card checkout."}
       </p>
       <div className="mt-2 grid gap-2">
-        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/70 px-3.5 py-3 text-sm transition-colors hover:border-primary/50">
-          <input type="radio" name="pay" checked={method === "bank_transfer"} onChange={() => setMethod("bank_transfer")} className="accent-primary" />
-          <span className="flex-1">Bank transfer — FBC Bank</span>
-          <span className="text-xs text-muted-foreground">manual confirmation</span>
-        </label>
-        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/70 px-3.5 py-3 text-sm transition-colors hover:border-primary/50">
-          <input type="radio" name="pay" checked={method === "direct_transfer"} onChange={() => setMethod("direct_transfer")} className="accent-primary" />
-          <span className="flex-1">EcoCash / InnBucks direct transfer</span>
-          <span className="text-xs text-muted-foreground">send to our number</span>
-        </label>
-      </div>
-
-      {MANUAL_METHODS.includes(method) && (
-        <div className="mt-3 rounded-xl border border-border/70 p-4">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            {method === "bank_transfer" ? `Transfer $${total.toFixed(2)} to` : `Send $${total.toFixed(2)} via EcoCash or InnBucks to`}
-          </p>
-          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-            {method === "bank_transfer" ? (
-              <>
-                <dt className="text-muted-foreground">Account Name</dt><dd className="font-medium">Solabliss Zimbabwe Pvt Ltd</dd>
-                <dt className="text-muted-foreground">Bank</dt><dd className="font-medium">FBC Bank</dd>
-                <dt className="text-muted-foreground">Branch</dt><dd className="font-medium">FBC Center Branch</dd>
-                <dt className="text-muted-foreground">USD Account</dt><dd className="font-medium">6870465460146</dd>
-              </>
-            ) : (
-              <>
-                <dt className="text-muted-foreground">Number</dt><dd className="font-medium">+263 77 390 9307</dd>
-                <dt className="text-muted-foreground">Name</dt><dd className="font-medium">Munyaradzi J Muzvidziwa</dd>
-              </>
-            )}
-            <dt className="text-muted-foreground">Amount</dt><dd className="font-medium">${total.toFixed(2)}</dd>
-          </dl>
-          <div className="mt-4 space-y-3">
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Transaction reference *</Label>
-              <Input
-                value={txnReference}
-                onChange={(e) => setTxnReference(e.target.value)}
-                placeholder="e.g. the EcoCash / bank transaction ID from your receipt"
-                className="h-11 rounded-xl"
+        {(
+          [
+            { id: "bank_transfer", icon: Landmark, label: "Bank transfer — FBC Bank", hint: "manual confirmation" },
+            { id: "direct_transfer", icon: Send, label: "EcoCash / InnBucks direct transfer", hint: "send to our number" },
+          ] as const
+        ).map((m) => (
+          <div
+            key={m.id}
+            className={`overflow-hidden rounded-xl border transition-all ${
+              method === m.id
+                ? "border-primary ring-2 ring-primary/40"
+                : "border-border/70 hover:border-primary/50"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => setMethod(m.id)}
+              aria-expanded={method === m.id}
+              className="flex w-full items-center gap-3 px-3.5 py-3 text-left text-sm"
+            >
+              <m.icon className="size-4 shrink-0 text-primary" />
+              <span className="flex-1 font-medium">{m.label}</span>
+              <span className="text-xs text-muted-foreground">{m.hint}</span>
+              <ChevronDown
+                className={`size-4 shrink-0 text-muted-foreground transition-transform ${
+                  method === m.id ? "rotate-180" : ""
+                }`}
               />
-            </div>
-            {method === "direct_transfer" && (
-              <div className="space-y-1.5">
-                <Label className="text-[13px]">Sender name (EcoCash / InnBucks) *</Label>
-                <Input
-                  value={senderName}
-                  onChange={(e) => setSenderName(e.target.value)}
-                  placeholder="Name of the person, agent or organisation that sent the money"
-                  className="h-11 rounded-xl"
-                />
-                <p className="text-xs text-muted-foreground">Must match the sender name shown on the mobile money transfer.</p>
+            </button>
+            {method === m.id && (
+              <div className="border-t border-border/70 px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  {m.id === "bank_transfer" ? `Transfer $${total.toFixed(2)} to` : `Send $${total.toFixed(2)} via EcoCash or InnBucks to`}
+                </p>
+                <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                  {m.id === "bank_transfer" ? (
+                    <>
+                      <dt className="text-muted-foreground">Account Name</dt><dd className="font-medium">Solabliss Zimbabwe Pvt Ltd</dd>
+                      <dt className="text-muted-foreground">Bank</dt><dd className="font-medium">FBC Bank</dd>
+                      <dt className="text-muted-foreground">Branch</dt><dd className="font-medium">FBC Center Branch</dd>
+                      <dt className="text-muted-foreground">USD Account</dt><dd className="font-medium">6870465460146</dd>
+                    </>
+                  ) : (
+                    <>
+                      <dt className="text-muted-foreground">Number</dt><dd className="font-medium">+263 77 390 9307</dd>
+                      <dt className="text-muted-foreground">Name</dt><dd className="font-medium">Munyaradzi J Muzvidziwa</dd>
+                    </>
+                  )}
+                  <dt className="text-muted-foreground">Amount</dt><dd className="font-medium">${total.toFixed(2)}</dd>
+                </dl>
+                <div className="mt-4 space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[13px]">Transaction reference *</Label>
+                    <Input
+                      value={txnReference}
+                      onChange={(e) => setTxnReference(e.target.value)}
+                      placeholder="e.g. the EcoCash / bank transaction ID from your receipt"
+                      className="h-11 rounded-xl"
+                    />
+                  </div>
+                  {m.id === "direct_transfer" && (
+                    <div className="space-y-1.5">
+                      <Label className="text-[13px]">Sender name (EcoCash / InnBucks) *</Label>
+                      <Input
+                        value={senderName}
+                        onChange={(e) => setSenderName(e.target.value)}
+                        placeholder="Name of the person, agent or organisation that sent the money"
+                        className="h-11 rounded-xl"
+                      />
+                      <p className="text-xs text-muted-foreground">Must match the sender name shown on the mobile money transfer.</p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
-        </div>
-      )}
+        ))}
+      </div>
 
       {phase.step === "error" && (
         <p className="mt-4 flex items-center gap-2 text-sm text-destructive">
