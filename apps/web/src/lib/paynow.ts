@@ -19,9 +19,6 @@ const ID = process.env.PAYNOW_INTEGRATION_ID;
 const KEY = process.env.PAYNOW_INTEGRATION_KEY;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
-export const MOBILE_METHODS = ["ecocash", "onemoney", "innbucks"] as const;
-export type MobileMethod = (typeof MOBILE_METHODS)[number];
-
 export function gatewayConfigured(): boolean {
   return Boolean(ID && KEY);
 }
@@ -46,18 +43,23 @@ function parseForm(body: string): Record<string, string> {
 
 export interface InitiateResult {
   ok: boolean;
+  /** Hosted checkout URL to redirect the customer to. */
+  browserUrl?: string;
   pollUrl?: string;
   instructions?: string;
   error?: string;
   raw?: Record<string, string>;
 }
 
-export async function initiateMobilePayment(opts: {
+/**
+ * Hosted-checkout initiation: no phone/method fields, so the gateway returns
+ * a browserurl covering every method it supports (EcoCash, OneMoney,
+ * InnBucks, O'mari, ZIPIT, Visa, Mastercard). Redirect the customer there.
+ */
+export async function initiateHostedPayment(opts: {
   reference: string;
   amount: number;
   email: string;
-  phone: string;
-  method: MobileMethod;
   description: string;
 }): Promise<InitiateResult> {
   if (!gatewayConfigured()) {
@@ -71,8 +73,6 @@ export async function initiateMobilePayment(opts: {
     ["returnurl", `${APP_URL}/apply/thanks?ref=${encodeURIComponent(opts.reference)}`],
     ["resulturl", `${APP_URL}/api/payments/result`],
     ["authemail", opts.email || "customer@aerotrack.live"],
-    ["phone", opts.phone],
-    ["method", opts.method],
     ["status", "Message"],
   ];
   const body = new URLSearchParams([...fields, ["hash", hash(fields.map(([, v]) => v))]]);
@@ -85,7 +85,13 @@ export async function initiateMobilePayment(opts: {
     });
     const data = parseForm(await res.text());
     if (data.status === "Ok" && data.pollurl) {
-      return { ok: true, pollUrl: data.pollurl, instructions: data.instructions, raw: data };
+      return {
+        ok: true,
+        browserUrl: data.browserurl,
+        pollUrl: data.pollurl,
+        instructions: data.instructions,
+        raw: data,
+      };
     }
     return { ok: false, error: data.error ?? `gateway status ${data.status ?? res.status}`, raw: data };
   } catch (err) {

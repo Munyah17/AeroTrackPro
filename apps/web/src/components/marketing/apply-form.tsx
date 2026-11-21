@@ -8,13 +8,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type PaymentMethod = "ecocash" | "onemoney" | "innbucks" | "bank_transfer" | "direct_transfer" | "stripe_card";
+type PaymentMethod = "paynow" | "stripe_card" | "bank_transfer" | "direct_transfer";
 
-const MOBILE_METHODS: { id: PaymentMethod; label: string }[] = [
-  { id: "ecocash", label: "EcoCash" },
-  { id: "onemoney", label: "OneMoney" },
-  { id: "innbucks", label: "InnBucks" },
-];
+const MANUAL_METHODS: PaymentMethod[] = ["bank_transfer", "direct_transfer"];
+const WHATSAPP_POP = "263718560128";
 
 type Phase =
   | { step: "form" }
@@ -26,12 +23,13 @@ type Phase =
 export function ApplyForm() {
   const [phase, setPhase] = useState<Phase>({ step: "form" });
   const [services, setServices] = useState<ServiceKey[]>(["tracking"]);
-  const [method, setMethod] = useState<PaymentMethod>("ecocash");
+  const [method, setMethod] = useState<PaymentMethod>("paynow");
   const [name, setName] = useState("");
   const [company, setCompany] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [payerPhone, setPayerPhone] = useState("");
+  const [txnReference, setTxnReference] = useState("");
+  const [senderName, setSenderName] = useState("");
   const [fleetSize, setFleetSize] = useState("");
   const [message, setMessage] = useState("");
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -90,8 +88,11 @@ export function ApplyForm() {
   const submit = async () => {
     if (services.length === 0) return setPhase({ step: "error", message: "Select at least one service." });
     if (!name.trim() || !phone.trim()) return setPhase({ step: "error", message: "Name and phone are required." });
-    const isMobile = MOBILE_METHODS.some((m) => m.id === method);
-    if (isMobile && !payerPhone.trim()) return setPhase({ step: "error", message: "Enter the mobile number to charge." });
+    const isManual = MANUAL_METHODS.includes(method);
+    if (isManual && !txnReference.trim())
+      return setPhase({ step: "error", message: "Enter the transaction reference from your payment receipt." });
+    if (method === "direct_transfer" && !senderName.trim())
+      return setPhase({ step: "error", message: "Enter the sender name shown on the mobile money transfer." });
 
     setPhase({ step: "submitting" });
     try {
@@ -103,7 +104,11 @@ export function ApplyForm() {
           fleetSize: fleetSize ? Number(fleetSize) : undefined,
           services,
           message,
-          payment: { method, payerPhone: payerPhone || undefined },
+          payment: {
+            method,
+            txnReference: txnReference || undefined,
+            senderName: senderName || undefined,
+          },
         }),
       });
       const data = await res.json();
@@ -146,6 +151,14 @@ export function ApplyForm() {
         <p className="mx-auto mt-3 max-w-md whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
           {phase.instructions}
         </p>
+        {phase.step === "done" && MANUAL_METHODS.includes(method) && (
+          <Button className="mt-5 rounded-xl" onClick={() => {
+            const text = `Proof of payment — ${phase.reference}\nName: ${name}\nEmail: ${email || "—"}\nPhone: ${phone}\nTransaction ref: ${txnReference}`;
+            window.open(`https://wa.me/${WHATSAPP_POP}?text=${encodeURIComponent(text)}`, "_blank");
+          }}>
+            Send PoP on WhatsApp
+          </Button>
+        )}
         {phase.step === "done" && (
           <Button variant="outline" className="mt-5 rounded-xl" onClick={() => setPhase({ step: "form" })}>
             Submit another application
@@ -221,10 +234,10 @@ export function ApplyForm() {
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <button
           type="button"
-          onClick={() => setMethod((m) => (MOBILE_METHODS.some((x) => x.id === m) ? m : "ecocash"))}
-          aria-pressed={MOBILE_METHODS.some((m) => m.id === method)}
+          onClick={() => setMethod("paynow")}
+          aria-pressed={method === "paynow"}
           className={`overflow-hidden rounded-xl border bg-white transition-all ${
-            MOBILE_METHODS.some((m) => m.id === method)
+            method === "paynow"
               ? "border-primary ring-2 ring-primary/40"
               : "border-border/70 hover:border-primary/50"
           }`}
@@ -244,22 +257,10 @@ export function ApplyForm() {
           <img src="/stripe-banner.png" alt="Stripe — Visa, Mastercard, American Express, Apple Pay and Google Pay" className="w-full" />
         </button>
       </div>
-      {MOBILE_METHODS.some((m) => m.id === method) && (
-        <div className="mt-2 grid gap-2">
-          {MOBILE_METHODS.map((m) => (
-            <label key={m.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/70 px-3.5 py-3 text-sm transition-colors hover:border-primary/50">
-              <input type="radio" name="pay" checked={method === m.id} onChange={() => setMethod(m.id)} className="accent-primary" />
-              <span className="flex-1">{m.label}</span>
-              <span className="text-xs text-muted-foreground">instant approval on your phone</span>
-            </label>
-          ))}
-        </div>
-      )}
-      {method === "stripe_card" && (
-        <p className="mt-2 rounded-xl bg-muted/50 px-4 py-2.5 text-xs text-muted-foreground">
-          Visa, Mastercard, Amex, Apple Pay &amp; Google Pay — you&rsquo;ll be redirected to Stripe&rsquo;s secure card checkout.
-        </p>
-      )}
+      <p className="mt-2 text-xs text-muted-foreground">
+        {method === "paynow" && "EcoCash, InnBucks, O'mari, ZIPIT & cards — you'll be redirected to Paynow's secure checkout."}
+        {method === "stripe_card" && "Visa, Mastercard, Amex, Apple Pay & Google Pay — you'll be redirected to Stripe's secure card checkout."}
+      </p>
       <div className="mt-2 grid gap-2">
         <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/70 px-3.5 py-3 text-sm transition-colors hover:border-primary/50">
           <input type="radio" name="pay" checked={method === "bank_transfer"} onChange={() => setMethod("bank_transfer")} className="accent-primary" />
@@ -272,10 +273,51 @@ export function ApplyForm() {
           <span className="text-xs text-muted-foreground">send to our number</span>
         </label>
       </div>
-      {MOBILE_METHODS.some((m) => m.id === method) && (
-        <div className="mt-3 space-y-1.5">
-          <Label className="text-[13px]">Mobile number to charge *</Label>
-          <Input value={payerPhone} onChange={(e) => setPayerPhone(e.target.value)} placeholder="+263 77 000 0000" className="h-11 rounded-xl" />
+
+      {MANUAL_METHODS.includes(method) && (
+        <div className="mt-3 rounded-xl border border-border/70 p-4">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            {method === "bank_transfer" ? `Transfer $${total.toFixed(2)} to` : `Send $${total.toFixed(2)} via EcoCash or InnBucks to`}
+          </p>
+          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+            {method === "bank_transfer" ? (
+              <>
+                <dt className="text-muted-foreground">Account Name</dt><dd className="font-medium">Solabliss Zimbabwe Pvt Ltd</dd>
+                <dt className="text-muted-foreground">Bank</dt><dd className="font-medium">FBC Bank</dd>
+                <dt className="text-muted-foreground">Branch</dt><dd className="font-medium">FBC Center Branch</dd>
+                <dt className="text-muted-foreground">USD Account</dt><dd className="font-medium">6870465460146</dd>
+              </>
+            ) : (
+              <>
+                <dt className="text-muted-foreground">Number</dt><dd className="font-medium">+263 77 390 9307</dd>
+                <dt className="text-muted-foreground">Name</dt><dd className="font-medium">Munyaradzi J Muzvidziwa</dd>
+              </>
+            )}
+            <dt className="text-muted-foreground">Amount</dt><dd className="font-medium">${total.toFixed(2)}</dd>
+          </dl>
+          <div className="mt-4 space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Transaction reference *</Label>
+              <Input
+                value={txnReference}
+                onChange={(e) => setTxnReference(e.target.value)}
+                placeholder="e.g. the EcoCash / bank transaction ID from your receipt"
+                className="h-11 rounded-xl"
+              />
+            </div>
+            {method === "direct_transfer" && (
+              <div className="space-y-1.5">
+                <Label className="text-[13px]">Sender name (EcoCash / InnBucks) *</Label>
+                <Input
+                  value={senderName}
+                  onChange={(e) => setSenderName(e.target.value)}
+                  placeholder="Name of the person, agent or organisation that sent the money"
+                  className="h-11 rounded-xl"
+                />
+                <p className="text-xs text-muted-foreground">Must match the sender name shown on the mobile money transfer.</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -292,6 +334,8 @@ export function ApplyForm() {
       >
         {phase.step === "submitting" ? (
           <Loader2 className="size-4 animate-spin" />
+        ) : MANUAL_METHODS.includes(method) ? (
+          `I've sent $${total.toFixed(2)} — continue`
         ) : total > 0 ? (
           `Apply & pay $${total}`
         ) : (
@@ -299,7 +343,7 @@ export function ApplyForm() {
         )}
       </Button>
       <p className="mt-3 text-center text-xs text-muted-foreground">
-        Manual payments show account details after you submit.
+        Manual payments: send the transfer first, then paste your transaction reference.
       </p>
     </div>
   );

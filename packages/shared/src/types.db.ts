@@ -572,6 +572,8 @@ export type Database = {
           channel: string;
           status: string;
           payer_phone: string | null;
+          txn_reference: string | null;
+          sender_name: string | null;
           poll_url: string | null;
           instructions: string | null;
           gateway_status: string | null;
