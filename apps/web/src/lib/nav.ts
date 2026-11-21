@@ -36,6 +36,7 @@ import {
   Route,
   Scale,
   Settings,
+  Target,
   Shield,
   ShieldCheck,
   Smartphone,
@@ -112,6 +113,7 @@ export const ADMIN_NAV: NavSection[] = [
   {
     label: "Commercial",
     items: [
+      { label: "Leads & Marketing", href: "/admin/marketing", icon: Target },
       { label: "Plans & Pricing", href: "/admin/plans", icon: BadgeDollarSign },
       { label: "Licenses", href: "/admin/licenses", icon: KeyRound },
       { label: "Quotations", href: "/admin/quotations", icon: FileText },

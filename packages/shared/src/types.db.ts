@@ -585,6 +585,48 @@ export type Database = {
         Update: Partial<Omit<Database["public"]["Tables"]["payments"]["Row"], "id" | "created_at">>;
         Relationships: [];
       };
+      marketing_runs: {
+        Row: {
+          id: string;
+          command: string;
+          status: string;
+          run_secret: string;
+          session_id: string | null;
+          session_url: string | null;
+          summary: string | null;
+          prospect_count: number;
+          created_by: string | null;
+          created_at: string;
+          finished_at: string | null;
+        };
+        Insert: Omit<Database["public"]["Tables"]["marketing_runs"]["Row"], "id" | "created_at" | "status" | "prospect_count" | "session_id" | "session_url" | "summary" | "finished_at"> &
+          Partial<Pick<Database["public"]["Tables"]["marketing_runs"]["Row"], "status" | "prospect_count" | "session_id" | "session_url" | "summary" | "finished_at">>;
+        Update: Partial<Omit<Database["public"]["Tables"]["marketing_runs"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
+      marketing_prospects: {
+        Row: {
+          id: string;
+          run_id: string | null;
+          company: string;
+          contact_name: string | null;
+          phone: string | null;
+          email: string | null;
+          whatsapp: string | null;
+          location: string | null;
+          industry: string | null;
+          fleet_estimate: number | null;
+          intent: string;
+          source: string | null;
+          notes: string | null;
+          status: string;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["marketing_prospects"]["Row"], "id" | "created_at" | "status" | "intent"> &
+          Partial<Pick<Database["public"]["Tables"]["marketing_prospects"]["Row"], "status" | "intent">>;
+        Update: Partial<Omit<Database["public"]["Tables"]["marketing_prospects"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
       maintenance_items: {
         Row: {
           id: string;
