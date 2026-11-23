@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion, useDragControls } from "framer-motion";
-import { ChevronRight, ChevronsLeft, ChevronsRight, Compass, Fuel, Gauge, MapPin, Minus, Navigation, Plus, Route, Search, Signal, Star, X, Zap } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, Compass, Crosshair, Fuel, Gauge, MapPin, Minus, Navigation, Plus, Route, Search, Signal, Star, X, Zap } from "lucide-react";
 import type { Vehicle } from "@aerotrack/shared";
 import { useGeofences } from "@/hooks/use-live-data";
 import { useFleet } from "@/hooks/use-fleet";
@@ -80,8 +80,9 @@ function VehicleRow({
 
 /**
  * Compact summary card — the live-tracking control card. Shows only what a
- * dispatcher needs at a glance; full telemetry, driver, device, map links and
- * commands live on the vehicle detail page (opened via "Details").
+ * dispatcher needs at a glance: who/where/how fast/last update. Vehicle spec
+ * (make/model/year), heading, signal and full telemetry live on the vehicle
+ * detail page (opened via "Details").
  */
 function VehicleSummary({
   vehicle,
@@ -94,17 +95,27 @@ function VehicleSummary({
 }) {
   const p = vehicle.position;
   const placeName = usePlaceName(p.lat, p.lng);
-  const vehicleLine = [vehicle.make, vehicle.model, vehicle.year || null].filter(Boolean).join(" ");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const stats: { icon: typeof Gauge; label: string; value: string }[] = [
     { icon: Gauge, label: "Speed", value: kmh(p.speedKmh) },
-    { icon: Compass, label: "Heading", value: `${p.course}°` },
     { icon: Zap, label: "Ignition", value: vehicle.ignition ? "On" : "Off" },
-    { icon: Signal, label: "Signal", value: `${vehicle.gsmSignal}%` },
     { icon: Route, label: "Odometer", value: `${Math.round(vehicle.odometerKm).toLocaleString()} km` },
   ];
   if (vehicle.fuelLevelPct != null) {
     stats.push({ icon: Fuel, label: "Fuel", value: `${Math.round(vehicle.fuelLevelPct)}%` });
   }
+  /* Secondary telemetry — dispatcher context, not quick status. Kept behind
+     the Advanced toggle so the island stays small on phones. */
+  const vehicleLine = [vehicle.make, vehicle.model, vehicle.year || null].filter(Boolean).join(" ");
+  const advancedStats: { icon: typeof Gauge; label: string; value: string }[] = [
+    { icon: Compass, label: "Heading", value: `${p.course}°` },
+    { icon: Signal, label: "Signal", value: `${vehicle.gsmSignal}%` },
+    {
+      icon: Crosshair,
+      label: "Coords",
+      value: `${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`,
+    },
+  ];
 
   return (
     <div className="p-4 sm:p-5">
@@ -114,11 +125,9 @@ function VehicleSummary({
             <h3 className="truncate text-[18px] font-bold tracking-tight">{vehicle.name || vehicle.plate}</h3>
             <VehicleStatusChip status={vehicle.status} sleeping={vehicle.sleeping} />
           </div>
-          <p className="mt-1 truncate text-[12.5px] text-muted-foreground">
-            {[vehicle.name && vehicle.name !== vehicle.plate ? vehicle.plate : null, vehicleLine]
-              .filter(Boolean)
-              .join(" · ") || vehicle.plate}
-          </p>
+          {vehicle.name && vehicle.name !== vehicle.plate && (
+            <p className="mt-1 truncate text-[12.5px] text-muted-foreground">{vehicle.plate}</p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           {onMinimize && (
@@ -163,7 +172,32 @@ function VehicleSummary({
         ))}
       </div>
 
-      <div className="mt-4 flex gap-2">
+      <button
+        onClick={() => setAdvancedOpen((a) => !a)}
+        aria-expanded={advancedOpen}
+        className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-[11.5px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+      >
+        {advancedOpen ? "Hide advanced" : "Advanced"}
+        <ChevronDown className={cn("size-3.5 transition-transform duration-200", advancedOpen && "rotate-180")} />
+      </button>
+      {advancedOpen && (
+        <div className="pt-1">
+          {vehicleLine && (
+            <div className="truncate pb-2 text-center text-[11.5px] text-muted-foreground">{vehicleLine}</div>
+          )}
+          <div className="grid grid-cols-3 gap-2">
+            {advancedStats.map((s) => (
+              <div key={s.label} className="rounded-xl border border-border/60 bg-background/60 px-2.5 py-2.5">
+                <s.icon className="size-3.5 text-muted-foreground" />
+                <div className="mt-1.5 truncate text-[13px] font-bold tabular-nums leading-tight">{s.value}</div>
+                <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-3 flex gap-2">
         <Button render={<a href={`/vehicles/${vehicle.id}`} />} size="sm" className="h-11 min-w-0 flex-1 gap-2 rounded-xl text-[13px] font-semibold shadow-card">
           Details &amp; trips <ChevronRight className="size-4" />
         </Button>
