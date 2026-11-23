@@ -56,7 +56,7 @@ function VehicleRow({
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="truncate text-[13px] font-semibold">{vehicle.plate}</span>
+          <span className="truncate text-[13px] font-semibold">{vehicle.name || vehicle.plate}</span>
           {vehicle.favourite && <Star className="size-3 shrink-0 fill-warning text-warning" />}
           {shared && (
             <span className="shrink-0 rounded-full bg-info/10 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-info">
@@ -64,7 +64,9 @@ function VehicleRow({
             </span>
           )}
         </div>
-        <div className="truncate text-[11.5px] text-muted-foreground">{vehicle.name}</div>
+        <div className="truncate text-[11.5px] text-muted-foreground">
+          {vehicle.name && vehicle.name !== vehicle.plate ? vehicle.plate : vehicle.name}
+        </div>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
         <VehicleStatusChip status={vehicle.status} sleeping={vehicle.sleeping} />
@@ -109,11 +111,13 @@ function VehicleSummary({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="truncate text-[18px] font-bold tracking-tight">{vehicle.plate}</h3>
+            <h3 className="truncate text-[18px] font-bold tracking-tight">{vehicle.name || vehicle.plate}</h3>
             <VehicleStatusChip status={vehicle.status} sleeping={vehicle.sleeping} />
           </div>
           <p className="mt-1 truncate text-[12.5px] text-muted-foreground">
-            {[vehicle.name, vehicleLine].filter(Boolean).join(" · ") || vehicle.plate}
+            {[vehicle.name && vehicle.name !== vehicle.plate ? vehicle.plate : null, vehicleLine]
+              .filter(Boolean)
+              .join(" · ") || vehicle.plate}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
@@ -386,7 +390,7 @@ export default function TrackingPage() {
                     v.id === selectedId && "bg-primary-foreground",
                   )}
                 />
-                {v.plate}
+                {v.name || v.plate}
               </button>
             ))}
           </div>
@@ -424,7 +428,7 @@ export default function TrackingPage() {
                 <div className="flex shrink-0 items-center gap-2.5 px-3.5 pb-3">
                   <span className={cn("size-2.5 shrink-0 rounded-full", LIVE_STATUS[vehicleLiveStatus(selected)].dot)} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13.5px] font-bold leading-tight">{selected.plate}</div>
+                    <div className="truncate text-[13.5px] font-bold leading-tight">{selected.name || selected.plate}</div>
                     <div className="truncate text-[11px] text-muted-foreground">
                       {kmh(selected.position.speedKmh)} · {timeAgo(selected.position.updatedAt)}
                     </div>
@@ -486,7 +490,7 @@ export default function TrackingPage() {
               title={`${selected.plate} — show details`}
             >
               <span className={cn("size-2.5 rounded-full", LIVE_STATUS[vehicleLiveStatus(selected)].dot)} />
-              <span className="max-w-full truncate text-[10px] font-bold leading-tight">{selected.plate}</span>
+              <span className="max-w-full truncate text-[10px] font-bold leading-tight">{selected.name || selected.plate}</span>
               <span className="text-[9.5px] text-muted-foreground tabular-nums">{kmh(selected.position.speedKmh)}</span>
             </button>
           </div>

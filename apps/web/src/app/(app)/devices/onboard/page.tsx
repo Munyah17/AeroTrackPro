@@ -105,6 +105,9 @@ export default function OnboardDevicePage() {
   const [otherMode, setOtherMode] = useState(false);
   const [imei, setImei] = useState("");
   const [deviceName, setDeviceName] = useState("");
+  const [plate, setPlate] = useState("");
+  const [registering, setRegistering] = useState(false);
+  const [registered, setRegistered] = useState(false);
 
   // Software tracker state
   const [softName, setSoftName] = useState("");
@@ -116,7 +119,8 @@ export default function OnboardDevicePage() {
     setSelectedModel(m);
     setOtherMode(false);
     setProtocolKey(m.protocol);
-    if (!deviceName.trim()) setDeviceName(`${m.vendor} ${m.model}`);
+    /* Never pre-fill the label from the manufacturer/model — the user names
+       the vehicle/asset themselves (reg number, "Toyota Dyna Farm", ...). */
   };
 
   const pickOther = () => {
@@ -125,7 +129,7 @@ export default function OnboardDevicePage() {
   };
 
   const handleNext = () => {
-    if (step === "info" && imei && deviceName) setStep("config");
+    if (step === "info" && imei.length >= 8 && deviceName) setStep("config");
     else if (step === "config") setStep("verify");
   };
 
@@ -200,6 +204,66 @@ export default function OnboardDevicePage() {
       toast.error(err instanceof Error ? err.message : "Failed to create tracker");
     } finally {
       setCreating(false);
+    }
+  };
+
+  /** Persist the hardware tracker + its vehicle/asset row. The custom label
+      the user typed becomes BOTH devices.name and vehicles.name — the fleet
+      UI shows that label, never the manufacturer model. */
+  const registerHardware = async () => {
+    if (!imei || !deviceName.trim()) return;
+    setRegistering(true);
+    try {
+      const { supabase } = await import("@/lib/supabase");
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("You must be signed in to register a tracker");
+
+      const { data: me, error: meErr } = await supabase
+        .from("users")
+        .select("tenant_id")
+        .eq("auth_id", user.id)
+        .maybeSingle();
+      if (meErr || !me) throw new Error("Could not resolve your organization");
+
+      const protocol = otherMode ? protocolKey : (selectedModel?.protocol ?? protocolKey);
+      const label = deviceName.trim();
+
+      const { data: device, error: deviceErr } = await supabase
+        .from("devices")
+        .insert({
+          tenant_id: me.tenant_id,
+          imei,
+          protocol,
+          device_model: selectedModel?.id ?? "custom",
+          name: label,
+          status: "active",
+          connection_status: "unknown",
+        } as Database["public"]["Tables"]["devices"]["Insert"])
+        .select("id")
+        .single();
+      if (deviceErr || !device) throw new Error(deviceErr?.message ?? "Failed to create device");
+
+      const { error: vehicleErr } = await supabase.from("vehicles").insert({
+        tenant_id: me.tenant_id,
+        device_id: device.id,
+        plate: plate.trim() || label,
+        name: label,
+        kind: selectedModel?.category === "asset" ? "equipment" : "car",
+        make: selectedModel?.vendor ?? "",
+        model: selectedModel?.model ?? "",
+        color: "#1E40FF",
+        status: "active",
+      } as Database["public"]["Tables"]["vehicles"]["Insert"]);
+      if (vehicleErr) throw new Error(vehicleErr.message);
+
+      setRegistered(true);
+      toast.success("Tracker registered — configure the device, then it appears on Live Tracking");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to register tracker");
+    } finally {
+      setRegistering(false);
     }
   };
 
@@ -504,32 +568,50 @@ export default function OnboardDevicePage() {
               </Label>
               <Input
                 id="imei"
-                placeholder="e.g. 864123456789012"
+                placeholder="e.g. 864123456789012 or 3009270720"
                 value={imei}
                 onChange={(e) => setImei(e.target.value.replace(/\D/g, "").slice(0, 15))}
                 className="h-11 rounded-xl font-mono"
               />
               <p className="text-[11.5px] text-muted-foreground">
-                15-digit code printed on the device or SIM card. Type *#06# on device phone to display.
+                Tracker ID / IMEI printed on the device or SIM card (8–15 digits). This is how the
+                tracker identifies itself to our servers — it is not shown as the vehicle name.
               </p>
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="name" className="text-[13px] font-medium">
-                Device Name
+                Vehicle / asset name
               </Label>
               <Input
                 id="name"
-                placeholder="e.g. Tracker-Unit-01"
+                placeholder="e.g. ABP9876 or Toyota Dyna Farm"
                 value={deviceName}
                 onChange={(e) => setDeviceName(e.target.value)}
+                className="h-11 rounded-xl"
+              />
+              <p className="text-[11.5px] text-muted-foreground">
+                Your own label — shown on the map, vehicle list and alerts. This is NOT the tracker
+                model; it can be a registration number, driver name or asset description.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="plate" className="text-[13px] font-medium">
+                Plate / reg number <span className="font-normal text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="plate"
+                placeholder="e.g. ABP9876"
+                value={plate}
+                onChange={(e) => setPlate(e.target.value)}
                 className="h-11 rounded-xl"
               />
             </div>
 
             <Button
               onClick={handleNext}
-              disabled={!imei || !deviceName}
+              disabled={imei.length < 8 || !deviceName.trim()}
               className="mt-6 h-11 w-full rounded-xl shadow-card"
             >
               Next: Configure Device
@@ -566,7 +648,7 @@ export default function OnboardDevicePage() {
               <div className="rounded-lg border bg-muted/50 p-3 font-mono text-[11px]">
                 <div>For {PROTOCOL_INFO[protocolKey]?.label ?? protocolKey} devices:</div>
                 <div className="mt-2 text-muted-foreground">
-                  Send SMS to device: <span className="font-semibold text-foreground">SERVER,0,gps.aerotrack.app,5023,0#</span>
+                  Send SMS to device: <span className="font-semibold text-foreground">SERVER,0,gps.aerotrack.app,{PROTOCOL_INFO[protocolKey]?.port ?? 5023},0#</span>
                 </div>
               </div>
             </div>
@@ -586,41 +668,83 @@ export default function OnboardDevicePage() {
       {step === "verify" && (
         <Panel className="p-6">
           <h3 className="mb-5 flex items-center gap-2 text-[16px] font-semibold">
-            <Cpu className="size-5 text-primary" /> Verify Connection
+            <Cpu className="size-5 text-primary" /> Register Tracker
           </h3>
-          <div className="space-y-4">
-            <div className="space-y-2.5">
-              {[
-                { label: "Device configured", done: true },
-                { label: "Sent test location", done: true },
-                { label: "Waiting for connection", done: false },
-              ].map((check, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  {check.done ? (
-                    <CheckCircle2 className="size-5 text-success" />
-                  ) : (
-                    <div className="size-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  )}
-                  <span className="text-[13px] font-medium">{check.label}</span>
+
+          {registered ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 rounded-xl border border-success/30 bg-success/5 p-4">
+                <CheckCircle2 className="size-5 shrink-0 text-success" />
+                <div>
+                  <div className="text-[13.5px] font-semibold">{deviceName.trim()} is registered</div>
+                  <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+                    Configure the tracker with the server details below. Positions appear on{" "}
+                    <Link href="/tracking" className="font-medium text-primary underline-offset-2 hover:underline">
+                      Live Tracking
+                    </Link>{" "}
+                    within a minute of the first report.
+                  </p>
                 </div>
-              ))}
+              </div>
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950">
+                <p className="text-[13px] font-medium text-blue-900 dark:text-blue-100">
+                  Configure your device to connect to AeroTrack Pro servers:
+                </p>
+                <div className="mt-3 space-y-2 font-mono text-[12px] text-blue-800 dark:text-blue-200">
+                  <div><span className="font-semibold">Server IP:</span> {process.env.NEXT_PUBLIC_DEVICE_SERVER_IP || "gps.aerotrack.app"}</div>
+                  <div><span className="font-semibold">Port:</span> {PROTOCOL_INFO[protocolKey]?.port ?? "5000"}</div>
+                  <div><span className="font-semibold">Tracker ID:</span> {imei}</div>
+                </div>
+              </div>
+              <Button render={<Link href="/tracking" />} className="h-11 w-full rounded-xl shadow-card">
+                Go to Live Tracking
+              </Button>
             </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2 rounded-xl border border-border/60 p-4 text-[13px]">
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">Label</span>
+                  <span className="font-semibold">{deviceName.trim()}</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">Tracker ID</span>
+                  <span className="font-mono text-[12px]">{imei}</span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">Device</span>
+                  <span className="font-medium">
+                    {selectedModel ? `${selectedModel.vendor} ${selectedModel.model}` : "Other device"}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">Protocol / port</span>
+                  <span className="font-medium">
+                    {PROTOCOL_INFO[protocolKey]?.label ?? protocolKey} · {PROTOCOL_INFO[protocolKey]?.port ?? "—"}
+                  </span>
+                </div>
+              </div>
 
-            <div className="rounded-xl border-l-4 border-l-warning bg-warning/5 p-4">
-              <p className="text-[12px] leading-relaxed text-warning-foreground">
-                <span className="font-semibold">Troubleshooting:</span> If the device does not connect within 5 minutes,
-                check that your device has network connectivity (cellular or WiFi), the server address is correct, and
-                the device is powered on.
+              <p className="text-[12px] leading-relaxed text-muted-foreground">
+                Registering saves the tracker and its vehicle/asset under your label{" "}
+                <span className="font-semibold text-foreground">{deviceName.trim()}</span>. After that,
+                point the device at our server (see the configuration step) and it will report here.
               </p>
-            </div>
 
-            <Button
-              render={<Link href="/devices" />}
-              className="h-11 w-full rounded-xl shadow-card"
-            >
-              View Device Details
-            </Button>
-          </div>
+              <div className="flex gap-3">
+                <Button onClick={handleBack} variant="outline" className="h-11 flex-1 rounded-xl">
+                  Back
+                </Button>
+                <Button
+                  onClick={registerHardware}
+                  disabled={registering}
+                  className="h-11 flex-1 rounded-xl shadow-card"
+                >
+                  {registering ? "Registering…" : "Register Device"}
+                </Button>
+              </div>
+            </div>
+          )}
         </Panel>
       )}
     </PageContainer>

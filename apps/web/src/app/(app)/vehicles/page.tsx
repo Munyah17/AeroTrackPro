@@ -135,10 +135,11 @@ export default function VehiclesPage() {
                         </div>
                         <div>
                           <div className="flex items-center gap-1.5 text-[13.5px] font-semibold">
-                            {v.plate}
+                            {v.name || v.plate}
                             {v.favourite && <Star className="size-3 fill-warning text-warning" />}
                           </div>
                           <div className="text-xs text-muted-foreground">
+                            {v.name && v.name !== v.plate ? `${v.plate} · ` : ""}
                             {v.make} {v.model} · {v.year}
                           </div>
                         </div>

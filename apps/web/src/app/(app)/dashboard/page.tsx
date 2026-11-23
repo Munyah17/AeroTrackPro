@@ -292,7 +292,7 @@ export default function DashboardPage() {
                   <Route className="size-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13.5px] font-semibold">{v.plate}</div>
+                  <div className="truncate text-[13.5px] font-semibold">{v.name || v.plate}</div>
                   <div className="truncate text-xs text-muted-foreground">{v.position.address}</div>
                 </div>
                 <div className="text-right">

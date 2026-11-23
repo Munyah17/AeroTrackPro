@@ -154,9 +154,10 @@ export default function DevicesPage() {
                 })()}
                 {isShared && <Pill tone="info">Shared</Pill>}
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13.5px] font-semibold">{v.deviceName || v.name}</div>
+                  <div className="truncate text-[13.5px] font-semibold">{v.name || v.deviceName || v.plate}</div>
                   <div className="text-[11.5px] text-muted-foreground">
-                    {v.name !== (v.deviceName || v.name) ? `${v.name} · ` : ""}IMEI {v.imei}
+                    {v.deviceName && v.deviceName !== (v.name || v.plate) ? `${v.deviceName} · ` : ""}
+                    IMEI {v.imei}
                     {v.simMsisdn ? ` · SIM ${v.simMsisdn}` : ""}
                   </div>
                 </div>

@@ -98,12 +98,13 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
         </Button>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2.5">
-            <h2 className="text-2xl font-bold tracking-tight">{vehicle.plate}</h2>
+            <h2 className="text-2xl font-bold tracking-tight">{vehicle.name || vehicle.plate}</h2>
             <VehicleStatusChip status={vehicle.status} sleeping={vehicle.sleeping} />
             {vehicle.blocked && <Pill tone="danger">Immobilized</Pill>}
           </div>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {vehicle.name} · {vehicle.make} {vehicle.model} {vehicle.year} · {vehicle.color}
+            {vehicle.name && vehicle.name !== vehicle.plate ? `${vehicle.plate} · ` : ""}
+            {vehicle.make} {vehicle.model} {vehicle.year} · {vehicle.color}
           </p>
         </div>
         <Button render={<Link href="/commands" />} variant="outline" className="rounded-xl">

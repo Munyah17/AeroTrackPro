@@ -69,8 +69,8 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
                 onSelect={() => go(`/vehicles/${v.id}`)}
               >
                 <Car className="size-4 text-primary" />
-                <span className="font-medium">{v.plate}</span>
-                <span className="text-muted-foreground">{v.name}</span>
+                <span className="font-medium">{v.name || v.plate}</span>
+                <span className="text-muted-foreground">{v.name && v.name !== v.plate ? v.plate : ""}</span>
                 <span className="ml-auto text-[11px] capitalize text-muted-foreground">{v.status}</span>
               </CommandItem>
             ))}
