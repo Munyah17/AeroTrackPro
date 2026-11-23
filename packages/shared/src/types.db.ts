@@ -135,6 +135,10 @@ export type Database = {
           id: string;
           tenant_id: string;
           device_id: string | null;
+          /** Second tracker bound to the same asset (e.g. a hidden GPS module
+           *  alongside the laptop agent). Positions from either device update
+           *  the one map marker. */
+          secondary_device_id: string | null;
           plate: string;
           name: string;
           make: string | null;

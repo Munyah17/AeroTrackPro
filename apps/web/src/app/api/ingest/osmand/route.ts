@@ -274,12 +274,14 @@ async function handle(req: NextRequest): Promise<NextResponse> {
 
   const db = createAdminClient();
 
-  // Resolve the vehicle bound to this device so the position carries
-  // vehicle_id — the fleet UI joins positions to vehicles on that column.
+  // Resolve the vehicle bound to this device — primary or secondary tracker
+  // (double tracking) — so the position carries vehicle_id, the column the
+  // fleet UI joins positions on.
   const { data: vehicle } = await db
     .from("vehicles")
     .select("id")
-    .eq("device_id", device.id)
+    .or(`device_id.eq.${device.id},secondary_device_id.eq.${device.id}`)
+    .limit(1)
     .maybeSingle();
 
   const row = {

@@ -173,7 +173,8 @@ async function loadDevice(query: { traccarId?: number; imei?: string }): Promise
   const { data: vehicle } = await db
     .from("vehicles")
     .select("id")
-    .eq("device_id", device.id)
+    .or(`device_id.eq.${device.id},secondary_device_id.eq.${device.id}`)
+    .limit(1)
     .maybeSingle();
 
   return {
