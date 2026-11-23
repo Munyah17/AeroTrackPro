@@ -103,6 +103,12 @@ export const ADMIN_NAV: NavSection[] = [
     items: [{ label: "Overview", href: "/admin", icon: Home }],
   },
   {
+    label: "Operations",
+    items: [
+      { label: "Live Operations", href: "/admin/operations", icon: Activity },
+    ],
+  },
+  {
     label: "Network",
     items: [
       { label: "Organizations", href: "/admin/organizations", icon: Building2 },
@@ -195,6 +201,10 @@ export const NAV_META: Record<string, { title: string; subtitle?: string }> = {
   "/reseller/team": { title: "Team" },
   "/reseller/support": { title: "Support" },
   "/admin": { title: "Business Overview" },
+  "/admin/operations": {
+    title: "Live Operations",
+    subtitle: "Cross-tenant fleet instruments — devices, positions and commands",
+  },
   "/admin/partners": { title: "Partners & Installers", subtitle: "Onboard retailers and hardware installers" },
   "/admin/organizations": { title: "Organizations", subtitle: "Manage client organizations on the platform" },
   "/admin/fleet-partnerships": {
