@@ -3,6 +3,7 @@ import type { Database } from "@aerotrack/shared";
 import {
   analyzeFuelReading,
   asFuelProfile,
+  fuelLevelLitres,
   fuelLevelPct,
   fuelUsedLitres,
 } from "@aerotrack/shared";
@@ -202,8 +203,18 @@ export async function POST(req: Request): Promise<Response> {
      *   flow-meter cumulative delta        -> consumption event
      *   flow delta, parked + ACC off       -> suspected theft (notified)
      */
-    const levelPct = fuelLevelPct(attrs);
     const usedL = fuelUsedLitres(attrs);
+    let levelPct = fuelLevelPct(attrs);
+    if (levelPct == null && fuelLevelLitres(attrs) != null && bridge.vehicle_id) {
+      const { data: vehicle } = await db
+        .from("vehicles")
+        .select("fuel_capacity_liters")
+        .eq("id", bridge.vehicle_id)
+        .maybeSingle();
+      const capacityL =
+        vehicle?.fuel_capacity_liters != null ? Number(vehicle.fuel_capacity_liters) : null;
+      levelPct = fuelLevelPct(attrs, capacityL);
+    }
     if (levelPct != null || usedL != null) {
       const res = analyzeFuelReading({
         at: recordedAt ?? new Date().toISOString(),

@@ -5,6 +5,7 @@ import {
   Car,
   FileText,
   Globe,
+  Home,
   LayoutDashboard,
   LifeBuoy,
   MessageSquare,
@@ -96,6 +97,7 @@ export const RESELLER_NAV: NavSection[] = [
 export const USER_NAV: NavSection[] = [
   {
     items: [
+      { label: "Dashboard", href: "/dashboard", icon: Home },
       { label: "Live Tracking", href: "/tracking", icon: Navigation },
       { label: "My Vehicles", href: "/vehicles", icon: Car },
       { label: "Trip History", href: "/trips", icon: Route },
@@ -234,19 +236,21 @@ export function homeFor(role: Role, portal: Portal, fleetAccess: boolean) {
   if (role === "super_admin") {
     if (portal === "reseller") return "/reseller";
     if (portal === "fleet") return "/dashboard";
-    if (portal === "tracking") return "/tracking";
+    if (portal === "tracking") return "/dashboard";
     return "/admin";
   }
   if (role === "reseller") {
     return portal === "fleet" && fleetAccess ? "/dashboard" : "/reseller";
   }
-  return portal === "fleet" && fleetAccess ? "/dashboard" : "/tracking";
+  return "/dashboard";
 }
 
 /** Whether this account may open the path. Master Admin is never blocked. */
 export function canVisit(pathname: string, role: Role, fleetAccess: boolean) {
   if (role === "super_admin") return true;
   if (pathname.startsWith("/admin")) return false;
+  /* Every account gets its own dashboard — it's tenant-scoped by RLS. */
+  if (pathname === "/dashboard") return true;
   if (isFleetPath(pathname)) return fleetAccess;
   if (matches(pathname, "/reseller")) return role === "reseller";
   if (TRACKING_PREFIXES.some((prefix) => matches(pathname, prefix))) return true;

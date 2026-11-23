@@ -2,13 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Cable, Link2, Plus, Radio } from "lucide-react";
+import { Cable, Link2, Plus, Radio, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { DEVICE_MODELS, type DeviceModel } from "@aerotrack/protocols";
 import type { Vehicle } from "@aerotrack/shared";
 import { useFleet } from "@/hooks/use-fleet";
 import { vehicleLiveStatus, LIVE_STATUS } from "@/lib/live-status";
 import { DeviceIsland } from "@/components/device-island";
+import { ShareDeviceDialog } from "@/components/share-device-dialog";
+import { useRole } from "@/components/shell/role-provider";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
@@ -60,7 +62,15 @@ function protocolLabel(v: Vehicle): string {
 export default function DevicesPage() {
   const [tab, setTab] = useState<"catalog" | "bound">("catalog");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { vehicles } = useFleet();
+  const [shareVehicle, setShareVehicle] = useState<Vehicle | null>(null);
+  const { vehicles, sharedDeviceIds } = useFleet();
+  const { session } = useRole();
+  /* Binding is a privileged action: Master Admin, tenant admins/managers and
+     resellers. End users must request it (RLS enforces the same rule). */
+  const canShare =
+    !!session &&
+    (["super_admin", "admin", "manager"].includes(session.userRole) ||
+      session.accountKind === "reseller");
   const boundCount = (id: string) => vehicles.filter((v) => v.deviceModelId === id).length;
   const selected = vehicles.find((v) => v.id === selectedId) ?? null;
 
@@ -121,11 +131,15 @@ export default function DevicesPage() {
       ) : (
         <Panel className="divide-y divide-border/60">
           {vehicles.map((v) => {
+            const isShared = !!v.deviceId && sharedDeviceIds.has(v.deviceId);
             return (
-              <button
+              <div
                 key={v.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => setSelectedId(v.id)}
-                className="flex w-full flex-wrap items-center gap-4 px-5 py-3.5 text-left transition-colors hover:bg-accent/50"
+                onKeyDown={(e) => e.key === "Enter" && setSelectedId(v.id)}
+                className="flex w-full cursor-pointer flex-wrap items-center gap-4 px-5 py-3.5 text-left transition-colors hover:bg-accent/50"
               >
                 {(() => {
                   const ls = LIVE_STATUS[vehicleLiveStatus(v)];
@@ -138,6 +152,7 @@ export default function DevicesPage() {
                     </>
                   );
                 })()}
+                {isShared && <Pill tone="info">Shared</Pill>}
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13.5px] font-semibold">{v.deviceName || v.name}</div>
                   <div className="text-[11.5px] text-muted-foreground">
@@ -147,13 +162,31 @@ export default function DevicesPage() {
                 </div>
                 <Pill tone="primary">{protocolLabel(v)}</Pill>
                 <span className="text-[13px] font-medium">{v.plate}</span>
-              </button>
+                {canShare && v.deviceId && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 rounded-lg text-[12px]"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShareVehicle(v);
+                    }}
+                  >
+                    <Share2 className="size-3.5" /> Bind
+                  </Button>
+                )}
+              </div>
             );
           })}
         </Panel>
       )}
 
       <DeviceIsland vehicle={selected} onClose={() => setSelectedId(null)} />
+      <ShareDeviceDialog
+        vehicle={shareVehicle}
+        open={!!shareVehicle}
+        onOpenChange={(o) => !o && setShareVehicle(null)}
+      />
     </PageContainer>
   );
 }

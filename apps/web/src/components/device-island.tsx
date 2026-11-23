@@ -18,16 +18,17 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { getDeviceModel, type DeviceModel } from "@aerotrack/protocols";
 import type { Vehicle } from "@aerotrack/shared";
 import { vehicleLiveStatus, LIVE_STATUS, type LiveStatus } from "@/lib/live-status";
-import { coords, kmh, timeAgo } from "@/lib/format";
+import { kmh, timeAgo } from "@/lib/format";
+import { usePlaceName } from "@/lib/geocode";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-function modelLabel(v: Vehicle): string {
-  const m: DeviceModel | undefined = getDeviceModel(v.deviceModelId);
-  return m ? `${m.vendor} ${m.model}` : "—";
+/** Summary cards show the assigned vehicle name — tracker model/IMEI are
+ *  configuration details, not live-tracking labels. */
+function displayName(v: Vehicle): string {
+  return v.name || v.plate;
 }
 
 const STATUS_TILE_TONE: Record<LiveStatus, string> = {
@@ -73,6 +74,7 @@ function IslandTile({
 export function DeviceIsland({ vehicle, onClose }: { vehicle: Vehicle | null; onClose: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const status: LiveStatus = vehicle ? vehicleLiveStatus(vehicle) : "online";
+  const placeName = usePlaceName(vehicle?.position.lat ?? 0, vehicle?.position.lng ?? 0);
 
   /* Selecting a device pops the island open immediately — the full summary
      is what the user asked to see, not just the collapsed pill. */
@@ -111,9 +113,9 @@ export function DeviceIsland({ vehicle, onClose }: { vehicle: Vehicle | null; on
             >
               <span className={cn("size-2.5 shrink-0 rounded-full", LIVE_STATUS[vehicleLiveStatus(vehicle)].dot)} />
               <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
-                {vehicle.deviceName || vehicle.name}
+                {vehicle ? displayName(vehicle) : ""}
               </span>
-              <span className="shrink-0 text-[11px] font-medium text-white/50">{vehicle.plate}</span>
+              <span className="shrink-0 text-[11px] font-medium text-white/50">{vehicle?.plate}</span>
               <ChevronUp
                 className={cn("size-4 shrink-0 text-white/50 transition-transform duration-300", expanded && "rotate-180")}
               />
@@ -134,10 +136,10 @@ export function DeviceIsland({ vehicle, onClose }: { vehicle: Vehicle | null; on
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="truncate text-[15px] font-bold leading-tight">
-                          {vehicle.deviceName || vehicle.name}
+                          {displayName(vehicle)}
                         </div>
                         <div className="mt-0.5 truncate text-[11px] text-white/45">
-                          {modelLabel(vehicle)} · {vehicle.plate} · {LIVE_STATUS[status].label}
+                          {vehicle.plate} · {LIVE_STATUS[status].label}
                         </div>
                       </div>
                       <button
@@ -194,13 +196,14 @@ export function DeviceIsland({ vehicle, onClose }: { vehicle: Vehicle | null; on
                       <MapPin className="size-4 shrink-0 text-sky-400" />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[12px] font-medium leading-tight text-white/90">
-                          {vehicle.position.lat !== 0 || vehicle.position.lng !== 0
-                            ? coords(vehicle.position.lat, vehicle.position.lng)
-                            : "No GPS fix yet"}
+                          {placeName ??
+                            (vehicle.position.lat !== 0 || vehicle.position.lng !== 0
+                              ? "Location unavailable"
+                              : "No GPS fix yet")}
                         </div>
                         <div className="truncate text-[10.5px] text-white/40">
                           {vehicle.position.speedKmh > 0 ? `${kmh(vehicle.position.speedKmh)} · ` : "Stationary · "}
-                          {vehicle.position.address || ""}
+                          {timeAgo(vehicle.position.updatedAt)}
                         </div>
                       </div>
                     </div>

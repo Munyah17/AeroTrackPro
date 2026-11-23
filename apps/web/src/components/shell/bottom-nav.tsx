@@ -43,7 +43,7 @@ function BarLink({
 
 /**
  * Mobile bottom navigation — a floating drawer-style bar with five slots.
- * The centre slot is a raised primary button for the live-tracking page;
+ * The centre slot is a raised primary button for the account's Dashboard;
  * "More" opens a bottom sheet with the full role-aware navigation.
  */
 export function BottomNav() {
@@ -56,45 +56,53 @@ export function BottomNav() {
   const flat = sections.flatMap((s) => s.items);
   const pick = (href: string) => flat.find((i) => i.href === href);
   const home = flat[0];
-  const track = pick("/tracking") ?? flat[1] ?? home;
-  const vehicles = pick("/vehicles") ?? flat[2] ?? home;
-  const alertsItem = pick("/alerts") ?? flat[3] ?? home;
   const activeAlerts = alerts.filter((a) => a.status === "active").length;
 
-  if (!ready || !home || !track || !vehicles || !alertsItem) return null;
+  /* Centre = Dashboard (every account has one now). Side slots prefer the
+     tracking essentials and never duplicate the centre item. */
+  const centre = pick("/dashboard") ?? home;
+  const preferred = ["/tracking", "/vehicles", "/alerts"]
+    .map(pick)
+    .filter((i): i is NavItem => !!i && i.href !== centre?.href);
+  const pool = flat.filter((i) => i.href !== centre?.href && !preferred.includes(i));
+  const sides = [...preferred, ...pool].slice(0, 3);
+  const [left1, left2, right1] = sides;
 
-  const trackActive = isNavActive(pathname, track.href);
+  if (!ready || !centre || !left1 || !left2 || !right1) return null;
+
+  const centreActive = isNavActive(pathname, centre.href);
+  const rightBadge = right1.href === "/alerts" ? activeAlerts : undefined;
 
   return (
     <>
       <nav aria-label="Primary" className="fixed inset-x-3 bottom-3 z-40 lg:hidden">
         <div className="relative flex items-stretch rounded-[1.35rem] border border-border/60 bg-card/95 px-1.5 pb-[calc(0.4rem+env(safe-area-inset-bottom))] pt-2 shadow-float backdrop-blur-xl">
-          <BarLink item={home} active={isNavActive(pathname, home.href)} />
-          <BarLink item={vehicles} active={isNavActive(pathname, vehicles.href)} />
+          <BarLink item={left1} active={isNavActive(pathname, left1.href)} />
+          <BarLink item={left2} active={isNavActive(pathname, left2.href)} />
 
           {/* Centre slot — label stays in flow, the icon floats above the bar */}
           <div className="flex flex-1 flex-col items-center">
             <Link
-              href={track.href}
-              aria-label={track.label}
+              href={centre.href}
+              aria-label={centre.label}
               className={cn(
                 "-mt-8 flex size-14 items-center justify-center rounded-full text-white shadow-float ring-4 ring-card transition-transform active:scale-95",
-                trackActive ? "bg-primary" : "bg-primary/90",
+                centreActive ? "bg-primary" : "bg-primary/90",
               )}
             >
-              <track.icon className="size-6" strokeWidth={2.2} />
+              <centre.icon className="size-6" strokeWidth={2.2} />
             </Link>
             <span
               className={cn(
                 "mt-1 max-w-full truncate text-[10px] font-semibold",
-                trackActive ? "text-primary" : "text-muted-foreground",
+                centreActive ? "text-primary" : "text-muted-foreground",
               )}
             >
-              {track.label}
+              {centre.label}
             </span>
           </div>
 
-          <BarLink item={alertsItem} active={isNavActive(pathname, alertsItem.href)} badge={activeAlerts} />
+          <BarLink item={right1} active={isNavActive(pathname, right1.href)} badge={rightBadge} />
           <button
             type="button"
             onClick={() => setMoreOpen(true)}

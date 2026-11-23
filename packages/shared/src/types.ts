@@ -35,6 +35,8 @@ export interface Vehicle {
   color: string;
   status: VehicleStatus;
   deviceModelId: string; // links to protocols DeviceModel
+  /** Bound tracker row id — used for device sharing/binding. */
+  deviceId?: string;
   imei: string;
   simMsisdn: string;
   /** Admin-entered tracker name (devices.name) — shown in live tracking

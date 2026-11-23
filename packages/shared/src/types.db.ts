@@ -714,6 +714,20 @@ export type Database = {
         Update: Partial<Omit<Database["public"]["Tables"]["ignition_events"]["Row"], "id" | "created_at">>;
         Relationships: [];
       };
+      device_shares: {
+        Row: {
+          id: string;
+          device_id: string;
+          from_tenant_id: string;
+          to_tenant_id: string;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["device_shares"]["Row"], "id" | "created_at"> &
+          Partial<Pick<Database["public"]["Tables"]["device_shares"]["Row"], "id" | "created_at">>;
+        Update: Partial<Omit<Database["public"]["Tables"]["device_shares"]["Row"], "id" | "device_id" | "from_tenant_id" | "to_tenant_id" | "created_at">>;
+        Relationships: [];
+      };
       admin_impersonations: {
         Row: {
           id: string;

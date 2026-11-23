@@ -40,6 +40,7 @@ function toDomainVehicle(
     color: row.color ?? "#1E40FF",
     status,
     deviceModelId: device?.device_model ?? "",
+    deviceId: row.device_id ?? undefined,
     imei: device?.imei ?? "",
     simMsisdn: device?.phone_number ?? device?.sim_number ?? "",
     deviceName: device?.name ?? "",
@@ -95,10 +96,13 @@ export function useFleet(): {
   vehicles: Vehicle[];
   live: boolean;
   trails: Record<string, [number, number][]>;
+  /** Device ids shared INTO this tenant by another account (binding). */
+  sharedDeviceIds: Set<string>;
 } {
   const [fleet, setFleet] = useState<Vehicle[]>(cachedFleet);
   const [live, setLive] = useState(cachedFleet.length > 0);
   const [trails, setTrails] = useState<Record<string, [number, number][]>>({});
+  const [sharedDeviceIds, setSharedDeviceIds] = useState<Set<string>>(new Set());
   const refreshTick = useLiveRefreshTick();
   const rowsRef = useRef<Map<string, VehicleRow>>(new Map());
   const positionsRef = useRef<Map<string, PositionRow>>(new Map());
@@ -124,7 +128,8 @@ export function useFleet(): {
       try {
         const { supabase } = await import("@/lib/supabase");
 
-        const [{ data: vehicleRows, error: vErr }, { data: positionRows, error: pErr }, { data: deviceRows }] =
+        const { data: myTenant } = await supabase.rpc("auth_tenant_id");
+        const [{ data: vehicleRows, error: vErr }, { data: positionRows, error: pErr }, { data: deviceRows }, { data: shareRows }] =
           await Promise.all([
             supabase.from("vehicles").select("*").limit(500),
             supabase
@@ -133,6 +138,11 @@ export function useFleet(): {
               .order("recorded_at", { ascending: false })
               .limit(2000),
             supabase.from("devices").select("*").limit(500),
+            /* Incoming bindings — devices other tenants shared with us. */
+            supabase
+              .from("device_shares")
+              .select("device_id")
+              .eq("to_tenant_id", (myTenant as string | null) ?? ""),
           ]);
 
         if (cancelled) return;
@@ -159,6 +169,7 @@ export function useFleet(): {
         for (const p of latest.values()) {
           if (p.recorded_at > newestFixRef.current) newestFixRef.current = p.recorded_at;
         }
+        setSharedDeviceIds(new Set((shareRows ?? []).map((s) => s.device_id)));
         const fresh = vehicleRows.map((r) => toDomainVehicle(r, latest.get(r.id), deviceFor(r)));
         cachedFleet = fresh;
         setFleet(fresh);
@@ -300,5 +311,5 @@ export function useFleet(): {
     };
   }, [refreshTick]);
 
-  return { vehicles: fleet, live, trails };
+  return { vehicles: fleet, live, trails, sharedDeviceIds };
 }

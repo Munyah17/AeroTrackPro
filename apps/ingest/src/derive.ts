@@ -115,7 +115,7 @@ function fuelStateFor(device: DeviceRecord): FuelMem {
 
 async function analyzeFuel(device: DeviceRecord, position: Position, s: DeviceState) {
   const attrs = (position.attributes ?? {}) as Record<string, unknown>;
-  const level = fuelLevelPct(attrs);
+  const level = fuelLevelPct(attrs, device.fuel_capacity_l);
   const used = fuelUsedLitres(attrs);
   if (level == null && used == null) return;
 
@@ -354,10 +354,7 @@ function s_markAccrual(id: string, ts: number) {
   accrualAt.set(id, ts);
 }
 
-/*/* ---- fuel probe / flow-meter anomalies ---- */
-  await analyzeFuel(device, position, s);
-
-   ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------ */
 /* Driver events: harsh braking / acceleration, idling                   */
 /* ------------------------------------------------------------------ */
 
@@ -459,6 +456,9 @@ export async function deriveTelemetry(device: DeviceRecord, position: Position) 
   /* ---- ignition events + engine hours ---- */
   await recordIgnition(device, fix, s.ignition);
   if (fix.ignition !== undefined) s.ignition = fix.ignition;
+
+  /* ---- fuel probe / flow-meter anomalies ---- */
+  await analyzeFuel(device, position, s);
 
   /* ---- harsh driving ---- */
   if (contiguous && prev && dtMs <= HARSH_WINDOW_MS) {

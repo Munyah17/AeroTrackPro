@@ -14,7 +14,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VehicleStatusChip } from "@/components/shared/status";
 import { LIVE_STATUS, vehicleLiveStatus, type LiveStatus } from "@/lib/live-status";
 import { cn } from "@/lib/utils";
-import { coords, kmh, mapLinks, timeAgo } from "@/lib/format";
+import { kmh, mapLinks, timeAgo } from "@/lib/format";
+import { usePlaceName } from "@/lib/geocode";
 
 const FleetMap = dynamic(() => import("@/components/map/fleet-map").then((m) => m.FleetMap), {
   ssr: false,
@@ -26,10 +27,12 @@ type StatusFilter = "all" | LiveStatus;
 function VehicleRow({
   vehicle,
   selected,
+  shared,
   onClick,
 }: {
   vehicle: Vehicle;
   selected: boolean;
+  shared?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -55,6 +58,11 @@ function VehicleRow({
         <div className="flex items-center gap-1.5">
           <span className="truncate text-[13px] font-semibold">{vehicle.plate}</span>
           {vehicle.favourite && <Star className="size-3 shrink-0 fill-warning text-warning" />}
+          {shared && (
+            <span className="shrink-0 rounded-full bg-info/10 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-info">
+              Shared
+            </span>
+          )}
         </div>
         <div className="truncate text-[11.5px] text-muted-foreground">{vehicle.name}</div>
       </div>
@@ -83,6 +91,7 @@ function VehicleSummary({
   onMinimize?: () => void;
 }) {
   const p = vehicle.position;
+  const placeName = usePlaceName(p.lat, p.lng);
   const vehicleLine = [vehicle.make, vehicle.model, vehicle.year || null].filter(Boolean).join(" ");
   const stats: { icon: typeof Gauge; label: string; value: string }[] = [
     { icon: Gauge, label: "Speed", value: kmh(p.speedKmh) },
@@ -104,13 +113,8 @@ function VehicleSummary({
             <VehicleStatusChip status={vehicle.status} sleeping={vehicle.sleeping} />
           </div>
           <p className="mt-1 truncate text-[12.5px] text-muted-foreground">
-            {[vehicle.name, vehicleLine].filter(Boolean).join(" · ") || "Vehicle"}
+            {[vehicle.name, vehicleLine].filter(Boolean).join(" · ") || vehicle.plate}
           </p>
-          {vehicle.deviceName && vehicle.deviceName !== vehicle.name && (
-            <p className="mt-0.5 truncate text-[11px] text-muted-foreground/80">
-              Tracker: {vehicle.deviceName}
-            </p>
-          )}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           {onMinimize && (
@@ -137,11 +141,9 @@ function VehicleSummary({
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13.5px] font-semibold leading-snug">
-            {p.address || coords(p.lat, p.lng)}
+            {placeName ?? p.address ?? "Location unavailable"}
           </div>
           <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span className="truncate">{coords(p.lat, p.lng)}</span>
-            <span className="shrink-0">·</span>
             <span className="shrink-0">{timeAgo(p.updatedAt)}</span>
           </div>
         </div>
@@ -157,15 +159,15 @@ function VehicleSummary({
         ))}
       </div>
 
-      <div className="mt-4 flex flex-col gap-2 min-[420px]:flex-row">
-        <Button render={<a href={`/vehicles/${vehicle.id}`} />} size="sm" className="h-11 w-full min-w-0 flex-1 gap-2 rounded-xl text-[13px] font-semibold shadow-card">
+      <div className="mt-4 flex gap-2">
+        <Button render={<a href={`/vehicles/${vehicle.id}`} />} size="sm" className="h-11 min-w-0 flex-1 gap-2 rounded-xl text-[13px] font-semibold shadow-card">
           Details &amp; trips <ChevronRight className="size-4" />
         </Button>
         <Button
           render={<a href={mapLinks.google(p.lat, p.lng)} target="_blank" rel="noreferrer" />}
           variant="outline"
           size="sm"
-          className="h-11 w-full min-w-0 flex-1 gap-2 rounded-xl text-[13px]"
+          className="h-11 min-w-0 flex-1 gap-2 rounded-xl text-[13px]"
         >
           <Navigation className="size-4" /> Navigate
         </Button>
@@ -175,7 +177,7 @@ function VehicleSummary({
 }
 
 export default function TrackingPage() {
-  const { vehicles, trails } = useFleet();
+  const { vehicles, trails, sharedDeviceIds } = useFleet();
   const { rows: geofences } = useGeofences();
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [query, setQuery] = useState("");
@@ -329,7 +331,13 @@ export default function TrackingPage() {
             </div>
             <div className="scrollbar-thin min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
               {filtered.map((v) => (
-                <VehicleRow key={v.id} vehicle={v} selected={v.id === selectedId} onClick={() => selectVehicle(v.id)} />
+                <VehicleRow
+                  key={v.id}
+                  vehicle={v}
+                  selected={v.id === selectedId}
+                  shared={!!v.deviceId && sharedDeviceIds.has(v.deviceId)}
+                  onClick={() => selectVehicle(v.id)}
+                />
               ))}
               {filtered.length === 0 && (
                 <div className="p-6 text-center text-[13px] text-muted-foreground">No vehicles match.</div>

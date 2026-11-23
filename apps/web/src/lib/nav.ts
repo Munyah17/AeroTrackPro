@@ -2,7 +2,6 @@ import {
   Activity,
   AlertTriangle,
   BadgeDollarSign,
-  BarChart3,
   Bell,
   Building2,
   Car,
@@ -17,8 +16,9 @@ import {
   HardDrive,
   Hexagon,
   History,
+  Home,
   KeyRound,
-  LayoutDashboard,
+  LineChart,
   LifeBuoy,
   Lock,
   Mail,
@@ -63,7 +63,7 @@ export interface NavSection {
 export const FLEET_NAV: NavSection[] = [
   {
     items: [
-      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      { label: "Dashboard", href: "/dashboard", icon: Home },
       { label: "Live Tracking", href: "/tracking", icon: Navigation },
       { label: "Vehicles", href: "/vehicles", icon: Car },
       { label: "Trips", href: "/trips", icon: Route },
@@ -78,7 +78,7 @@ export const FLEET_NAV: NavSection[] = [
       { label: "Maintenance", href: "/maintenance", icon: Wrench },
       { label: "Fuel & Coupons", href: "/fuel", icon: Fuel },
       { label: "Insurance", href: "/insurance", icon: ShieldCheck },
-      { label: "Reports", href: "/reports", icon: BarChart3 },
+      { label: "Reports", href: "/reports", icon: LineChart },
     ],
   },
   {
@@ -100,7 +100,7 @@ export const FLEET_NAV: NavSection[] = [
 /** Master admin navigation — running the tracking business itself. */
 export const ADMIN_NAV: NavSection[] = [
   {
-    items: [{ label: "Overview", href: "/admin", icon: LayoutDashboard }],
+    items: [{ label: "Overview", href: "/admin", icon: Home }],
   },
   {
     label: "Network",

@@ -105,6 +105,17 @@ export const FUEL_USED_KEYS = [
   "fuelCounter",
   "totalFuelUsed",
 ];
+/** Absolute tank-volume attribute keys (litres). Used when a probe reports
+    volume instead of percent — EUROSENS Dominator "Fuel Frequency" (AVL 306)
+    and wired LLS/Modbus routes land here. */
+export const FUEL_LEVEL_LITERS_KEYS = [
+  "fuelLevelLiters",
+  "fuel_level_liters",
+  "tankLiters",
+  "tank_liters",
+  "fuelVolumeLiters",
+  "fuel_volume_liters",
+];
 
 const STATIONARY_KMH = 3;
 /** Skim window: drops older than this stop counting toward one drain. */
@@ -129,10 +140,27 @@ function numAttr(attrs: Record<string, unknown>, keys: string[]): number | null 
   return null;
 }
 
-/** Tank level % from probe attributes (values outside 0-100 treated as raw — ignored). */
-export function fuelLevelPct(attrs: Record<string, unknown>): number | null {
+/** Tank level % from probe attributes (values outside 0-100 treated as raw — ignored).
+    When no percent attribute is present but an absolute litre reading is,
+    `capacityLitres` converts it to percent. */
+export function fuelLevelPct(
+  attrs: Record<string, unknown>,
+  capacityLitres?: number | null,
+): number | null {
   const v = numAttr(attrs, FUEL_LEVEL_KEYS);
-  return v != null && v >= 0 && v <= 100 ? v : null;
+  if (v != null && v >= 0 && v <= 100) return v;
+  const litres = fuelLevelLitres(attrs);
+  if (litres != null && capacityLitres != null && capacityLitres > 0) {
+    const pct = (litres / capacityLitres) * 100;
+    return pct >= 0 && pct <= 100 ? pct : null;
+  }
+  return null;
+}
+
+/** Absolute tank volume in litres from probe attributes. */
+export function fuelLevelLitres(attrs: Record<string, unknown>): number | null {
+  const v = numAttr(attrs, FUEL_LEVEL_LITERS_KEYS);
+  return v != null && v >= 0 ? v : null;
 }
 
 /** Cumulative litres burned from a flow-meter attribute. */

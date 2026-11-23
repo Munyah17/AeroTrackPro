@@ -46,8 +46,99 @@ function u64(data: Uint8Array, offset: number): number {
   return u32(data, offset) * 0x1_0000_0000 + u32(data, offset + 4);
 }
 
+/**
+ * EUROSENS Dominator BT BLE fields forwarded by a Teltonika tracker's
+ * Bluetooth 4.0 "Advanced" preset (official eurosens-dominator-bt preset).
+ *
+ * The preset saves each BLE packet field into a Teltonika I/O element. The
+ * AVL ids below are the per-connection ids from Teltonika's BLE IO table:
+ *   Temperature 25-28, Battery 29/20/22/23, Fuel 270/273/276/279,
+ *   Fuel Frequency 306-309, Custom2 463/467/471/475, Custom3 464/468/472/476.
+ *
+ * Wire units after the official preset (multiplier 1, offset 0 except temp -40):
+ *   Fuel Frequency = tank volume in centilitres (0.01 L/bit) → /100 = litres
+ *   Custom2        = tank percent in hundredths of a percent (0.01%/bit) → /100
+ *   Fuel           = raw detector value — NOT a level, never used for analysis
+ *   Custom3        = Protocol-2 status flags (Protocol-1 presets omit it)
+ */
+type EurosensBleField =
+  | "TempC"
+  | "BatteryPct"
+  | "FuelDetector"
+  | "FuelLiters"
+  | "FuelPct"
+  | "Status";
+
+const EUROSENS_BLE_AVL: Record<number, { conn: number; field: EurosensBleField }> = {};
+{
+  const perConn: Array<{ conn: number; ids: Record<EurosensBleField, number> }> = [
+    { conn: 1, ids: { TempC: 25, BatteryPct: 29, FuelDetector: 270, FuelLiters: 306, FuelPct: 463, Status: 464 } },
+    { conn: 2, ids: { TempC: 26, BatteryPct: 20, FuelDetector: 273, FuelLiters: 307, FuelPct: 467, Status: 468 } },
+    { conn: 3, ids: { TempC: 27, BatteryPct: 22, FuelDetector: 276, FuelLiters: 308, FuelPct: 471, Status: 472 } },
+    { conn: 4, ids: { TempC: 28, BatteryPct: 23, FuelDetector: 279, FuelLiters: 309, FuelPct: 475, Status: 476 } },
+  ];
+  for (const { conn, ids } of perConn) {
+    for (const [field, id] of Object.entries(ids) as Array<[EurosensBleField, number]>) {
+      EUROSENS_BLE_AVL[id] = { conn, field };
+    }
+  }
+}
+
+function mapEurosensBle(id: number, value: number | bigint, attributes: Record<string, unknown>): boolean {
+  const hit = EUROSENS_BLE_AVL[id];
+  if (!hit) return false;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return true;
+  const key = `eurosens${hit.field}${hit.conn}`;
+  switch (hit.field) {
+    case "TempC":
+      // Official preset applies offset -40, so the AVL value is already °C.
+      attributes[key] = n;
+      break;
+    case "BatteryPct":
+      attributes[key] = n;
+      break;
+    case "FuelDetector":
+      attributes[key] = n; // raw detector — informational only
+      break;
+    case "FuelLiters":
+      attributes[key] = n / 100; // centilitres → litres
+      break;
+    case "FuelPct":
+      attributes[key] = n / 100; // 0.01% → percent
+      break;
+    case "Status":
+      attributes[key] = n;
+      break;
+  }
+  return true;
+}
+
+/** Pick the lowest-numbered BLE connection that carries a usable tank percent
+    (or, failing that, a litre volume) and expose it to the shared fuel
+    analyzer as `fuelLevel` / `fuelLevelLiters`. */
+function normalizeEurosensFuel(attributes: Record<string, unknown>): void {
+  for (let conn = 1; conn <= 4; conn++) {
+    const pctRaw = attributes[`eurosensFuelPct${conn}`];
+    const litresRaw = attributes[`eurosensFuelLiters${conn}`];
+    const pct = typeof pctRaw === "number" ? pctRaw : typeof pctRaw === "string" ? Number(pctRaw) : NaN;
+    const litres = typeof litresRaw === "number" ? litresRaw : typeof litresRaw === "string" ? Number(litresRaw) : NaN;
+    const hasPct = Number.isFinite(pct) && pct >= 0 && pct <= 100;
+    const hasLitres = Number.isFinite(litres) && litres >= 0;
+    if (!hasPct && !hasLitres) continue;
+    if (hasPct) attributes.fuelLevel = pct;
+    if (hasLitres) attributes.fuelLevelLiters = litres;
+    attributes.eurosensFuelConn = conn;
+    return;
+  }
+}
+
 /** Teltonika I/O element ids → normalized attributes (subset we care about). */
 function mapIo(id: number, value: number | bigint, attributes: Record<string, unknown>): void {
+  if (mapEurosensBle(id, value, attributes)) {
+    attributes[`io${id}`] = typeof value === "bigint" ? value.toString() : value;
+    return;
+  }
   switch (id) {
     case 239: // Ignition
       attributes.ignition = value === BigInt(1) || value === 1;
@@ -242,6 +333,8 @@ export class TeltonikaDecoder implements ProtocolDecoder {
         p = Math.max(p, recordStart + 1);
         continue;
       }
+
+      normalizeEurosensFuel(attributes);
 
       positions.push({
         deviceId,
