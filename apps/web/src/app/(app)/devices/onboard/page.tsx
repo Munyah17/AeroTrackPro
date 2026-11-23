@@ -93,6 +93,8 @@ interface CreatedTracker {
   deviceId: string;
   token: string;
   name: string;
+  /** Hidden hardware module bound as the asset's second tracker. */
+  module?: { imei: string; protocolKey: string };
 }
 
 export default function OnboardDevicePage() {
@@ -114,6 +116,11 @@ export default function OnboardDevicePage() {
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<CreatedTracker | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+
+  // Double tracking — hidden hardware module inside the laptop
+  const [addModule, setAddModule] = useState(false);
+  const [moduleImei, setModuleImei] = useState("");
+  const [moduleProtocol, setModuleProtocol] = useState<ProtocolKey>("gt06");
 
   const pickModel = (m: DeviceModel) => {
     setSelectedModel(m);
@@ -185,20 +192,53 @@ export default function OnboardDevicePage() {
         .single();
       if (deviceErr || !device) throw new Error(deviceErr?.message ?? "Failed to create device");
 
-      const { error: vehicleErr } = await supabase.from("vehicles").insert({
-        tenant_id: me.tenant_id,
-        device_id: device.id,
-        plate: deviceId,
-        name: softName.trim(),
-        kind: kind === "phone" ? "phone" : "laptop",
-        make: kind === "phone" ? "Traccar" : "AeroTrack",
-        model: kind === "phone" ? "Client App" : "Laptop Agent",
-        color: "#1E40FF",
-        status: "active",
-      } as Database["public"]["Tables"]["vehicles"]["Insert"]);
-      if (vehicleErr) throw new Error(vehicleErr.message);
+      const { data: vehicle, error: vehicleErr } = await supabase
+        .from("vehicles")
+        .insert({
+          tenant_id: me.tenant_id,
+          device_id: device.id,
+          plate: deviceId,
+          name: softName.trim(),
+          kind: kind === "phone" ? "phone" : "laptop",
+          make: kind === "phone" ? "Traccar" : "AeroTrack",
+          model: kind === "phone" ? "Client App" : "Laptop Agent",
+          color: "#1E40FF",
+          status: "active",
+        } as Database["public"]["Tables"]["vehicles"]["Insert"])
+        .select("id")
+        .single();
+      if (vehicleErr || !vehicle) throw new Error(vehicleErr?.message ?? "Failed to create asset");
 
-      setCreated({ kind, deviceId, token, name: softName.trim() });
+      /* Double tracking: a concealed hardware module reports on the TCP
+         ingest as the asset's SECOND device — either source updates the
+         same marker. */
+      let hwModule: CreatedTracker["module"];
+      if (kind === "laptop" && addModule && moduleImei.trim()) {
+        const { data: mod, error: modErr } = await supabase
+          .from("devices")
+          .insert({
+            tenant_id: me.tenant_id,
+            imei: moduleImei.trim(),
+            protocol: moduleProtocol,
+            device_model: "laptop-module",
+            name: `${softName.trim()} (module)`,
+            status: "active",
+            connection_status: "unknown",
+          } as Database["public"]["Tables"]["devices"]["Insert"])
+          .select("id")
+          .single();
+        if (modErr || !mod) throw new Error(modErr?.message ?? "Failed to register module");
+
+        const { error: bindErr } = await supabase
+          .from("vehicles")
+          .update({ secondary_device_id: mod.id })
+          .eq("id", vehicle.id);
+        if (bindErr) throw new Error(bindErr.message);
+
+        hwModule = { imei: moduleImei.trim(), protocolKey: moduleProtocol };
+      }
+
+      setCreated({ kind, deviceId, token, name: softName.trim(), module: hwModule });
       toast.success(`${kind === "phone" ? "Phone" : "Laptop"} tracker created`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create tracker");
@@ -370,9 +410,62 @@ export default function OnboardDevicePage() {
                 </p>
               </div>
 
+              {!isPhone && (
+                <div className="rounded-xl border border-border/60 p-4">
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={addModule}
+                      onChange={(e) => setAddModule(e.target.checked)}
+                      className="mt-0.5 size-4 accent-primary"
+                    />
+                    <span>
+                      <span className="text-[13px] font-semibold">Hidden GPS module</span>{" "}
+                      <span className="text-[12px] font-normal text-muted-foreground">(optional — recommended)</span>
+                      <p className="mt-1 text-[11.5px] leading-relaxed text-muted-foreground">
+                        Double tracking: a small SIM GPS module concealed inside the laptop keeps reporting even if the
+                        OS is wiped or the agent is removed. The agent and the module feed the same asset on the map.
+                      </p>
+                    </span>
+                  </label>
+                  {addModule && (
+                    <div className="mt-4 space-y-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="module-imei" className="text-[13px] font-medium">
+                          Module IMEI / tracker ID
+                        </Label>
+                        <Input
+                          id="module-imei"
+                          placeholder="Printed on the module board (8–15 digits)"
+                          value={moduleImei}
+                          onChange={(e) => setModuleImei(e.target.value.replace(/\D/g, "").slice(0, 15))}
+                          className="h-11 rounded-xl font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[13px] font-medium">Module protocol</Label>
+                        <Select value={moduleProtocol} onValueChange={(v) => v && setModuleProtocol(v as ProtocolKey)}>
+                          <SelectTrigger className="h-11 rounded-xl"><SelectValue /></SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            {ALL_PROTOCOLS.map((p) => (
+                              <SelectItem key={p.value} value={p.value}>
+                                {p.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[11px] text-muted-foreground">
+                          Most bare self-assembly boards speak GT06 — check the module&apos;s listing.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <Button
                 onClick={() => createSoftwareTracker(type)}
-                disabled={creating || !softName.trim()}
+                disabled={creating || !softName.trim() || (!isPhone && addModule && moduleImei.trim().length < 8)}
                 className="mt-6 h-11 w-full rounded-xl shadow-card"
               >
                 {creating ? "Creating…" : `Create ${isPhone ? "Phone" : "Laptop"} Tracker`}
@@ -420,7 +513,14 @@ export default function OnboardDevicePage() {
               </div>
             </Panel>
 
-            {isPhone ? <PhoneSetupGuide deviceId={created.deviceId} serverUrl={serverUrl} /> : <LaptopSetupGuide deviceId={created.deviceId} serverUrl={serverUrl} />}
+            {isPhone ? (
+              <PhoneSetupGuide deviceId={created.deviceId} serverUrl={serverUrl} />
+            ) : (
+              <>
+                <LaptopSetupGuide deviceId={created.deviceId} serverUrl={serverUrl} />
+                {created.module && <ModuleSetupGuide module={created.module} />}
+              </>
+            )}
 
             <Button render={<Link href="/tracking" />} className="h-11 w-full rounded-xl shadow-card">
               Go to Live Tracking
@@ -815,7 +915,23 @@ function PhoneSetupGuide({ deviceId, serverUrl }: { deviceId: string; serverUrl:
     },
   ];
 
+  const concealSteps = [
+    {
+      title: "Android — disguise it",
+      body: "Set the notification channel importance to Low (Settings → Apps → Traccar Client → Notifications → foreground service → Low) so no icon sits in the status bar. Rename the app via your launcher if supported, and keep the icon in the app drawer, not the home screen.",
+    },
+    {
+      title: "Android — hide the evidence",
+      body: "Turn off lock-screen notifications (Settings → Notifications → Lock screen → hide sensitive content). Note: Android 10+ no longer allows removing the launcher icon, and the persistent foreground notification is mandatory — it can only be minimized, not removed.",
+    },
+    {
+      title: "iOS — limited by Apple",
+      body: "iOS cannot hide an installed app: it always appears in Settings, the App Library and the location indicator. Maximum discretion is removing it from the Home Screen (long-press → Remove App → Remove from Home Screen) and setting Traccar Client to \"Always\" location so it reports in the background.",
+    },
+  ];
+
   return (
+    <>
     <Panel className="p-6">
       <h3 className="mb-4 flex items-center gap-2 text-[16px] font-semibold">
         <Smartphone className="size-5 text-primary" /> Set up the phone
@@ -841,6 +957,25 @@ function PhoneSetupGuide({ deviceId, serverUrl }: { deviceId: string; serverUrl:
         share it.
       </div>
     </Panel>
+      <Panel className="p-6">
+        <h3 className="mb-4 flex items-center gap-2 text-[16px] font-semibold">
+          <Smartphone className="size-5 text-primary" /> Make it discreet
+        </h3>
+        <ol className="space-y-4">
+          {concealSteps.map((s, i) => (
+            <li key={i} className="flex gap-3">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <span className="text-[13px] font-bold">{i + 1}</span>
+              </div>
+              <div>
+                <div className="text-[13.5px] font-semibold">{s.title}</div>
+                <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted-foreground">{s.body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </Panel>
+    </>
   );
 }
 
@@ -898,6 +1033,59 @@ function LaptopSetupGuide({ deviceId, serverUrl }: { deviceId: string; serverUrl
         <span className="font-semibold">Accuracy note:</span> laptops have no GPS, so the agent reports IP/Wi-Fi
         geolocation — accurate to city level (~10 km), not street level. Use it for theft recovery and &quot;is this
         laptop online / where roughly&quot; rather than precise routing.
+      </div>
+    </Panel>
+  );
+}
+
+/**
+ * Setup guide for the hidden hardware module — the second tracker in a
+ * laptop's double-tracking pair. The module talks to the TCP ingest server
+ * (not the OsmAnd endpoint) so it needs its own server/port/SMS config.
+ */
+function ModuleSetupGuide({ module }: { module: { imei: string; protocolKey: string } }) {
+  const proto = PROTOCOL_INFO[module.protocolKey] ?? { label: module.protocolKey, port: 5000 };
+  const serverIp = process.env.NEXT_PUBLIC_DEVICE_SERVER_IP || "gps.aerotrack.app";
+  const steps = [
+    {
+      title: "Choose the build",
+      body: "Use the self-assembly module as-is (board + battery + SIM slot), or re-house it in a custom shell to fit the laptop's free space — the antenna end always points toward the lid edge, away from shielding metal.",
+    },
+    {
+      title: "SIM & server",
+      body: `Fit a data SIM, then point the module at ${serverIp} port ${proto.port} (${proto.label}). Via SMS on GT06-style boards: SERVER,0,${serverIp},${proto.port},0# — check the module's manual for its exact command set.`,
+    },
+    {
+      title: "Power it",
+      body: "Wire the module's input to a 5V source that stays live with the laptop — a spare USB port's power pins or the charging circuit — or run it on its own battery for a fully independent tracker that survives shutdown.",
+    },
+    {
+      title: "Conceal & verify",
+      body: `Secure the board inside the chassis (tape/foam, away from hinges and speakers). The module reports as tracker ID ${module.imei} — its positions update the same asset as the agent on Live Tracking.`,
+    },
+  ];
+
+  return (
+    <Panel className="p-6">
+      <h3 className="mb-4 flex items-center gap-2 text-[16px] font-semibold">
+        <Radio className="size-5 text-primary" /> Set up the hidden module
+      </h3>
+      <ol className="space-y-4">
+        {steps.map((s, i) => (
+          <li key={i} className="flex gap-3">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <span className="text-[13px] font-bold">{i + 1}</span>
+            </div>
+            <div>
+              <div className="text-[13.5px] font-semibold">{s.title}</div>
+              <p className="mt-0.5 text-[12.5px] leading-relaxed text-muted-foreground">{s.body}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <div className="mt-5 rounded-xl border border-success/30 bg-success/5 p-3.5 text-[12px] leading-relaxed">
+        <span className="font-semibold">Double tracking:</span> the agent and the module are independent — OS wiped,
+        module keeps reporting; module loses signal, agent keeps reporting. One asset, one marker, two sources.
       </div>
     </Panel>
   );

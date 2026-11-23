@@ -60,10 +60,13 @@ export async function findDeviceByImei(imei: string): Promise<DeviceRecord | nul
     return null;
   }
 
+  // The device may be the asset's primary tracker or its secondary one
+  // (double tracking — e.g. a hidden module beside a laptop agent).
   const { data: vehicle } = await db()
     .from("vehicles")
     .select("id, driver_id, speed_limit_kmh, fuel_capacity_liters")
-    .eq("device_id", device.id)
+    .or(`device_id.eq.${device.id},secondary_device_id.eq.${device.id}`)
+    .limit(1)
     .maybeSingle();
 
   const record: DeviceRecord = {
