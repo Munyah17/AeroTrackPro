@@ -1,4 +1,4 @@
--- 0031: PWA install/download telemetry.
+-- 0032: PWA install/download telemetry.
 --
 -- Anonymous funnel events for the /download page and the install prompt:
 --   page_view      — someone opened the download page
