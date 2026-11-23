@@ -33,6 +33,10 @@ export function AccessGuard({ children }: { children: React.ReactNode }) {
       return;
     }
     if (role !== "super_admin") return;
+    /* The master portal embeds every surface (admin + fleet + reseller), so
+       it never needs to follow the path into a focused portal. Only the
+       dedicated fleet/reseller/tracking surfaces auto-switch. */
+    if (portal === "master") return;
     if (pathname.startsWith("/admin") && portal !== "master") setPortal("master");
     else if (pathname.startsWith("/reseller") && portal !== "reseller") setPortal("reseller");
     else if (isFleetPath(pathname) && portal !== "fleet") setPortal("fleet");

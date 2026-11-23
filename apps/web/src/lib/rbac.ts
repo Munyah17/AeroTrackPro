@@ -21,7 +21,7 @@ import {
   Wallet,
   Wrench,
 } from "lucide-react";
-import { ADMIN_NAV, FLEET_NAV, type NavSection } from "./nav";
+import { ADMIN_NAV, FLEET_NAV, type NavItem, type NavSection } from "./nav";
 
 /**
  * Account tiers.
@@ -52,8 +52,6 @@ export const ROLE_IDENTITY: Record<Role, { name: string; initials: string }> = {
   reseller: { name: "Tariro N.", initials: "TN" },
   user: { name: "Alex Moyo", initials: "AM" },
 };
-
-export const MASTER_NAV = ADMIN_NAV;
 
 /** Reseller portal — an admin dashboard for a tracking business. */
 export const RESELLER_NAV: NavSection[] = [
@@ -111,6 +109,55 @@ export const USER_NAV: NavSection[] = [
     items: [{ label: "Settings", href: "/settings", icon: Settings }],
   },
 ];
+
+/** Items of a nav section group, matched by label (undefined = unlabelled). */
+function itemsOf(nav: NavSection[], label?: string): NavItem[] {
+  return nav.filter((s) => s.label === label).flatMap((s) => s.items);
+}
+
+/** First unlabelled section's items (the "home row" of a nav). */
+function leadItems(nav: NavSection[]): NavItem[] {
+  return nav.find((s) => !s.label)?.items ?? [];
+}
+
+function dedupeSections(sections: NavSection[]): NavSection[] {
+  const seen = new Set<string>();
+  return sections
+    .map((s) => ({
+      ...s,
+      items: s.items.filter((i) => {
+        if (seen.has(i.href)) return false;
+        seen.add(i.href);
+        return true;
+      }),
+    }))
+    .filter((s) => s.items.length > 0);
+}
+
+/**
+ * Master Admin sees EVERYTHING in one sidebar — platform admin, the fleet
+ * console and the reseller console — so the business never needs a portal
+ * hop. Fleet/reseller entries point at the same routes the dedicated
+ * portals use; super_admin canVisit() already allows every path.
+ */
+export const MASTER_NAV: NavSection[] = dedupeSections([
+  ...ADMIN_NAV,
+  { label: "Fleet Live", items: leadItems(FLEET_NAV) },
+  { label: "Fleet Operations", items: itemsOf(FLEET_NAV, "Operations") },
+  { label: "Fleet Telematics", items: itemsOf(FLEET_NAV, "Telematics") },
+  {
+    label: "Reseller",
+    items: [
+      ...leadItems(RESELLER_NAV),
+      ...itemsOf(RESELLER_NAV, "Commercial"),
+      ...itemsOf(RESELLER_NAV, "White Label"),
+      /* Team + Support live under reseller "Workspace"; /settings is
+         provided once by the master Workspace section below. */
+      ...itemsOf(RESELLER_NAV, "Workspace").filter((i) => i.href !== "/settings"),
+    ],
+  },
+  { label: "Workspace", items: [{ label: "Settings", href: "/settings", icon: Settings }] },
+]);
 
 /** Corporate fleet-management console. Gated. */
 export const FLEET_PORTAL_NAV = FLEET_NAV;

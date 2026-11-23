@@ -51,8 +51,15 @@ function HeaderLinks({ brand, onDark }: { brand: BrandConfig; onDark?: boolean }
 function SiteFooter({ brand, className }: { brand: BrandConfig; className?: string }) {
   return (
     <footer className={className ?? "px-4 py-6 text-[12px] text-muted-foreground sm:px-8"}>
-      © 2026 {brand.name}
-      {brand.login.showPoweredBy && brand.name !== PLATFORM_NAME ? " · Powered by AeroTrack" : ""}
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+        <span>
+          © 2026 {brand.name}
+          {brand.login.showPoweredBy && brand.name !== PLATFORM_NAME ? " · Powered by AeroTrack" : ""}
+        </span>
+        <Link href="/download" className="font-medium text-primary underline-offset-2 hover:underline">
+          Get the app
+        </Link>
+      </div>
     </footer>
   );
 }

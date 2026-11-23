@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Bell, Check, Crown, LayoutGrid, Menu, Moon, Navigation, RefreshCw, Store, Sun, Truck, LogOut, User, Settings } from "lucide-react";
+import { Bell, Check, Crown, Download, LayoutGrid, Menu, Moon, Navigation, RefreshCw, Store, Sun, Truck, LogOut, User, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { BrandMark } from "@/components/brand/mark";
 import { useAlerts, refreshAllLiveData } from "@/hooks/use-live-data";
@@ -372,6 +372,9 @@ export function Topbar() {
           </DropdownMenuItem>
           <DropdownMenuItem className="rounded-lg" render={<Link href="/settings" />}>
             <Settings className="size-4" /> Settings
+          </DropdownMenuItem>
+          <DropdownMenuItem className="rounded-lg" render={<Link href="/download" />}>
+            <Download className="size-4" /> Get the mobile app
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem className="rounded-lg text-destructive" onClick={() => void signOut()}>

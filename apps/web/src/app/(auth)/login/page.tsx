@@ -134,6 +134,13 @@ export default function LoginPage() {
           Create one
         </Link>
       </p>
+
+      <p className="mt-4 text-center text-[12.5px] text-muted-foreground">
+        Prefer an app?{" "}
+        <Link href="/download" className="font-semibold text-primary hover:underline">
+          Install AeroTrack on your phone
+        </Link>
+      </p>
     </div>
   );
 }

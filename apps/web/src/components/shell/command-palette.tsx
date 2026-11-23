@@ -14,7 +14,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { canVisit, FLEET_PORTAL_NAV, MASTER_NAV, navFor, RESELLER_NAV, USER_NAV } from "@/lib/rbac";
+import { canVisit, FLEET_PORTAL_NAV, MASTER_NAV, navFor, USER_NAV } from "@/lib/rbac";
 import { useRole } from "./role-provider";
 
 const CommandPaletteContext = createContext<{ open: () => void }>({ open: () => {} });
@@ -45,7 +45,9 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
 
   const sections =
     role === "super_admin"
-      ? [...MASTER_NAV, ...RESELLER_NAV, ...FLEET_PORTAL_NAV, ...USER_NAV]
+      ? /* MASTER_NAV already spans admin + fleet + reseller surfaces;
+           USER_NAV adds the /fleet console entries on top. */
+        [...MASTER_NAV, ...USER_NAV]
       : [...navFor(role, portal === "fleet" ? "fleet" : role === "reseller" ? "reseller" : "tracking", fleetAccess), ...(fleetAccess ? FLEET_PORTAL_NAV : [])];
   const pages = sections
     .flatMap((s) => s.items.map((i) => ({ ...i, section: s.label })))

@@ -1147,6 +1147,22 @@ export type Database = {
         Update: Partial<Omit<Database["public"]["Tables"]["email_templates"]["Row"], "id" | "created_at">>;
         Relationships: [];
       };
+      pwa_install_events: {
+        Row: {
+          id: string;
+          event_type: "page_view" | "install_tap" | "app_installed";
+          platform: "ios" | "android" | "desktop" | "unknown";
+          user_agent: string | null;
+          created_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["pwa_install_events"]["Row"],
+          "id" | "created_at"
+        > &
+          Partial<Pick<Database["public"]["Tables"]["pwa_install_events"]["Row"], "user_agent">>;
+        Update: Partial<Omit<Database["public"]["Tables"]["pwa_install_events"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

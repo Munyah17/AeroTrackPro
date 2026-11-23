@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { BrandProvider } from "@/components/shell/brand-provider";
+import { RegisterSW } from "@/components/pwa/register-sw";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -68,6 +69,15 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  // iOS "Add to Home Screen" — standalone-capable web app.
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "AeroTrack",
+  },
+  icons: {
+    apple: "/icons/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -95,6 +105,7 @@ export default function RootLayout({
           <TooltipProvider delay={200}>{children}</TooltipProvider>
           <Toaster position="top-right" richColors />
         </BrandProvider>
+        <RegisterSW />
       </body>
     </html>
   );
