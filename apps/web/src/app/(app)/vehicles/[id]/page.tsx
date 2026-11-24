@@ -10,6 +10,7 @@ import {
   Fuel,
   Gauge,
   MapPin,
+  Pencil,
   Radio,
   Route as RouteIcon,
   History,
@@ -20,12 +21,23 @@ import {
   User,
   Wrench,
 } from "lucide-react";
-import { useDrivers, useMaintenanceItems, useTrips } from "@/hooks/use-live-data";
+import { toast } from "sonner";
+import { refreshAllLiveData, useDrivers, useMaintenanceItems, useTrips } from "@/hooks/use-live-data";
 import { useFleet } from "@/hooks/use-fleet";
 import { usePositionHistory } from "@/hooks/use-position-history";
 import { getDeviceModel } from "@aerotrack/protocols";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { PageContainer, Panel } from "@/components/shared/page";
 import { Pill, VehicleStatusChip } from "@/components/shared/status";
 import { coords, haversineKm, km, kmh, mapLinks, shortDate, shortDateTime, timeAgo } from "@/lib/format";
@@ -50,6 +62,10 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
   const { rows: maintenance } = useMaintenanceItems();
   const vehicleId = vehicles.find((v) => v.id === id)?.id;
   const [historyMs, setHistoryMs] = useState<number>(0);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPlate, setEditPlate] = useState("");
+  const [saving, setSaving] = useState(false);
   const { points: historyPoints, loading: historyLoading } = usePositionHistory(
     vehicleId,
     historyMs,
@@ -86,6 +102,27 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
   const lastTrip = vehicleTrips[0];
   const vehicleMaintenance = maintenance.filter((m) => m.vehicleId === vehicle.id);
 
+  const saveRename = async () => {
+    const name = editName.trim();
+    if (!name) return toast.error("Name is required");
+    setSaving(true);
+    try {
+      const { supabase } = await import("@/lib/supabase");
+      const { error } = await supabase
+        .from("vehicles")
+        .update({ name, plate: editPlate.trim() })
+        .eq("id", vehicle.id);
+      if (error) throw error;
+      toast.success("Vehicle renamed");
+      setEditOpen(false);
+      refreshAllLiveData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   /* Position-history trace + replay path for the map. */
   const mapPath = historyPath ?? lastTrip?.path;
 
@@ -103,10 +140,21 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
             {vehicle.blocked && <Pill tone="danger">Immobilized</Pill>}
           </div>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {vehicle.name && vehicle.name !== vehicle.plate ? `${vehicle.plate} · ` : ""}
+            {vehicle.name && vehicle.plate && vehicle.name !== vehicle.plate ? `${vehicle.plate} · ` : ""}
             {vehicle.make} {vehicle.model} {vehicle.year} · {vehicle.color}
           </p>
         </div>
+        <Button
+          variant="outline"
+          className="rounded-xl"
+          onClick={() => {
+            setEditName(vehicle.name || vehicle.plate);
+            setEditPlate(vehicle.plate === vehicle.name ? "" : vehicle.plate);
+            setEditOpen(true);
+          }}
+        >
+          <Pencil className="size-4" /> Rename
+        </Button>
         <Button render={<Link href="/commands" />} variant="outline" className="rounded-xl">
           Send Command
         </Button>
@@ -325,6 +373,48 @@ export default function VehicleDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </Panel>
       </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rename vehicle</DialogTitle>
+            <DialogDescription>
+              This label is what everyone sees on Live Tracking, the vehicle list and alerts —
+              e.g. a registration number or &quot;Toyota Corolla ACT-7038&quot;.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="veh-name">Name</Label>
+              <Input
+                id="veh-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="e.g. Toyota Corolla ACT-7038"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="veh-plate">
+                Plate / reg number <span className="font-normal text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="veh-plate"
+                value={editPlate}
+                onChange={(e) => setEditPlate(e.target.value)}
+                placeholder="Leave blank if there is no plate"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={() => void saveRename()} disabled={saving || !editName.trim()}>
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   );
 }

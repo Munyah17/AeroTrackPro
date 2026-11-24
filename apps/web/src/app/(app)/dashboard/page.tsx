@@ -28,9 +28,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { fleetStats, weeklyDistance } from "@aerotrack/shared";
-import { useAlerts, useMaintenanceItems } from "@/hooks/use-live-data";
+import { useAlerts, useInsurancePolicies, useMaintenanceItems, useTrips } from "@/hooks/use-live-data";
 import { useFleet } from "@/hooks/use-fleet";
+import { useRole } from "@/components/shell/role-provider";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageContainer, Panel } from "@/components/shared/page";
@@ -52,20 +52,56 @@ const ALERT_ICONS: Record<string, typeof Bell> = {
   sos: AlertTriangle,
 };
 
+const DAY_MS = 86_400_000;
+
 export default function DashboardPage() {
   const { vehicles } = useFleet();
   const { rows: alerts } = useAlerts();
   const { rows: maintenance } = useMaintenanceItems();
-  const fallback = fleetStats();
+  const { rows: trips } = useTrips();
+  const { rows: policies } = useInsurancePolicies();
+  const { session } = useRole();
+  const firstName = session?.fullName?.trim().split(/\s+/)[0];
+
+  const moving = vehicles.filter((v) => v.status === "moving").length;
   const stats = {
-    ...fallback,
     total: vehicles.length,
-    moving: vehicles.filter((v) => v.status === "moving").length,
+    moving,
     stopped: vehicles.filter((v) => v.status === "stopped" || v.status === "parked").length,
     idle: vehicles.filter((v) => v.status === "idle").length,
     offline: vehicles.filter((v) => v.status === "offline").length,
     activeAlerts: alerts.filter((a) => a.status === "active").length,
+    onTrackPct: vehicles.length ? Math.round((moving / vehicles.length) * 100) : 0,
   };
+
+  /* Distance stats come from recorded trips only — no estimates. */
+  const now = Date.now();
+  const distanceLast7d = trips
+    .filter((t) => now - new Date(t.startAt).getTime() < 7 * DAY_MS)
+    .reduce((s, t) => s + t.distanceKm, 0);
+  const distancePrev7d = trips
+    .filter((t) => {
+      const age = now - new Date(t.startAt).getTime();
+      return age >= 7 * DAY_MS && age < 14 * DAY_MS;
+    })
+    .reduce((s, t) => s + t.distanceKm, 0);
+  const avgDailyDistanceKm = distanceLast7d / 7;
+  const distanceTrend =
+    distancePrev7d > 0 ? Math.round(((distanceLast7d - distancePrev7d) / distancePrev7d) * 100) : undefined;
+  const weeklyDistance = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(now - (6 - i) * DAY_MS);
+    return { day: d.toLocaleDateString("en-US", { weekday: "short" }), km: 0 };
+  });
+  for (const t of trips) {
+    const ageDays = Math.floor((now - new Date(t.startAt).getTime()) / DAY_MS);
+    if (ageDays >= 0 && ageDays < 7) weeklyDistance[6 - ageDays]!.km += t.distanceKm;
+  }
+  const maxDayKm = Math.max(...weeklyDistance.map((d) => d.km));
+
+  const expiringPolicies = policies.filter((p) => {
+    if (p.status !== "active") return false;
+    return (new Date(p.expiryDate).getTime() - now) / DAY_MS <= 15;
+  });
   const donut = [
     { name: "Moving", value: stats.moving, color: "var(--chart-1)" },
     { name: "Stopped", value: stats.stopped, color: "oklch(0.72 0.09 262)" },
@@ -84,7 +120,7 @@ export default function DashboardPage() {
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <div className="min-w-0">
           <h2 className="text-2xl font-bold tracking-tight sm:text-[26px]">
-            Welcome back, Munya <span className="align-middle">👋</span>
+            Welcome back{firstName ? `, ${firstName}` : ""} <span className="align-middle">👋</span>
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Here&apos;s what&apos;s happening with your fleet today.
@@ -97,7 +133,7 @@ export default function DashboardPage() {
 
       {/* KPI row — 2 per row on phones, 4 across on wide screens */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <StatCard label="Total Vehicles" value={stats.total} icon={Car} trend={8} trendLabel="this month" compact />
+        <StatCard label="Total Vehicles" value={stats.total} icon={Car} compact />
         <StatCard
           label="Vehicles On Track"
           value={stats.moving}
@@ -117,12 +153,13 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Avg. Daily Distance"
-          value={stats.avgDailyDistanceKm}
+          value={avgDailyDistanceKm}
           decimals={1}
           suffix="km"
           icon={TrendingUp}
-          trend={12.5}
-          trendLabel="vs yesterday"
+          trend={distanceTrend}
+          trendLabel="vs last week"
+          footer={trips.length === 0 ? "No trips recorded yet" : undefined}
           delay={0.15}
           compact
         />
@@ -225,7 +262,7 @@ export default function DashboardPage() {
                 </PieChart>
               </ResponsiveContainer>
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold tabular-nums">{fleetStats().total}</span>
+                <span className="text-3xl font-bold tabular-nums">{stats.total}</span>
                 <span className="text-xs text-muted-foreground">Total</span>
               </div>
             </div>
@@ -235,7 +272,7 @@ export default function DashboardPage() {
                   <span className="size-2.5 rounded-full" style={{ background: d.color }} />
                   <span className="font-medium">{d.name}</span>
                   <span className="text-muted-foreground">
-                    {d.value} ({Math.round((d.value / fleetStats().total) * 100)}%)
+                    {d.value} ({stats.total ? Math.round((d.value / stats.total) * 100) : 0}%)
                   </span>
                 </div>
               ))}
@@ -247,7 +284,7 @@ export default function DashboardPage() {
         <Panel className="p-5">
           <div className="flex items-center justify-between">
             <h3 className="text-[15px] font-semibold">Daily Distance (km)</h3>
-            <span className="rounded-lg border px-2.5 py-1 text-xs text-muted-foreground">This Week</span>
+            <span className="rounded-lg border px-2.5 py-1 text-xs text-muted-foreground">Last 7 days</span>
           </div>
           <div className="mt-4 h-44">
             <ResponsiveContainer>
@@ -265,7 +302,7 @@ export default function DashboardPage() {
                 />
                 <Bar dataKey="km" radius={[7, 7, 2, 2]} animationDuration={800}>
                   {weeklyDistance.map((d, i) => (
-                    <Cell key={i} fill={d.km === Math.max(...weeklyDistance.map((x) => x.km)) ? "var(--chart-1)" : "oklch(0.85 0.06 262)"} />
+                    <Cell key={i} fill={d.km === maxDayKm && maxDayKm > 0 ? "var(--chart-1)" : "oklch(0.85 0.06 262)"} />
                   ))}
                 </Bar>
               </BarChart>
@@ -282,6 +319,11 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="mt-3 flex flex-col">
+            {topVehicles.length === 0 && (
+              <p className="px-2 py-6 text-center text-[13px] text-muted-foreground">
+                No road vehicles in the fleet yet.
+              </p>
+            )}
             {topVehicles.map((v) => (
               <Link
                 key={v.id}
@@ -297,7 +339,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="text-right">
                   <div className="text-[13px] font-bold text-primary tabular-nums">
-                    {km((v.odometerKm % 400) + 120)}
+                    {km(v.odometerKm ?? 0)}
                   </div>
                   <VehicleStatusChip status={v.status} sleeping={v.sleeping} className="mt-0.5" />
                 </div>
@@ -307,21 +349,29 @@ export default function DashboardPage() {
         </Panel>
       </div>
 
-      {/* Insurance strip */}
-      <Panel className="mt-4 flex flex-wrap items-center gap-4 p-5">
-        <div className="flex size-11 items-center justify-center rounded-xl bg-success/10 text-success">
-          <ShieldCheck className="size-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-[14px] font-semibold">Fleet insurance is 92% compliant</div>
-          <p className="text-[13px] text-muted-foreground">
-            2 policies expire within 15 days — renew now to stay covered.
-          </p>
-        </div>
-        <Button render={<Link href="/insurance" />} variant="outline" className="rounded-xl">
-          Review policies
-        </Button>
-      </Panel>
+      {/* Insurance strip — only when the tenant actually has policies */}
+      {policies.length > 0 && (
+        <Panel className="mt-4 flex flex-wrap items-center gap-4 p-5">
+          <div className="flex size-11 items-center justify-center rounded-xl bg-success/10 text-success">
+            <ShieldCheck className="size-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[14px] font-semibold">
+              {expiringPolicies.length === 0
+                ? `All ${policies.length} insurance ${policies.length === 1 ? "policy is" : "policies are"} current`
+                : `${expiringPolicies.length} of ${policies.length} insurance ${policies.length === 1 ? "policy expires" : "policies expire"} within 15 days`}
+            </div>
+            <p className="text-[13px] text-muted-foreground">
+              {expiringPolicies.length === 0
+                ? "No renewals due right now."
+                : "Renew now to stay covered."}
+            </p>
+          </div>
+          <Button render={<Link href="/insurance" />} variant="outline" className="rounded-xl">
+            Review policies
+          </Button>
+        </Panel>
+      )}
     </PageContainer>
   );
 }

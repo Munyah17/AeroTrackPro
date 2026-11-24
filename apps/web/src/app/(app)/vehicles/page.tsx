@@ -139,7 +139,7 @@ export default function VehiclesPage() {
                             {v.favourite && <Star className="size-3 fill-warning text-warning" />}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {v.name && v.name !== v.plate ? `${v.plate} · ` : ""}
+                            {v.name && v.plate && v.name !== v.plate ? `${v.plate} · ` : ""}
                             {v.make} {v.model} · {v.year}
                           </div>
                         </div>

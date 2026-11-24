@@ -68,7 +68,7 @@ export const FLEET_NAV: NavSection[] = [
       { label: "Live Tracking", href: "/tracking", icon: Navigation },
       { label: "Vehicles", href: "/vehicles", icon: Car },
       { label: "Trips", href: "/trips", icon: Route },
-      { label: "Alerts", href: "/alerts", icon: Bell, badge: 7 },
+      { label: "Alerts", href: "/alerts", icon: Bell },
     ],
   },
   {

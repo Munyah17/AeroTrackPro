@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
@@ -12,6 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { type NavSection } from "@/lib/nav";
 import { isNavActive, navFor, ROLE_LABELS, surfaceLabel } from "@/lib/rbac";
+import { useAlerts } from "@/hooks/use-live-data";
 import { useBrand } from "./brand-provider";
 import { useRole } from "./role-provider";
 
@@ -30,6 +32,7 @@ function NavLink({
     <Link
       href={item.href}
       onClick={onNavigate}
+      data-active={active ? "true" : undefined}
       className={cn(
         "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] font-medium transition-colors duration-150",
         active
@@ -76,7 +79,25 @@ export function Sidebar({
   const pathname = usePathname();
   const { brand } = useBrand();
   const { role, portal, fleetAccess, ready } = useRole();
-  const sections = ready ? navFor(role, portal, fleetAccess) : [];
+  const { rows: alerts } = useAlerts();
+  const activeAlerts = alerts.filter((a) => a.status === "active").length;
+  /* Badges are live counts, not nav-config constants — inject the real
+     active-alert total onto whichever Alerts link the portal shows. */
+  const sections = (ready ? navFor(role, portal, fleetAccess) : []).map((s) => ({
+    ...s,
+    items: s.items.map((i) =>
+      i.href === "/alerts" ? { ...i, badge: activeAlerts > 0 ? activeAlerts : undefined } : i,
+    ),
+  }));
+  const navRef = useRef<HTMLElement>(null);
+
+  /* The merged master nav is ~60 items — keep the active link in view after
+     navigation so the highlight (and its section) is never off-screen. */
+  useEffect(() => {
+    navRef.current
+      ?.querySelector<HTMLElement>('[data-active="true"]')
+      ?.scrollIntoView({ block: "nearest" });
+  }, [pathname]);
 
   return (
     <aside
@@ -99,7 +120,7 @@ export function Sidebar({
       </div>
 
       <ScrollArea className="min-h-0 flex-1 px-3">
-        <nav className="flex flex-col gap-5 pb-4">
+        <nav ref={navRef} className="flex flex-col gap-5 pb-4">
           {sections.map((section, i) => (
             <div key={i} className="flex flex-col gap-0.5">
               {section.label && !collapsed && (

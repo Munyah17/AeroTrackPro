@@ -139,7 +139,8 @@ export function DeviceIsland({ vehicle, onClose }: { vehicle: Vehicle | null; on
                           {displayName(vehicle)}
                         </div>
                         <div className="mt-0.5 truncate text-[11px] text-white/45">
-                          {vehicle.plate} · {LIVE_STATUS[status].label}
+                          {vehicle.plate ? `${vehicle.plate} · ` : ""}
+                          {LIVE_STATUS[status].label}
                         </div>
                       </div>
                       <button

@@ -37,7 +37,7 @@ export function AccessGuard({ children }: { children: React.ReactNode }) {
        it never needs to follow the path into a focused portal. Only the
        dedicated fleet/reseller/tracking surfaces auto-switch. */
     if (portal === "master") return;
-    if (pathname.startsWith("/admin") && portal !== "master") setPortal("master");
+    if (pathname.startsWith("/admin")) setPortal("master");
     else if (pathname.startsWith("/reseller") && portal !== "reseller") setPortal("reseller");
     else if (isFleetPath(pathname) && portal !== "fleet") setPortal("fleet");
     else if (isTrackingOnlyPath(pathname) && portal !== "tracking") setPortal("tracking");

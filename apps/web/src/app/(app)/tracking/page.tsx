@@ -65,7 +65,7 @@ function VehicleRow({
           )}
         </div>
         <div className="truncate text-[11.5px] text-muted-foreground">
-          {vehicle.name && vehicle.name !== vehicle.plate ? vehicle.plate : vehicle.name}
+          {vehicle.plate && vehicle.name !== vehicle.plate ? vehicle.plate : ""}
         </div>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
@@ -125,7 +125,7 @@ function VehicleSummary({
             <h3 className="truncate text-[18px] font-bold tracking-tight">{vehicle.name || vehicle.plate}</h3>
             <VehicleStatusChip status={vehicle.status} sleeping={vehicle.sleeping} />
           </div>
-          {vehicle.name && vehicle.name !== vehicle.plate && (
+          {vehicle.name && vehicle.plate && vehicle.name !== vehicle.plate && (
             <p className="mt-1 truncate text-[12.5px] text-muted-foreground">{vehicle.plate}</p>
           )}
         </div>
