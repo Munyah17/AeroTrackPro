@@ -88,6 +88,7 @@ export const FLEET_NAV: NavSection[] = [
       { label: "Driving Behavior", href: "/behavior", icon: Gauge },
       { label: "Device Health", href: "/device-health", icon: Activity },
       { label: "Devices", href: "/devices", icon: Radio },
+      { label: "App Trackers", href: "/devices/trackers", icon: Smartphone },
       { label: "Assets & Personal", href: "/assets", icon: PawPrint },
       { label: "Commands", href: "/commands", icon: Lock },
     ],

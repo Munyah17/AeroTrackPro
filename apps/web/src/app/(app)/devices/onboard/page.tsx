@@ -197,7 +197,7 @@ export default function OnboardDevicePage() {
         .insert({
           tenant_id: me.tenant_id,
           device_id: device.id,
-          plate: deviceId,
+          plate: "",
           name: softName.trim(),
           kind: kind === "phone" ? "phone" : "laptop",
           make: kind === "phone" ? "Traccar" : "AeroTrack",

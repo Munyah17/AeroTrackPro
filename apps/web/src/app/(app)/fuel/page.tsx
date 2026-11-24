@@ -1,60 +1,92 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Bluetooth, Droplets, Fuel as FuelIcon, Settings2, Ticket, TrendingDown } from "lucide-react";
+import { AlertTriangle, Droplets, Fuel as FuelIcon, Settings2, Ticket, TrendingDown } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Area,
-  AreaChart,
-  ResponsiveContainer,
-  Tooltip as ChartTooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { useFuelRecords } from "@/hooks/use-live-data";
+import { useFuelRecords, useTrips } from "@/hooks/use-live-data";
+import { refreshAllLiveData } from "@/hooks/use-live-data";
 import { useFleet } from "@/hooks/use-fleet";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageContainer, PageHeader, Panel } from "@/components/shared/page";
 import { Pill } from "@/components/shared/status";
 import { StatCard } from "@/components/shared/stat-card";
-import { shortDateTime, usd } from "@/lib/format";
+import { shortDateTime, timeAgo, usd } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
-const fuelTrend = [
-  { day: "May 20", level: 96 },
-  { day: "May 21", level: 84 },
-  { day: "May 22", level: 71 },
-  { day: "May 23", level: 60 },
-  { day: "May 24", level: 47 },
-  { day: "May 25", level: 38 },
-  { day: "May 26", level: 26 },
-];
+const DAY_MS = 86_400_000;
 
 export default function FuelPage() {
   const [vehicleId, setVehicleId] = useState("all");
-  const [sensorDialogOpen, setSensorDialogOpen] = useState(false);
-  const [sensorType, setSensorType] = useState<"probe" | "bluetooth" | "can">("probe");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsVehicle, setSettingsVehicle] = useState("");
+  const [capacity, setCapacity] = useState("");
+  const [saving, setSaving] = useState(false);
   const { rows: fuelRecords } = useFuelRecords();
+  const { rows: trips } = useTrips();
   const { vehicles } = useFleet();
+
+  const now = Date.now();
 
   const rows = useMemo(
     () => fuelRecords.filter((r) => r.vehicleId === vehicleId || vehicleId === "all").slice(0, 14),
     [fuelRecords, vehicleId],
   );
 
-  const refills = fuelRecords.filter((r) => r.kind === "refill");
-  const usedL = fuelRecords.filter((r) => r.kind === "consumption").reduce((n, r) => n + r.liters, 0);
-  const cost = refills.reduce((n, r) => n + (r.costUsd ?? 0), 0);
-  const theft = fuelRecords.filter((r) => r.kind === "theftSuspected").length;
+  const records30d = useMemo(
+    () => fuelRecords.filter((r) => now - new Date(r.at).getTime() < 30 * DAY_MS),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `now` is a per-render timestamp
+    [fuelRecords],
+  );
 
-  const handleSaveSensor = () => {
-    toast.success("Fuel sensor configured successfully");
-    setSensorDialogOpen(false);
+  const usedL = records30d.filter((r) => r.kind === "consumption").reduce((n, r) => n + r.liters, 0);
+  const cost = records30d.filter((r) => r.kind === "refill").reduce((n, r) => n + (r.costUsd ?? 0), 0);
+  const theft = records30d.filter((r) => r.kind === "theftSuspected").length;
+
+  /* Real consumption: trip distance ÷ fuel consumed over the same window. */
+  const trips30dKm = trips
+    .filter((t) => now - new Date(t.startAt).getTime() < 30 * DAY_MS)
+    .reduce((n, t) => n + t.distanceKm, 0);
+  const avgKml = usedL > 0 ? trips30dKm / usedL : undefined;
+
+  /* Vehicles reporting a live fuel level (probe / flow meter on the device). */
+  const fuelVehicles = vehicles
+    .filter((v) => v.fuelLevelPct != null)
+    .sort((a, b) => (a.fuelLevelPct ?? 0) - (b.fuelLevelPct ?? 0));
+
+  const openSettings = (vid?: string) => {
+    const v = vehicles.find((x) => x.id === (vid ?? settingsVehicle)) ?? vehicles[0];
+    if (v) {
+      setSettingsVehicle(v.id);
+      setCapacity(v.fuelCapacityL != null ? String(v.fuelCapacityL) : "");
+    }
+    setSettingsOpen(true);
+  };
+
+  const saveCapacity = async () => {
+    if (!settingsVehicle) return toast.error("Choose a vehicle");
+    const litres = Number(capacity);
+    if (!Number.isFinite(litres) || litres <= 0) return toast.error("Enter a tank capacity in litres");
+    setSaving(true);
+    try {
+      const { supabase } = await import("@/lib/supabase");
+      const { error } = await supabase
+        .from("vehicles")
+        .update({ fuel_capacity_liters: litres })
+        .eq("id", settingsVehicle);
+      if (error) throw error;
+      toast.success("Tank capacity saved");
+      setSettingsOpen(false);
+      refreshAllLiveData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -67,68 +99,52 @@ export default function FuelPage() {
             <Button render={<a href="/fuel/coupons" />} variant="outline" className="gap-2 rounded-xl">
               <Ticket className="size-4" /> Fuel Coupons
             </Button>
-            <Dialog open={sensorDialogOpen} onOpenChange={setSensorDialogOpen}>
+            <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
               <DialogTrigger
                 render={
-                  <Button variant="outline" className="gap-2 rounded-xl">
-                    <Settings2 className="size-4" /> Configure Sensor
+                  <Button variant="outline" className="gap-2 rounded-xl" onClick={() => openSettings()}>
+                    <Settings2 className="size-4" /> Fuel Settings
                   </Button>
                 }
               />
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Configure Fuel Sensor</DialogTitle>
+                  <DialogTitle>Fuel settings</DialogTitle>
+                  <DialogDescription>
+                    Set each vehicle&apos;s tank capacity — the platform uses it to convert probe
+                    percentages into litres. Theft detection is automatic: the system learns every
+                    vehicle&apos;s consumption baseline and flags abnormal drops.
+                  </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs">Sensor type</Label>
-                    <RadioGroup value={sensorType} onValueChange={(v) => setSensorType(v as typeof sensorType)}>
-                      <div className="flex items-center space-x-2 rounded-lg border border-border/60 p-3">
-                        <RadioGroupItem value="probe" id="probe" />
-                        <Label htmlFor="probe" className="flex-1 cursor-pointer text-sm">
-                          Fuel probe (wired)
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2 rounded-lg border border-border/60 p-3">
-                        <RadioGroupItem value="bluetooth" id="bluetooth" />
-                        <Label htmlFor="bluetooth" className="flex-1 cursor-pointer text-sm">
-                          <Bluetooth className="mr-1.5 inline size-3.5" />
-                          Bluetooth fuel sensor
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2 rounded-lg border border-border/60 p-3">
-                        <RadioGroupItem value="can" id="can" />
-                        <Label htmlFor="can" className="flex-1 cursor-pointer text-sm">
-                          CAN bus (built-in)
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Tank capacity (L)</Label>
-                      <Input type="number" defaultValue="80" className="rounded-lg" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Calibration offset</Label>
-                      <Input type="number" defaultValue="0" step="0.1" className="rounded-lg" />
-                    </div>
-                  </div>
-
+                <div className="space-y-4 pt-2">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Theft detection threshold</Label>
-                    <div className="flex items-center gap-2">
-                      <Input type="number" defaultValue="10" step="1" className="rounded-lg" />
-                      <span className="text-sm text-muted-foreground">liters</span>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      Alert if fuel drops by this amount while ignition is off
-                    </p>
+                    <Label className="text-xs">Vehicle</Label>
+                    <Select value={settingsVehicle} onValueChange={(v) => v && openSettings(v)}>
+                      <SelectTrigger className="rounded-lg">
+                        <SelectValue placeholder="Choose vehicle" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        {vehicles.map((v) => (
+                          <SelectItem key={v.id} value={v.id}>
+                            {v.name || v.plate}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-
-                  <Button onClick={handleSaveSensor} className="w-full rounded-xl">
-                    Save Configuration
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Tank capacity (litres)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={capacity}
+                      onChange={(e) => setCapacity(e.target.value)}
+                      placeholder="e.g. 80"
+                      className="rounded-lg"
+                    />
+                  </div>
+                  <Button onClick={() => void saveCapacity()} disabled={saving} className="w-full rounded-xl">
+                    {saving ? "Saving…" : "Save"}
                   </Button>
                 </div>
               </DialogContent>
@@ -139,8 +155,8 @@ export default function FuelPage() {
               </SelectTrigger>
               <SelectContent className="rounded-xl">
                 <SelectItem value="all">All vehicles</SelectItem>
-                {vehicles.filter((v) => v.fuelCapacityL !== undefined).slice(0, 12).map((v) => (
-                  <SelectItem key={v.id} value={v.id}>{v.plate} — {v.name}</SelectItem>
+                {vehicles.slice(0, 12).map((v) => (
+                  <SelectItem key={v.id} value={v.id}>{v.name || v.plate}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -151,9 +167,17 @@ export default function FuelPage() {
       <div className="mb-4 grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Fuel Used (30d)" value={usedL} suffix="L" icon={FuelIcon} />
         <StatCard label="Fuel Cost (30d)" value={cost} suffix="USD" icon={Droplets} delay={0.05} />
-        <StatCard label="Avg Consumption" value={8.5} decimals={1} suffix="km/L" icon={TrendingDown} delay={0.1} />
         <StatCard
-          label="Theft Alerts"
+          label="Avg Consumption"
+          value={avgKml ?? 0}
+          decimals={1}
+          suffix="km/L"
+          icon={TrendingDown}
+          delay={0.1}
+          footer={avgKml == null ? "No consumption recorded yet" : undefined}
+        />
+        <StatCard
+          label="Theft Alerts (30d)"
           value={theft}
           icon={AlertTriangle}
           iconClassName="bg-destructive/10 text-destructive"
@@ -163,32 +187,43 @@ export default function FuelPage() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
         <Panel className="p-5 xl:col-span-3">
-          <h3 className="text-[15px] font-semibold">Fuel Level (7 days)</h3>
-          <div className="mt-4 h-64">
-            <ResponsiveContainer>
-              <AreaChart data={fuelTrend}>
-                <defs>
-                  <linearGradient id="fuelFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.25} />
-                    <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="day" axisLine={false} tickLine={false} fontSize={11} stroke="var(--muted-foreground)" />
-                <YAxis axisLine={false} tickLine={false} fontSize={11} width={34} unit="%" stroke="var(--muted-foreground)" />
-                <ChartTooltip
-                  contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)", fontSize: 12 }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="level"
-                  stroke="var(--chart-1)"
-                  strokeWidth={2.5}
-                  fill="url(#fuelFill)"
-                  animationDuration={900}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          <h3 className="text-[15px] font-semibold">Current Fuel Levels</h3>
+          {fuelVehicles.length === 0 ? (
+            <p className="mt-6 text-center text-[13px] text-muted-foreground">
+              No fuel-probe readings yet — levels appear once a device with a fuel sensor reports.
+            </p>
+          ) : (
+            <div className="mt-4 flex flex-col gap-3">
+              {fuelVehicles.map((v) => {
+                const pctLeft = Math.round(v.fuelLevelPct ?? 0);
+                const litresLeft =
+                  v.fuelCapacityL != null ? Math.round(((v.fuelLevelPct ?? 0) / 100) * v.fuelCapacityL) : null;
+                return (
+                  <div key={v.id}>
+                    <div className="flex items-center justify-between gap-2 text-[12.5px]">
+                      <span className="min-w-0 truncate font-medium">{v.name || v.plate}</span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">
+                        {pctLeft}%{litresLeft != null ? ` · ~${litresLeft} L` : ""}
+                        {v.fuelCapacityL != null ? ` / ${v.fuelCapacityL} L` : ""}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all",
+                          pctLeft <= 15 ? "bg-destructive" : pctLeft <= 35 ? "bg-warning" : "bg-success",
+                        )}
+                        style={{ width: `${Math.min(100, Math.max(0, pctLeft))}%` }}
+                      />
+                    </div>
+                    <div className="mt-1 text-[10.5px] text-muted-foreground/80">
+                      Updated {timeAgo(v.lastSeenAt ?? v.position.updatedAt)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </Panel>
 
         <Panel className="overflow-hidden xl:col-span-2">
@@ -206,22 +241,32 @@ export default function FuelPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="pl-4 text-[12.5px] font-medium">{vehicles.find((v) => v.id === r.vehicleId)?.plate}</TableCell>
-                    <TableCell>
-                      <Pill tone={r.kind === "refill" ? "success" : r.kind === "theftSuspected" ? "danger" : "muted"}>
-                        {r.kind === "theftSuspected" ? "theft?" : r.kind}
-                      </Pill>
+                {rows.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-8 text-center text-[13px] text-muted-foreground">
+                      No fuel events recorded yet.
                     </TableCell>
-                    <TableCell className="text-right text-[12.5px] tabular-nums">
-                      {r.kind === "consumption" ? "-" : r.kind === "theftSuspected" ? "-" : "+"}
-                      {r.liters} L
-                      {r.costUsd ? <span className="block text-[10.5px] text-muted-foreground">{usd(r.costUsd)}</span> : null}
-                    </TableCell>
-                    <TableCell className="text-right text-[11.5px] text-muted-foreground">{shortDateTime(r.at)}</TableCell>
                   </TableRow>
-                ))}
+                )}
+                {rows.map((r) => {
+                  const v = vehicles.find((x) => x.id === r.vehicleId);
+                  return (
+                    <TableRow key={r.id}>
+                      <TableCell className="pl-4 text-[12.5px] font-medium">{v?.name || v?.plate || "—"}</TableCell>
+                      <TableCell>
+                        <Pill tone={r.kind === "refill" ? "success" : r.kind === "theftSuspected" ? "danger" : "muted"}>
+                          {r.kind === "theftSuspected" ? "theft?" : r.kind}
+                        </Pill>
+                      </TableCell>
+                      <TableCell className="text-right text-[12.5px] tabular-nums">
+                        {r.kind === "consumption" || r.kind === "theftSuspected" ? "-" : "+"}
+                        {r.liters} L
+                        {r.costUsd ? <span className="block text-[10.5px] text-muted-foreground">{usd(r.costUsd)}</span> : null}
+                      </TableCell>
+                      <TableCell className="text-right text-[11.5px] text-muted-foreground">{shortDateTime(r.at)}</TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

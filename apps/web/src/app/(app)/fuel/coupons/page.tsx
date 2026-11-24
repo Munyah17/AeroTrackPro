@@ -99,15 +99,6 @@ function generateCode() {
 }
 
 const DAY = 86_400_000;
-const iso = (d: number) => new Date(Date.now() - d * DAY).toISOString();
-
-const SEED: Coupon[] = [
-  { code: "ATF-8H2K4M9P", amountUsd: 50, litres: null, fuelType: "diesel", status: "active", driver: "Tendai Moyo", createdAt: iso(1), expiresAt: iso(-29) },
-  { code: "ATF-3N7Q1R5T", amountUsd: 40, litres: null, fuelType: "diesel", status: "active", driver: "Rudo Mapfumo", createdAt: iso(2), expiresAt: iso(-28) },
-  { code: "ATF-6B9C2D4E", amountUsd: 30, litres: null, fuelType: "petrol", status: "active", driver: "Blessing Ncube", createdAt: iso(3), expiresAt: iso(-11) },
-  { code: "ATF-1X5Y8Z2W", amountUsd: null, litres: 40, fuelType: "diesel", status: "redeemed", driver: "Tendai Moyo", createdAt: iso(5), redeemedAt: iso(2), redeemedStation: "Puma Samora Machel" },
-  { code: "ATF-7K3M9N2P", amountUsd: 25, litres: null, fuelType: "diesel", status: "redeemed", driver: "Kudzai Moyo", createdAt: iso(8), redeemedAt: iso(6), redeemedStation: "Total Borrowdale" },
-];
 
 const STATUS_TONE: Record<CouponStatus, "success" | "warning" | "muted" | "danger"> = {
   active: "success",
@@ -126,15 +117,15 @@ function redeemUrl(code: string) {
 }
 
 export default function FuelCouponsPage() {
-  const [coupons, setCoupons] = useState<Coupon[]>(SEED);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [live, setLive] = useState(false);
   const [issueOpen, setIssueOpen] = useState(false);
   const [issuing, setIssuing] = useState(false);
   const [viewing, setViewing] = useState<Coupon | null>(null);
   const ctxRef = useRef<{ tenantId: string; userId: string } | null>(null);
 
-  // Load coupons through RLS and stream changes; falls back to the demo list
-  // when there's no signed-in user (RLS returns nothing without a session).
+  // Load coupons through RLS and stream changes. No signed-in session or a
+  // failed read leaves the list empty — never simulated rows.
   useEffect(() => {
     if (!isConfigured) return;
     let cancelled = false;
@@ -417,7 +408,7 @@ export default function FuelCouponsPage() {
         <div className="flex items-center justify-between border-b border-border/60 px-5 py-3.5">
           <h3 className="text-[14px] font-semibold">Issued coupons</h3>
           <span className="text-xs text-muted-foreground">
-            {coupons.length} total · {live ? "live" : "demo"}
+            {coupons.length} total{live ? "" : " · loading…"}
           </span>
         </div>
         <div className="divide-y divide-border/50">

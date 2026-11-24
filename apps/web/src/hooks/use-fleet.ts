@@ -59,6 +59,7 @@ function toDomainVehicle(
     odometerKm: Number(row.odometer_km ?? 0),
     engineHours: (device?.engine_hours_min ?? 0) / 60,
     fuelCapacityL: Number(row.fuel_capacity_liters ?? 0) || undefined,
+    fuelLevelPct: device?.last_fuel_level != null ? Number(device.last_fuel_level) : undefined,
     gsmSignal: device?.signal_strength ?? 80,
     satellites: 10,
     /* ACC state from the device status word; fall back to motion when the

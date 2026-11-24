@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Cable, Link2, Plus, Radio, Share2 } from "lucide-react";
+import { Cable, Link2, Plus, Radio, Share2, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { DEVICE_MODELS, type DeviceModel } from "@aerotrack/protocols";
 import type { Vehicle } from "@aerotrack/shared";
@@ -80,9 +80,14 @@ export default function DevicesPage() {
         title="Devices"
         subtitle={`${DEVICE_MODELS.length} supported hardware models across 8 wire protocols`}
         actions={
-          <Button render={<Link href="/devices/onboard" />} className="gap-2 rounded-xl shadow-card">
-            <Plus className="size-4" /> Add Device
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button render={<Link href="/devices/trackers" />} variant="outline" className="gap-2 rounded-xl">
+              <Smartphone className="size-4" /> App Trackers
+            </Button>
+            <Button render={<Link href="/devices/onboard" />} className="gap-2 rounded-xl shadow-card">
+              <Plus className="size-4" /> Add Device
+            </Button>
+          </div>
         }
       />
 
