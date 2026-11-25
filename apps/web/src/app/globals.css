@@ -294,3 +294,21 @@
   animation: marquee 32s linear infinite;
 }
 
+
+/* -- printable business documents ------------------- */
+@media print {
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+  }
+  @page { margin: 12mm; }
+}

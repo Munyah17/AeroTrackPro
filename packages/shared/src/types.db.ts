@@ -489,6 +489,39 @@ export type Database = {
         Update: Partial<Omit<Database["public"]["Tables"]["fuel_stations"]["Row"], "id" | "created_at">>;
         Relationships: [];
       };
+      generated_documents: {
+        Row: {
+          id: string;
+          doc_type: "invoice" | "receipt" | "statement" | "boq" | "bom" | "waybill" | "checkout" | "transfer";
+          number: string;
+          party_name: string;
+          party_contact: string | null;
+          counterparty_name: string | null;
+          amount: number;
+          currency: string;
+          issue_date: string;
+          due_date: string | null;
+          period_start: string | null;
+          period_end: string | null;
+          details: string | null;
+          status: string;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<
+          Database["public"]["Tables"]["generated_documents"]["Row"],
+          "id" | "number" | "created_at" | "updated_at" | "status" | "currency" | "amount" | "issue_date"
+        > &
+          Partial<
+            Pick<
+              Database["public"]["Tables"]["generated_documents"]["Row"],
+              "status" | "currency" | "amount" | "issue_date"
+            >
+          >;
+        Update: Partial<Omit<Database["public"]["Tables"]["generated_documents"]["Row"], "id" | "created_at">>;
+        Relationships: [];
+      };
       drivers: {
         Row: {
           id: string;

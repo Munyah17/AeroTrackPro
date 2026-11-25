@@ -163,6 +163,49 @@ const toQuotation = (r: Row<"quotations">): Quotation => ({
   createdAt: r.created_at,
 });
 
+export type DocType = "invoice" | "receipt" | "statement" | "boq" | "bom" | "waybill" | "checkout" | "transfer";
+export type DocStatus =
+  | "draft" | "sent" | "issued" | "paid" | "completed"
+  | "in_transit" | "delivered" | "pending" | "accepted" | "void" | "cancelled";
+
+export interface GeneratedDocument {
+  id: string;
+  docType: DocType;
+  number: string;
+  partyName: string;
+  partyContact: string | null;
+  counterpartyName: string | null;
+  amount: number;
+  currency: string;
+  issueDate: string;
+  dueDate: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  details: string | null;
+  status: DocStatus;
+  notes: string | null;
+  createdAt: string;
+}
+
+const toGeneratedDocument = (r: Row<"generated_documents">): GeneratedDocument => ({
+  id: r.id,
+  docType: r.doc_type,
+  number: r.number,
+  partyName: r.party_name,
+  partyContact: r.party_contact,
+  counterpartyName: r.counterparty_name,
+  amount: Number(r.amount),
+  currency: r.currency,
+  issueDate: r.issue_date,
+  dueDate: r.due_date,
+  periodStart: r.period_start,
+  periodEnd: r.period_end,
+  details: r.details,
+  status: r.status as DocStatus,
+  notes: r.notes,
+  createdAt: r.created_at,
+});
+
 const toAddon = (r: Row<"tenant_addons">): TenantAddon => ({
   id: r.id,
   module: r.module,
@@ -370,6 +413,15 @@ export const useTenantAddons = () =>
 export const useQuotations = () =>
   useTenantTable("quotations", {
     map: toQuotation,
+    fallback: [],
+    order: "created_at",
+    tenantScoped: false,
+  });
+
+/** Platform-owner generated business documents (super-admin RLS; not tenant-scoped). */
+export const useGeneratedDocuments = () =>
+  useTenantTable("generated_documents", {
+    map: toGeneratedDocument,
     fallback: [],
     order: "created_at",
     tenantScoped: false,
