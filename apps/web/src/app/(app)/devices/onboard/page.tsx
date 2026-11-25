@@ -514,7 +514,7 @@ export default function OnboardDevicePage() {
             </Panel>
 
             {isPhone ? (
-              <PhoneSetupGuide deviceId={created.deviceId} serverUrl={serverUrl} />
+              <PhoneSetupGuide deviceId={created.deviceId} />
             ) : (
               <>
                 <LaptopSetupGuide deviceId={created.deviceId} serverUrl={serverUrl} />
@@ -891,7 +891,7 @@ function SetupRow({
   );
 }
 
-function PhoneSetupGuide({ deviceId, serverUrl }: { deviceId: string; serverUrl: string }) {
+function PhoneSetupGuide({ deviceId }: { deviceId: string }) {
   const steps = [
     {
       icon: Download,
