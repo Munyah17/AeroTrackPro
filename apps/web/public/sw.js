@@ -10,7 +10,7 @@
  *  - Everything else (API, realtime, auth) → plain network, never cached.
  */
 
-const VERSION = "v1";
+const VERSION = "v2";
 const STATIC_CACHE = `at-static-${VERSION}`;
 const PAGE_CACHE = `at-pages-${VERSION}`;
 
